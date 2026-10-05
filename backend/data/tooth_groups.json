@@ -1,0 +1,49 @@
+[
+ {
+  "name": "Upper Anteriors",
+  "teeth": [
+   "S1",
+   "S2",
+   "S4",
+   "T3",
+   "T4",
+   "T5",
+   "T6",
+   "SS1",
+   "SS3",
+   "SS4",
+   "O2",
+   "O3",
+   "O4"
+  ]
+ },
+ {
+  "name": "Lower Anteriors",
+  "teeth": [
+   "L4",
+   "L5",
+   "L6",
+   "L7",
+   "L8",
+   "L9",
+   "L11",
+   "L13"
+  ]
+ },
+ {
+  "name": "Upper Posteriors",
+  "teeth": [
+   "30",
+   "32",
+   "34"
+  ]
+ },
+ {
+  "name": "Lower Posteriors",
+  "teeth": [
+   "30",
+   "32",
+   "34"
+  ]
+ }
+]

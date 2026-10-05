@@ -1,0 +1,81 @@
+import { addDays, today, weekdayOf } from "./format";
+
+export const ACTIVE_ROUTE_STATUSES = ["published", "started", "break"];
+export const isFourDigitCase = (code) => /^\d{4}$/.test(String(code).trim());
+export const routeStops = (route, stopsById) => (route?.stopIds || []).map((id) => stopsById[id]).filter(Boolean);
+export const emailKey = (routeId, stopId) => `${routeId}:${stopId}`;
+
+export const planStopIds = (plan) =>
+  Object.entries(plan?.stopOrder || {}).sort((a, b) => Number(a[1]) - Number(b[1])).map(([id]) => id);
+
+export function validDriverPlan(route, plan) {
+  const assigned = route?.stopIds || [], planned = planStopIds(plan);
+  return Boolean(plan?.confirmed && plan.routeId === route?.id && planned.length === assigned.length
+    && new Set(planned).size === assigned.length && planned.every((id) => assigned.includes(id)));
+}
+
+export function driverPlanNeedsUpdate(route, plan) {
+  const assigned = route?.stopIds || [], planned = planStopIds(plan);
+  return Boolean(plan?.confirmed && plan.routeId === route?.id && planned.length < assigned.length && planned.every((id) => assigned.includes(id)));
+}
+
+/** Stop order the driver confirmed, with any newly added (unplaced) stops appended. */
+export function routeOrderIds(route, plan) {
+  if (!plan?.confirmed) return [...(route?.stopIds || [])];
+  const planned = planStopIds(plan).filter((id) => route.stopIds.includes(id));
+  return [...planned, ...route.stopIds.filter((id) => !planned.includes(id))];
+}
+
+export const orderedStops = (route, plan, stopsById) => routeOrderIds(route, plan).map((id) => stopsById[id]).filter(Boolean);
+
+export const readyKey = (c) => `${c.id}|${c.managerConfirmedAt}`;
+
+function readyAssignment(c, stops, routesById) {
+  for (const stop of stops) {
+    const route = routesById[stop.routeId];
+    if (!route || route.status === "cancelled" || !(route.stopIds || []).includes(stop.id)) continue;
+    const matches = (stop.deliveries || []).some((d) => (d.productionCaseId
+      ? d.productionCaseId === c.id && d.productionConfirmedAt === c.managerConfirmedAt
+      : String(d.caseNumber).trim() === String(c.code).trim() && String(stop.createdAt || route.createdAt || "") >= c.managerConfirmedAt));
+    if (matches) {
+      return { status: stop.deliveryCompleted || stop.status === "completed" ? "delivered" : "assigned", routeId: route.id, clinicId: stop.clinicId };
+    }
+  }
+  return null;
+}
+
+/** Manager-confirmed production cycles and where each one is in the delivery flow. */
+export function readyCases(cases, stops, routesById) {
+  return cases
+    .filter((c) => !c.deleted && !c.removedFromQueue && c.status === "completed" && c.completionReviewStatus === "confirmed" && c.managerConfirmedAt)
+    .map((c) => ({ ...c, assignment: readyAssignment(c, stops, routesById) }))
+    .sort((a, b) => String(a.managerConfirmedAt).localeCompare(String(b.managerConfirmedAt)));
+}
+
+export const inDraft = (c, deliveries) =>
+  deliveries.some((d) => (d.productionCaseId === c.id && d.productionConfirmedAt === c.managerConfirmedAt) || String(d.caseNumber).trim() === String(c.code).trim());
+
+export const readyAvailable = (c, deliveries) => !c.assignment && !inDraft(c, deliveries) && isFourDigitCase(c.code);
+
+export function defaultDriverDate() {
+  const day = weekdayOf(today());
+  return day === 6 ? addDays(today(), 2) : day === 0 ? addDays(today(), 1) : today();
+}
+
+export function workWeekDates(base) {
+  const monday = addDays(base, -((weekdayOf(base) + 6) % 7));
+  return [0, 1, 2, 3, 4].map((n) => addDays(monday, n));
+}
+
+export const trackingUrl = (token) => `${window.location.origin}/track?token=${token}`;
+
+export const stopJobs = (stop) => [
+  ...(stop.deliveries || []).map((d) => `Delivery ${d.caseNumber}`),
+  ...(stop.collections?.length ? ["Collection"] : []),
+].join(" • ");
+
+/** Group draft deliveries and collections by clinic: one stop per clinic, as when publishing. */
+export const draftStopCount = (collections, deliveries) => new Set([...collections, ...deliveries].map((x) => x.clinicId)).size;
+
+export const mapsUrl = (clinic) =>
+  `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent([clinic?.address, clinic?.eircode].filter(Boolean).join(", "))}`;

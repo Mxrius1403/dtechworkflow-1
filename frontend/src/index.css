@@ -1,0 +1,124 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    :root {
+        --background: 210 33% 97%;
+        --foreground: 224 71% 11%;
+        --card: 0 0% 100%;
+        --card-foreground: 224 71% 11%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 224 71% 11%;
+        --primary: 225 85% 16%;
+        --primary-foreground: 0 0% 100%;
+        --secondary: 186 100% 33%;
+        --secondary-foreground: 0 0% 100%;
+        --muted: 220 14% 95%;
+        --muted-foreground: 220 9% 44%;
+        --accent: 186 70% 94%;
+        --accent-foreground: 186 100% 22%;
+        --destructive: 346 78% 48%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 220 13% 90%;
+        --input: 220 13% 86%;
+        --ring: 186 100% 33%;
+        --radius: 0.625rem;
+    }
+
+    * {
+        @apply border-border;
+    }
+
+    body {
+        @apply bg-background text-foreground antialiased;
+        font-family: "IBM Plex Sans", system-ui, sans-serif;
+    }
+
+    h1, h2, h3, h4 {
+        font-family: "Plus Jakarta Sans", sans-serif;
+        letter-spacing: -0.01em;
+    }
+
+    ::selection {
+        background: hsl(186 100% 33% / 0.18);
+    }
+}
+
+@layer components {
+    .eyebrow {
+        @apply text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground;
+    }
+
+    .fade-up {
+        animation: fade-up 0.35s ease-out both;
+    }
+
+    .lift {
+        transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+    }
+
+    .lift:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 8px 22px -12px rgb(6 22 74 / 0.28);
+    }
+
+    .grid-dots {
+        background-image: radial-gradient(hsl(225 85% 16% / 0.07) 1px, transparent 1px);
+        background-size: 18px 18px;
+    }
+}
+
+@keyframes fade-up {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fade-up {
+        animation: none;
+    }
+    .lift:hover {
+        transform: none;
+    }
+}
+
+@layer base {
+    [data-debug-wrapper="true"] {
+        display: contents !important;
+    }
+
+    [data-debug-wrapper="true"] > * {
+        margin-left: inherit;
+        margin-right: inherit;
+        margin-top: inherit;
+        margin-bottom: inherit;
+        padding-left: inherit;
+        padding-right: inherit;
+        padding-top: inherit;
+        padding-bottom: inherit;
+        column-gap: inherit;
+        row-gap: inherit;
+        gap: inherit;
+        border-left-width: inherit;
+        border-right-width: inherit;
+        border-top-width: inherit;
+        border-bottom-width: inherit;
+        border-left-style: inherit;
+        border-right-style: inherit;
+        border-top-style: inherit;
+        border-bottom-style: inherit;
+        border-left-color: inherit;
+        border-right-color: inherit;
+        border-top-color: inherit;
+        border-bottom-color: inherit;
+    }
+}
