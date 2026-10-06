@@ -1,0 +1,1 @@
+Before making Phase 2 changes, read [`docs/phase-2-inventory.md`](../docs/phase-2-inventory.md) first. Treat its confirmed facts, UI-only gates, assumptions, and open questions separately; do not treat inferred UI access as authorization.
