@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
-import { LockKeyhole } from "lucide-react";
+import { LockKeyhole, UserRoundPlus } from "lucide-react";
 import { Field } from "@/components/common/Field";
 import { FullScreenMessage } from "@/components/common/FullScreenMessage";
 import { Button } from "@/components/ui/button";
@@ -9,10 +9,12 @@ import { APP_NAME, LOGO } from "@/config/constants";
 import { useSession } from "@/context/SessionContext";
 
 export default function SignInPage() {
-  const { user, loading, error: sessionError, signIn } = useSession();
+  const { user, loading, error: sessionError, setupRequired, signIn, createOwner } = useSession();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -25,10 +27,20 @@ export default function SignInPage() {
     setSubmitting(true);
     setError("");
     try {
-      await signIn({ email, password });
+      if (setupRequired) {
+        if (password !== confirmPassword) {
+          setError("Passwords do not match.");
+          return;
+        }
+        await createOwner({ name, email, password });
+      } else {
+        await signIn({ email, password });
+      }
       navigate("/dashboard");
     } catch (loginError) {
-      setError(loginError.response?.data?.detail || "Unable to sign in. Check your connection and try again.");
+      setError(loginError.response?.data?.detail || (setupRequired
+        ? "Unable to create the owner account. Check your connection and try again."
+        : "Unable to sign in. Check your connection and try again."));
     } finally {
       setSubmitting(false);
     }
@@ -49,17 +61,30 @@ export default function SignInPage() {
         <div className="fade-up w-full max-w-md">
           <img src={LOGO} alt="Dentaltech Group" className="-ml-3 mb-2 h-24 w-auto object-contain" />
           <h2 className="text-2xl font-bold text-primary">Dental Tech Daily</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Sign in with your staff account.</p>
-          <form className="mt-8 grid gap-4" onSubmit={submit} data-testid="signin-form">
+          <p className="mt-1 text-sm text-muted-foreground">
+            {setupRequired ? "Create the owner account to finish setting up your workspace." : "Sign in with your staff account."}
+          </p>
+          <form className="mt-8 grid gap-4" onSubmit={submit} data-testid={setupRequired ? "owner-setup-form" : "signin-form"}>
+            {setupRequired && (
+              <Field label="Name">
+                <Input type="text" autoComplete="name" required minLength={1} maxLength={100} value={name} onChange={(event) => setName(event.target.value)} data-testid="owner-setup-name" />
+              </Field>
+            )}
             <Field label="Email">
-              <Input type="email" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} data-testid="signin-email" />
+              <Input type="email" autoComplete={setupRequired ? "email" : "username"} required value={email} onChange={(event) => setEmail(event.target.value)} data-testid={setupRequired ? "owner-setup-email" : "signin-email"} />
             </Field>
             <Field label="Password">
-              <Input type="password" autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} data-testid="signin-password" />
+              <Input type="password" autoComplete={setupRequired ? "new-password" : "current-password"} required minLength={setupRequired ? 12 : undefined} maxLength={setupRequired ? 72 : undefined} value={password} onChange={(event) => setPassword(event.target.value)} data-testid={setupRequired ? "owner-setup-password" : "signin-password"} />
             </Field>
+            {setupRequired && (
+              <Field label="Confirm password">
+                <Input type="password" autoComplete="new-password" required minLength={12} maxLength={72} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} data-testid="owner-setup-confirm-password" />
+              </Field>
+            )}
             {error && <p role="alert" className="text-sm font-medium text-destructive" data-testid="signin-error">{error}</p>}
-            <Button type="submit" className="w-full" disabled={submitting} data-testid="signin-submit">
-              <LockKeyhole className="mr-2 h-4 w-4" /> {submitting ? "Signing in…" : "Sign in"}
+            <Button type="submit" className="w-full" disabled={submitting} data-testid={setupRequired ? "owner-setup-submit" : "signin-submit"}>
+              {setupRequired ? <UserRoundPlus className="mr-2 h-4 w-4" /> : <LockKeyhole className="mr-2 h-4 w-4" />}
+              {submitting ? (setupRequired ? "Creating account…" : "Signing in…") : (setupRequired ? "Create owner account" : "Sign in")}
             </Button>
           </form>
         </div>

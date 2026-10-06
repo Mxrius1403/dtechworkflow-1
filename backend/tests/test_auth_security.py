@@ -2,10 +2,10 @@ import asyncio
 
 import pytest
 from core import security
-from fastapi import HTTPException
+from fastapi import HTTPException, Response
 from pydantic import ValidationError
 from routers import auth
-from routers.auth import LoginRequest, TechnicianCreate
+from routers.auth import LoginRequest, OwnerSetup, TechnicianCreate
 from starlette.requests import Request
 
 
@@ -78,16 +78,17 @@ def test_technician_credentials_and_department_are_validated():
     )
 
 
-def test_owner_provisioning_creates_first_owner(monkeypatch):
+def test_owner_setup_creates_first_owner_and_signs_them_in(monkeypatch):
     class Collection:
         account = None
 
-        async def find_one(self, _query):
+        async def find_one(self, _query, _projection=None):
             return self.account
 
-        async def replace_one(self, _query, account, upsert):
+        async def insert_one(self, account):
+            if self.account:
+                raise auth.DuplicateKeyError("owner already exists")
             self.account = account
-            assert upsert
 
     class Database:
         def __init__(self):
@@ -98,14 +99,57 @@ def test_owner_provisioning_creates_first_owner(monkeypatch):
 
     database = Database()
     monkeypatch.setattr(auth, "db", database)
+    monkeypatch.setattr(auth, "create_session_token", lambda user_id, version: "token")
+    assert asyncio.run(auth.get_setup_status()) == {"required": True}
 
-    asyncio.run(auth.provision_owner("owner@example.com", "long-enough-password", "Owner"))
+    response = Response()
+    result = asyncio.run(
+        auth.setup_owner(
+            OwnerSetup(
+                name=" Owner ",
+                email="owner@example.com",
+                password="long-enough-password",
+            ),
+            response,
+        )
+    )
 
     assert database.collection.account["authVersion"] == 0
     assert database.collection.account["role"] == "owner"
+    assert database.collection.account["name"] == "Owner"
     assert security.verify_password(
         "long-enough-password", database.collection.account["passwordHash"]
     )
+    assert result["user"]["id"] == "OWNER001"
+    assert "dt_session=token" in response.headers["set-cookie"]
+    assert asyncio.run(auth.get_setup_status()) == {"required": False}
+
+
+def test_owner_setup_rejects_second_owner(monkeypatch):
+    class Collection:
+        async def find_one(self, _query, _projection=None):
+            return {"_id": "OWNER001"}
+
+        async def insert_one(self, _account):
+            raise auth.DuplicateKeyError("owner already exists")
+
+    class Database:
+        def __getitem__(self, _name):
+            return Collection()
+
+    monkeypatch.setattr(auth, "db", Database())
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(
+            auth.setup_owner(
+                OwnerSetup(
+                    name="Another Owner",
+                    email="other@example.com",
+                    password="long-enough-password",
+                ),
+                Response(),
+            )
+        )
+    assert error.value.status_code == 409
 
 
 def test_current_user_endpoint_rejects_requests_without_a_session():

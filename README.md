@@ -16,7 +16,7 @@ It used to be one Firebase + vanilla JS bundle (`app.js`, `logistics.js`, `enhan
 | Frontend | `frontend/` (CRA + Tailwind) on port 3000 | Calls `http://localhost:8001` by default; override with `REACT_APP_BACKEND_URL`. |
 | Database | MongoDB from `MONGO_URL` / `DB_NAME` in `backend/.env` | The sample data is filled in automatically. |
 
-Add the required settings from `backend/.env.example` to `backend/.env` before starting the backend. The backend refuses to start without an owner email/password and a random `AUTH_SECRET_KEY`.
+Add the required settings from `backend/.env.example` to `backend/.env` before starting the backend. The backend refuses to start without a random `AUTH_SECRET_KEY`. On the first visit to the website, create the owner account in the setup form.
 
 On the platform, both services run under supervisor with hot reload:
 
@@ -36,7 +36,7 @@ For a backend running on a different address, set `REACT_APP_BACKEND_URL` in `fr
 
 ### Staff sign-in
 
-The owner account is provisioned from `OWNER_NAME`, `OWNER_EMAIL` and `OWNER_PASSWORD` in `backend/.env`. The password must contain 12–72 UTF-8 bytes. Generate `AUTH_SECRET_KEY` with `openssl rand -hex 32`; use a different secret in each environment. In production, set `AUTH_COOKIE_SECURE=true` and configure `CORS_ORIGINS` with the exact frontend origin(s), comma-separated.
+On first visit, the website prompts you to create the owner account. The password must contain 12–72 UTF-8 bytes. This one-time setup is stored in MongoDB and is disabled as soon as the owner account exists. Generate `AUTH_SECRET_KEY` with `openssl rand -hex 32`; use a different secret in each environment. In production, set `AUTH_COOKIE_SECURE=true` and configure `CORS_ORIGINS` with the exact frontend origin(s), comma-separated.
 
 Sign-in uses a 30-minute JWT in an HttpOnly cookie. Passwords are bcrypt-hashed; session data is not stored in browser local storage. Sign-in attempts are throttled after five failures per client IP/email pair for 15 minutes. The owner can create technician accounts through **Technicians → Add Technician**. New accounts receive a unique ID, can sign in immediately and survive the daily demo refresh; credentials are stored in MongoDB's `auth_users` collection. The old persona picker is removed: demo staff and drivers are not valid login accounts. Driver authentication is not yet included.
 
@@ -143,6 +143,8 @@ Add `"apiName": "mongo_collection"` to `PUBLIC_COLLECTIONS` in `backend/core/col
 | Method | Path | Returns |
 |---|---|---|
 | GET | `/api/health` | `{status, mode}` |
+| GET | `/api/auth/setup` | Whether the initial owner account still needs to be created |
+| POST | `/api/auth/setup` | Create the one-time owner account; sets an HttpOnly session cookie |
 | POST | `/api/auth/login` | Sign in with `{email, password}`; sets an HttpOnly session cookie |
 | POST | `/api/auth/logout` | Revoke the current session and clear its cookie |
 | GET | `/api/auth/me` | Current authenticated staff account |

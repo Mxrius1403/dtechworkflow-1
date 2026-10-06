@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { fetchCurrentUser, login as requestLogin, logout as requestLogout } from "@/lib/api";
+import { fetchCurrentUser, fetchSetupStatus, login as requestLogin, logout as requestLogout, setupOwner as requestOwnerSetup } from "@/lib/api";
 import { notifyError } from "@/lib/notify";
 
 const SessionContext = createContext(null);
@@ -10,15 +10,25 @@ export function SessionProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [setupRequired, setSetupRequired] = useState(null);
 
   useEffect(() => {
     let active = true;
-    fetchCurrentUser()
-      .then((currentUser) => {
-        if (active) setUser(currentUser);
+    Promise.all([
+      fetchCurrentUser().catch((requestError) => {
+        if (requestError.response?.status === 401) return null;
+        throw requestError;
+      }),
+      fetchSetupStatus(),
+    ])
+      .then(([currentUser, isSetupRequired]) => {
+        if (active) {
+          setUser(currentUser);
+          setSetupRequired(isSetupRequired);
+        }
       })
       .catch((requestError) => {
-        if (active && requestError.response?.status !== 401) setError(requestError);
+        if (active) setError(requestError);
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -30,6 +40,15 @@ export function SessionProvider({ children }) {
     const authenticatedUser = await requestLogin(credentials);
     setError(null);
     setUser(authenticatedUser);
+    setSetupRequired(false);
+    return authenticatedUser;
+  }, []);
+
+  const createOwner = useCallback(async (details) => {
+    const authenticatedUser = await requestOwnerSetup(details);
+    setError(null);
+    setUser(authenticatedUser);
+    setSetupRequired(false);
     return authenticatedUser;
   }, []);
 
@@ -44,7 +63,7 @@ export function SessionProvider({ children }) {
     }
   }, [queryClient]);
 
-  const value = useMemo(() => ({ user, loading, error, signIn, signOut }), [user, loading, error, signIn, signOut]);
+  const value = useMemo(() => ({ user, loading, error, setupRequired, signIn, createOwner, signOut }), [user, loading, error, setupRequired, signIn, createOwner, signOut]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

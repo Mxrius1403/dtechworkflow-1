@@ -33,6 +33,12 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=256)
 
 
+class OwnerSetup(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    email: EmailStr
+    password: str = Field(min_length=12, max_length=72)
+
+
 class TechnicianCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     email: EmailStr
@@ -40,34 +46,69 @@ class TechnicianCreate(BaseModel):
     department: Literal["denture", "ortho", "digital"]
 
 
-async def provision_owner(email: str, password: str, name: str) -> None:
+@router.get("/setup")
+async def get_setup_status() -> dict:
     collection = db[AUTH_USERS]
-    current = await collection.find_one({"_id": "OWNER001"})
-    password_hash = (
-        current.get("passwordHash")
-        if current and verify_password(password, current.get("passwordHash", ""))
-        else hash_password(password)
-    )
-    password_changed = current is not None and password_hash != current.get(
-        "passwordHash"
-    )
+    owner = await collection.find_one({"_id": "OWNER001"}, {"_id": 1})
+    return {"required": owner is None}
+
+
+@router.post(
+    "/setup",
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_allowed_origin)],
+)
+async def setup_owner(body: OwnerSetup, response: Response) -> dict:
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Enter a name.",
+        )
+    if not 12 <= len(body.password.encode("utf-8")) <= 72:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Password must be between 12 and 72 UTF-8 bytes.",
+        )
+
+    try:
+        email = validate_email(
+            str(body.email), check_deliverability=False
+        ).normalized.lower()
+    except EmailNotValidError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Enter a valid email address.",
+        ) from error
+
     account = {
         "_id": "OWNER001",
         "name": name,
         "email": email,
-        "passwordHash": password_hash,
+        "passwordHash": hash_password(body.password),
         "role": "owner",
         "department": None,
         "active": True,
-        "authVersion": (current.get("authVersion", 0) if current else 0)
-        + int(password_changed),
-        "createdAt": (
-            current.get("createdAt")
-            if current
-            else datetime.now(timezone.utc).isoformat()
-        ),
+        "authVersion": 0,
+        "createdAt": datetime.now(timezone.utc).isoformat(),
     }
-    await collection.replace_one({"_id": account["_id"]}, account, upsert=True)
+    collection = db[AUTH_USERS]
+    try:
+        await collection.insert_one(account)
+    except DuplicateKeyError as error:
+        if await collection.find_one({"_id": "OWNER001"}):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="The owner account has already been set up.",
+            ) from error
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An account with this email already exists.",
+        ) from error
+
+    token = create_session_token(str(account["_id"]), account["authVersion"])
+    set_session_cookie(response, token)
+    return {"user": public_account(account)}
 
 
 async def allocate_technician_id() -> str:

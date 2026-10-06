@@ -5,6 +5,8 @@ export const API_BASE = `${backendUrl}/api`;
 const api = axios.create({ baseURL: API_BASE, withCredentials: true });
 
 export const fetchCurrentUser = () => api.get("/auth/me").then((r) => r.data.user);
+export const fetchSetupStatus = () => api.get("/auth/setup").then((r) => r.data.required);
+export const setupOwner = (details) => api.post("/auth/setup", details).then((r) => r.data.user);
 export const login = (credentials) => api.post("/auth/login", credentials).then((r) => r.data.user);
 export const logout = () => api.post("/auth/logout");
 export const createTechnician = (technician) => api.post("/auth/technicians", technician).then((r) => r.data.user);

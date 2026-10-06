@@ -13,9 +13,6 @@ CORS_ORIGINS = [
     for origin in os.environ.get("CORS_ORIGINS", "http://localhost:3000").split(",")
     if origin.strip()
 ]
-OWNER_EMAIL = os.environ.get("OWNER_EMAIL", "").strip().lower()
-OWNER_PASSWORD = os.environ.get("OWNER_PASSWORD", "")
-OWNER_NAME = os.environ.get("OWNER_NAME", "Dentaltech Owner").strip()
 AUTH_SECRET_KEY = os.environ.get("AUTH_SECRET_KEY", "")
 AUTH_COOKIE_SECURE = os.environ.get("AUTH_COOKIE_SECURE", "false").lower() == "true"
 
