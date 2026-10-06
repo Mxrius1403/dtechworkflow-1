@@ -1,13 +1,14 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { DataTable } from "@/components/common/DataTable";
 import { Field } from "@/components/common/Field";
-import { useData } from "@/context/DataContext";
 import { CLINIC_TEMPLATE_CSV, downloadText, normaliseClinicImport, parseClinicCsv, validateClinicImport } from "@/lib/csv";
-import { demoSave } from "@/lib/notify";
+import { importClinics } from "@/lib/api";
+import { notify, notifyError } from "@/lib/notify";
 
 function Preview({ result }) {
   if (!result) return <p className="text-sm text-muted-foreground">Choose a file to validate it before importing.</p>;
@@ -32,9 +33,11 @@ function Preview({ result }) {
   );
 }
 
+/** Import clinics from the Clinics management page. */
 export function ClinicImportDialog({ onClose }) {
-  const { clinics } = useData();
+  const queryClient = useQueryClient();
   const [result, setResult] = useState(null);
+  const [saving, setSaving] = useState(false);
   const read = async (file) => {
     if (!file) return setResult(null);
     try {
@@ -45,11 +48,19 @@ export function ClinicImportDialog({ onClose }) {
       setResult({ rows: [], errors: [`Could not read this file. ${err.message}`] });
     }
   };
-  const submit = () => {
-    const known = new Set(clinics.map((c) => `${c.name.toLowerCase()}|${c.eircode}`));
-    const updated = result.rows.filter((c) => known.has(`${c.name.toLowerCase()}|${c.eircode}`)).length;
-    demoSave(`${result.rows.length - updated} clinics added • ${updated} updated securely`);
-    onClose();
+  const submit = async () => {
+    setSaving(true);
+    try {
+      const response = await importClinics(result.rows);
+      await queryClient.invalidateQueries({ queryKey: ["data"] });
+      notify(`${response.clinics.length} clinic${response.clinics.length === 1 ? "" : "s"} imported`);
+      onClose();
+    } catch (error) {
+      const detail = error.response?.data?.detail;
+      notifyError(typeof detail === "string" ? detail : "Could not import clinics");
+    } finally {
+      setSaving(false);
+    }
   };
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -62,8 +73,8 @@ export function ClinicImportDialog({ onClose }) {
         <Field label="Clinic file"><Input type="file" accept=".csv,.json,text/csv,application/json" onChange={(e) => read(e.target.files?.[0])} data-testid="clinic-import-file" /></Field>
         <Preview result={result} />
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={onClose} data-testid="clinic-import-cancel">Cancel</Button>
-          <Button onClick={submit} disabled={!result || result.errors.length > 0} data-testid="clinic-import-submit">Import Clinics</Button>
+          <Button variant="outline" onClick={onClose} disabled={saving} data-testid="clinic-import-cancel">Cancel</Button>
+          <Button onClick={submit} disabled={!result || result.errors.length > 0 || saving} data-testid="clinic-import-submit">{saving ? "Importing…" : "Import Clinics"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

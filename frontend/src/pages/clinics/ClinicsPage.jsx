@@ -8,7 +8,7 @@ import { useData } from "@/context/DataContext";
 import { ClinicDialog } from "./ClinicDialog";
 import { ClinicImportDialog } from "./ClinicImportDialog";
 
-export function ClinicsTab() {
+export default function ClinicsPage() {
   const { clinics } = useData();
   const [editing, setEditing] = useState(null);
   const [importing, setImporting] = useState(false);
@@ -16,7 +16,7 @@ export function ClinicsTab() {
   return (
     <Panel
       title="Clinics"
-      description="Email, phone, contact person and private notes are encrypted before being stored. Operational address and Eircode remain available for routing."
+      description="Clinic updates and imports are saved to the backend. Private contact details are encrypted at rest and available through a manager-only endpoint."
       actions={<>
         <Button variant="outline" onClick={() => setImporting(true)} data-testid="clinic-import-button"><Upload /> Import Clinics</Button>
         <Button onClick={() => setEditing({})} data-testid="clinic-add-button"><Plus /> Add Clinic</Button>
@@ -26,7 +26,7 @@ export function ClinicsTab() {
         { key: "id", header: "ID", render: (c) => <span className="font-mono font-bold">{c.id}</span> },
         { key: "name", header: "Clinic", render: (c) => <><p className="font-semibold">{c.name}</p><p className="text-xs text-muted-foreground">{c.address}</p></> },
         { key: "eircode", header: "Eircode", render: (c) => <span className="font-mono text-xs">{c.eircode}</span> },
-        { key: "contact", header: "Contact data", render: (c) => <StatusBadge kind="flag" value={c.hasEmail ? "encrypted" : "protected"} label={c.hasEmail ? undefined : "Protected"} /> },
+        { key: "contact", header: "Contact data", render: (c) => <StatusBadge kind="flag" value={c.hasEmail ? "encrypted" : "protected"} label={c.hasEmail ? "Email on file" : "No email"} /> },
         { key: "active", header: "Status", render: (c) => <StatusBadge kind="account" value={c.active ? "active" : "inactive"} /> },
         { key: "edit", header: "", render: (c) => <Button size="sm" variant="outline" onClick={() => setEditing(c)} data-testid={`clinic-edit-${c.id}`}>Edit</Button> },
       ]} />

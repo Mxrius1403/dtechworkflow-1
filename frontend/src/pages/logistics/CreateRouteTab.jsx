@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,9 +7,10 @@ import { Muted } from "@/components/common/Bits";
 import { Field, NativeSelect, Options } from "@/components/common/Field";
 import { Panel } from "@/components/common/Panel";
 import { useData } from "@/context/DataContext";
+import { createLogisticsRoute } from "@/lib/api";
 import { plural } from "@/lib/format";
 import { ACTIVE_ROUTE_STATUSES, draftStopCount, isFourDigitCase } from "@/lib/logistics";
-import { demoSave, notifyError } from "@/lib/notify";
+import { notify, notifyError } from "@/lib/notify";
 
 export const ClinicOptions = ({ clinics }) => <Options items={clinics.filter((c) => c.active !== false).map((c) => [c.id, `${c.name} — ${c.eircode}`])} />;
 export const DriverOptions = ({ drivers }) => <Options items={drivers.map((d) => [d.id, `${d.id} — ${d.name}`])} />;
@@ -66,16 +68,34 @@ function DeliveriesPanel({ draft }) {
 }
 
 export function CreateRouteTab({ draft, onPublished }) {
+  const queryClient = useQueryClient();
   const { drivers, routes, byId } = useData();
+  const [saving, setSaving] = useState(false);
   const driver = byId.drivers[draft.driverId];
   const stops = draftStopCount(draft.collections, draft.deliveries);
-  const publish = () => {
+  const publish = async () => {
     if (!draft.date || !driver) return notifyError("Select date and driver");
     if (!draft.collections.length && !draft.deliveries.length) return notifyError("Add at least one delivery or collection");
     const existing = routes.find((r) => r.date === draft.date && r.driverId === driver.id && ACTIVE_ROUTE_STATUSES.includes(r.status));
-    demoSave(existing ? `Visits added to existing route ${existing.id}` : `Route published to ${driver.name} • ${plural(stops, "stop")}`);
-    draft.reset();
-    onPublished(draft.date);
+    setSaving(true);
+    try {
+      await createLogisticsRoute({
+        date: draft.date,
+        driverId: driver.id,
+        deliveries: draft.deliveries,
+        collections: draft.collections,
+      });
+      await queryClient.invalidateQueries({ queryKey: ["data"] });
+      notify(existing ? `Visits added to existing route ${existing.id}` : `Route published to ${driver.name} • ${plural(stops, "stop")}`);
+      const publishedDate = draft.date;
+      draft.reset();
+      onPublished(publishedDate);
+    } catch (error) {
+      const detail = error.response?.data?.detail;
+      notifyError(typeof detail === "string" ? detail : "Could not publish the route");
+    } finally {
+      setSaving(false);
+    }
   };
   return (
     <>
@@ -101,7 +121,7 @@ export function CreateRouteTab({ draft, onPublished }) {
             <dt className="text-muted-foreground">Stops</dt><dd className="font-mono font-bold" data-testid="summary-stops">{stops}</dd>
           </dl>
           <Muted>The driver chooses the clinic order before starting.</Muted>
-          <Button className="w-full bg-secondary hover:bg-secondary/90" onClick={publish} data-testid="route-publish"><Send /> Publish Route</Button>
+          <Button className="w-full bg-secondary hover:bg-secondary/90" onClick={publish} disabled={saving} data-testid="route-publish"><Send /> {saving ? "Publishing…" : "Publish Route"}</Button>
         </Panel>
       </div>
     </>

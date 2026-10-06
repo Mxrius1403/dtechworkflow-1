@@ -4,7 +4,7 @@ Daily Flow runs the Dentaltech lab day to day. It covers receiving, production b
 
 It used to be one Firebase + vanilla JS bundle (`app.js`, `logistics.js`, `enhancements.js`, `driver.js`, `track.js`). It is now a **React frontend** and a **FastAPI backend** with **MongoDB**. Each part lives in one clear place.
 
-> **Operational data is still a read-only demo.** Cases, routes, orders and other workflow actions use sample data and are not saved. Authentication and technician-account creation are real and stored in MongoDB.
+> **The app uses seeded demonstration records.** Authentication, technician-account creation, and Deliveries & Collections changes are saved in MongoDB. Other workflow write actions remain demo-only. Logistics changes are retained across the daily sample-data refresh.
 
 ---
 
@@ -38,7 +38,7 @@ For a backend running on a different address, set `REACT_APP_BACKEND_URL` in `fr
 
 On first visit, the website prompts you to create the owner account. The password must contain 12–72 UTF-8 bytes. This one-time setup is stored in MongoDB and is disabled as soon as the owner account exists. Generate `AUTH_SECRET_KEY` with `openssl rand -hex 32`; use a different secret in each environment. In production, set `AUTH_COOKIE_SECURE=true` and configure `CORS_ORIGINS` with the exact frontend origin(s), comma-separated.
 
-Sign-in uses a 30-minute JWT in an HttpOnly cookie. Passwords are bcrypt-hashed; session data is not stored in browser local storage. Sign-in attempts are throttled after five failures per client IP/email pair for 15 minutes. The owner can create manager accounts through **Ownership & Managers** and deactivate or reactivate manager accounts there; deactivation also invalidates existing sessions. Owners and managers can create technician accounts through **Technicians → Add Technician**. These are separate roles: manager accounts have no technician department and cannot be used as technicians. Accounts receive unique IDs, can sign in immediately and survive the daily demo refresh; credentials are stored in MongoDB's `auth_users` collection. The owner can transfer ownership to an active manager from **Ownership & Managers**; the former owner becomes a manager, and the new owner's previous sessions are invalidated. Ownership transfer uses a MongoDB multi-document transaction, so the configured MongoDB deployment must support transactions (a replica set or sharded cluster). The old persona picker is removed: demo staff and drivers are not valid login accounts. Driver authentication is not yet included.
+Sign-in uses a 30-minute JWT in an HttpOnly cookie. Passwords are bcrypt-hashed; session data is not stored in browser local storage. Sign-in attempts are throttled after five failures per client IP/email pair for 15 minutes. The owner can create manager accounts through **Ownership & Managers** and deactivate or reactivate manager accounts there; deactivation also invalidates existing sessions. Owners and managers can create technician accounts through **Technicians → Add Technician**. Drivers and clinics are managed separately through the **Drivers** and **Clinics** sidebar pages and selected when building routes in **Deliveries & Collections**. These are separate roles: manager accounts have no technician department and cannot be used as technicians. Accounts receive unique IDs, can sign in immediately and survive the daily demo refresh; credentials are stored in MongoDB's `auth_users` collection. Clinic contact fields and notes are AES-GCM encrypted using a key derived from `AUTH_SECRET_KEY`; keep that secret stable or existing clinic data cannot be decrypted. The owner can transfer ownership to an active manager from **Ownership & Managers**; the former owner becomes a manager, and the new owner's previous sessions are invalidated. Ownership transfer uses a MongoDB multi-document transaction, so the configured MongoDB deployment must support transactions (a replica set or sharded cluster). The old persona picker is removed: demo staff and drivers are not valid login accounts. Driver authentication is not yet included.
 
 The clinic tracking page is public: `/track?token=<48-hex token>`. Managers can open it from **Deliveries & Collections → Routes → Open → "Clinic page"**.
 
@@ -59,7 +59,7 @@ backend/
 │   ├── auth.py            Login/logout/current user + manager and technician account administration
 │   ├── data.py            GET /api/data (everything) and /api/data/{name}
 │   ├── catalog.py         GET /api/catalog (TDS materials + tooth groups)
-│   └── logistics.py       GET /api/tracking/{token}, GET /api/clinics/{id}/contact
+│   └── logistics.py       Public clinic tracking + authenticated logistics/clinic/driver writes
 ├── seed/                  Sample data builders (see section 4)
 └── data/                  Static JSON: materials.json, tooth_groups.json
 
@@ -82,7 +82,7 @@ frontend/src/
 │   ├── print.js           Printable PDFs (report, tooth order, material order)
 │   ├── csv.js             Clinic CSV/JSON import + template
 │   ├── api.js             Axios calls to the backend
-│   └── notify.js          Toasts + demoSave() (the Phase 2 hook)
+│   └── notify.js          Toasts + demoSave() for workflow actions not yet wired to the backend
 ├── components/
 │   ├── ui/                shadcn/ui primitives (button, dialog, tabs…)
 │   ├── common/            Shared pieces: Panel, StatCard, DataTable, StatusBadge, Field, ScanBar, MonthCalendar, ConfirmAction
@@ -98,7 +98,9 @@ frontend/src/
     ├── materials/         Order TDS (catalogue, cart, favourites) + Material Order Requests
     ├── holidays/          Technician + manager holiday screens, leave calendar
     ├── reports/           Report builder, preview, saved reports
-    ├── logistics/         Deliveries & Collections: ready cases, create route, routes, clinics, drivers
+    ├── logistics/         Deliveries & Collections: ready cases, create route and routes
+    ├── clinics/           Clinic directory, editing and CSV/JSON import
+    ├── drivers/           Driver directory and account management
     ├── driver/            Driver app: work week + mission stages
     └── tracking/          Public clinic tracking page
 ```
@@ -200,14 +202,14 @@ The items below were dropped on purpose because they only make sense with the ol
 
 **Demo-only behaviour**
 - At weekends, the driver app and logistics totals open on the next working day so the sample routes stay explorable. On weekdays this matches the original "today" behaviour.
-- Each stop in the route dialog has a "Clinic page" link to its public tracking page, because tracking emails are not really sent.
+- Tracking email delivery is not configured; route dialogs provide public clinic tracking links instead.
+- Logistics UI changes are persisted through the backend. The seed loader retains logistics collections across daily refreshes while refreshing time-relative production samples.
 
 ---
 
-## Next steps (Phase 2)
+## Remaining backend work
 
-Workflow write actions other than account creation still end in `demoSave()` in `frontend/src/lib/notify.js`, so they are easy to find with `grep -rn demoSave frontend/src`. To make one real:
+Workflow write actions outside Deliveries & Collections still end in `demoSave()` in `frontend/src/lib/notify.js`. To make one real:
 1. Add a `POST`/`PATCH` endpoint in a backend router (validate with a Pydantic model and store with `BaseDocument.to_mongo()`).
 2. Add the call to `frontend/src/lib/api.js`.
 3. Replace the `demoSave(…)` call with the API call, then refresh with `queryClient.invalidateQueries({ queryKey: ["data"] })`.
-4. Stop the daily re-seed in `backend/seed/loader.py` so saved data is kept.

@@ -7,7 +7,7 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { useData } from "@/context/DataContext";
 import { StaffDialog } from "@/pages/technicians/StaffDialog";
 
-export function DriversTab() {
+export default function DriversPage() {
   const { drivers, settings } = useData();
   const [editing, setEditing] = useState(null);
   const rows = [...drivers].sort((a, b) => a.id.localeCompare(b.id));

@@ -8,8 +8,10 @@ import { DataProvider } from "@/context/DataContext";
 import { SessionProvider, useSession } from "@/context/SessionContext";
 import AttentionPage from "@/pages/AttentionPage";
 import CaseSearchPage from "@/pages/CaseSearchPage";
+import ClinicsPage from "@/pages/clinics/ClinicsPage";
 import CompletionReviewPage from "@/pages/CompletionReviewPage";
 import DashboardPage from "@/pages/dashboard/DashboardPage";
+import DriversPage from "@/pages/drivers/DriversPage";
 import HolidaysPage from "@/pages/holidays/HolidaysPage";
 import LogisticsPage from "@/pages/logistics/LogisticsPage";
 import MaterialsPage from "@/pages/materials/MaterialsPage";
@@ -30,6 +32,8 @@ const SCREENS = [
   ["/receiving", ReceivingPage],
   ["/other-work", OtherWorkPage],
   ["/logistics", LogisticsPage],
+  ["/drivers", DriversPage],
+  ["/clinics", ClinicsPage],
   ["/case-search", CaseSearchPage],
   ["/tooth-order", ToothOrderPage],
   ["/tooth-orders", ToothOrdersPage],

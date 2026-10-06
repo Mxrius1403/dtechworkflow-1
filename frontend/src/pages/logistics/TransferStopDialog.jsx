@@ -1,21 +1,35 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Notice } from "@/components/common/Bits";
 import { Field, NativeSelect } from "@/components/common/Field";
 import { useData } from "@/context/DataContext";
-import { demoSave, notifyError } from "@/lib/notify";
+import { transferRouteStop } from "@/lib/api";
+import { notify, notifyError } from "@/lib/notify";
 import { DriverOptions } from "./CreateRouteTab";
 
 export function TransferStopDialog({ route, stop, onClose }) {
+  const queryClient = useQueryClient();
   const { drivers, byId } = useData();
   const [driverId, setDriverId] = useState("");
+  const [saving, setSaving] = useState(false);
   const options = drivers.filter((d) => d.active !== false && d.id !== route.driverId);
-  const transfer = () => {
+  const transfer = async () => {
     const target = byId.drivers[driverId];
     if (!target) return notifyError("Select a driver");
-    demoSave(`Stop transferred to ${target.name}`);
-    onClose();
+    setSaving(true);
+    try {
+      await transferRouteStop(route.id, stop.id, driverId);
+      await queryClient.invalidateQueries({ queryKey: ["data"] });
+      notify(`Stop transferred to ${target.name}`);
+      onClose();
+    } catch (error) {
+      const detail = error.response?.data?.detail;
+      notifyError(typeof detail === "string" ? detail : "Could not transfer the stop");
+    } finally {
+      setSaving(false);
+    }
   };
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -32,8 +46,8 @@ export function TransferStopDialog({ route, stop, onClose }) {
         </Field>
         <Notice tone="secure">The original tracking link is preserved. If the clinic already received its link, that same link continues to work.</Notice>
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={onClose} data-testid="transfer-cancel">Cancel</Button>
-          <Button onClick={transfer} data-testid="transfer-confirm">Transfer Destination</Button>
+          <Button variant="outline" onClick={onClose} disabled={saving} data-testid="transfer-cancel">Cancel</Button>
+          <Button onClick={transfer} disabled={saving} data-testid="transfer-confirm">{saving ? "Transferring…" : "Transfer Destination"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -30,7 +30,7 @@ for module in (auth, data, catalog, logistics):
 
 @app.get("/api/health")
 async def health() -> dict:
-    return {"status": "ok", "mode": "authenticated, read-only demo data"}
+    return {"status": "ok", "mode": "authenticated demo data with persistent logistics writes"}
 
 
 app.add_middleware(

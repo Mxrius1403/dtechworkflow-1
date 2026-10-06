@@ -1,19 +1,17 @@
-import { Building2, Car, MapPin, Route } from "lucide-react";
+import { MapPin, Route } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useState } from "react";
 import { defaultDriverDate } from "@/lib/logistics";
-import { ClinicsTab } from "./ClinicsTab";
 import { CreateRouteTab } from "./CreateRouteTab";
-import { DriversTab } from "./DriversTab";
 import { LogisticsStats } from "./LogisticsStats";
 import { ReadyCasesPanel } from "./ReadyCasesPanel";
 import { RoutesTab } from "./RoutesTab";
 import { useRouteDraft } from "./useRouteDraft";
 
-const TABS = [["routes", "Routes", MapPin], ["create", "Create Route", Route], ["clinics", "Clinics", Building2], ["drivers", "Drivers", Car]];
+const TABS = [["routes", "Routes", MapPin], ["create", "Create Route", Route]];
 
-/** Deliveries & Collections: ready cases, route building, live routes, clinics and drivers. */
+/** Deliveries & Collections: ready cases, route building and live routes. */
 export default function LogisticsPage() {
   const [params, setParams] = useSearchParams();
   const tab = TABS.some(([key]) => key === params.get("tab")) ? params.get("tab") : "routes";
@@ -34,8 +32,6 @@ export default function LogisticsPage() {
       {(tab === "routes" || tab === "create") && <ReadyCasesPanel draft={draft} onAdded={() => setTab("create")} />}
       {tab === "routes" && <RoutesTab date={routesDate} onDateChange={setRoutesDate} />}
       {tab === "create" && <CreateRouteTab draft={draft} onPublished={(date) => { setRoutesDate(date); setTab("routes"); }} />}
-      {tab === "clinics" && <ClinicsTab />}
-      {tab === "drivers" && <DriversTab />}
     </>
   );
 }
