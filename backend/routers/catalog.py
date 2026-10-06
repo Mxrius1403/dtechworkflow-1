@@ -1,11 +1,11 @@
 import json
 from functools import lru_cache
 
-from fastapi import APIRouter
-
 from core.config import DATA_DIR
+from core.security import current_account
+from fastapi import APIRouter, Depends
 
-router = APIRouter(prefix="/api/catalog", tags=["catalog"])
+router = APIRouter(prefix="/api/catalog", tags=["catalog"], dependencies=[Depends(current_account)])
 
 
 @lru_cache(maxsize=4)

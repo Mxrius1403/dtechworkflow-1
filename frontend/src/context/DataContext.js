@@ -1,8 +1,9 @@
-import { createContext, useContext, useMemo } from "react";
+import { createContext, useContext, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchAllData, fetchCatalog } from "@/lib/api";
 import { emailKey } from "@/lib/logistics";
 import { FullScreenMessage } from "@/components/common/FullScreenMessage";
+import { useSession } from "@/context/SessionContext";
 
 const DataContext = createContext(null);
 const indexById = (rows) => Object.fromEntries(rows.map((r) => [r.id, r]));
@@ -16,9 +17,14 @@ function shape(data, catalog) {
 
 /** Loads every read-only collection once from /api/data and exposes lists + lookups by id. */
 export function DataProvider({ children }) {
+  const { signOut } = useSession();
   const data = useQuery({ queryKey: ["data"], queryFn: fetchAllData });
   const catalog = useQuery({ queryKey: ["catalog"], queryFn: fetchCatalog, staleTime: Infinity });
   const value = useMemo(() => (data.data ? shape(data.data, catalog.data) : null), [data.data, catalog.data]);
+
+  useEffect(() => {
+    if (data.error?.response?.status === 401 || catalog.error?.response?.status === 401) signOut();
+  }, [data.error, catalog.error, signOut]);
 
   if (data.isError) {
     return <FullScreenMessage title="Data unavailable" text="The server could not be reached. Check the connection and try again." action={{ label: "Retry", onClick: () => data.refetch() }} />;

@@ -1,37 +1,50 @@
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
-import { useData } from "./DataContext";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { fetchCurrentUser, login as requestLogin, logout as requestLogout } from "@/lib/api";
+import { notifyError } from "@/lib/notify";
 
 const SessionContext = createContext(null);
-const STORAGE_KEY = "dt-demo-persona";
 
-const readPersona = () => {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
-  } catch {
-    return null;
-  }
-};
-
-/** Demo sign-in: the chosen persona (staff member or driver) decides which screens are available. */
 export function SessionProvider({ children }) {
-  const { byId } = useData();
-  const [persona, setPersona] = useState(readPersona);
+  const queryClient = useQueryClient();
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const signIn = useCallback((next) => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    setPersona(next);
-  }, []);
-  const signOut = useCallback(() => {
-    localStorage.removeItem(STORAGE_KEY);
-    setPersona(null);
+  useEffect(() => {
+    let active = true;
+    fetchCurrentUser()
+      .then((currentUser) => {
+        if (active) setUser(currentUser);
+      })
+      .catch((requestError) => {
+        if (active && requestError.response?.status !== 401) setError(requestError);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
   }, []);
 
-  const value = useMemo(() => {
-    const staff = persona?.kind === "staff" ? byId.users[persona.id] : null;
-    const driver = persona?.kind === "driver" ? byId.drivers[persona.id] : null;
-    const user = staff && { ...staff, isOwner: staff.role === "owner", isManager: ["owner", "manager"].includes(staff.role) };
-    return { user, driver, signIn, signOut };
-  }, [persona, byId, signIn, signOut]);
+  const signIn = useCallback(async (credentials) => {
+    const authenticatedUser = await requestLogin(credentials);
+    setError(null);
+    setUser(authenticatedUser);
+    return authenticatedUser;
+  }, []);
+
+  const signOut = useCallback(async () => {
+    try {
+      await requestLogout();
+      setUser(null);
+      setError(null);
+      queryClient.clear();
+    } catch {
+      notifyError("Could not sign out. Check your connection and try again.");
+    }
+  }, [queryClient]);
+
+  const value = useMemo(() => ({ user, loading, error, signIn, signOut }), [user, loading, error, signIn, signOut]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

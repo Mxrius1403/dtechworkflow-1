@@ -7,26 +7,14 @@ import { DataTable } from "@/components/common/DataTable";
 import { Panel } from "@/components/common/Panel";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { useData } from "@/context/DataContext";
+import { useSession } from "@/context/SessionContext";
 import { departmentName } from "@/lib/cases";
 import { isToday, today } from "@/lib/format";
-import { demoSave } from "@/lib/notify";
 import { StaffDialog } from "./StaffDialog";
-
-function nextTechId(data) {
-  const used = new Set();
-  const add = (id) => { const m = String(id || "").match(/^DT(\d+)$/); if (m) used.add(Number(m[1])); };
-  data.users.forEach((u) => add(u.id));
-  data.cases.forEach((c) => { add(c.technicianId); add(c.finishedById); });
-  [...data.otherWork, ...data.toothOrders].forEach((x) => add(x.technicianId));
-  data.materialOrders.forEach((o) => add(o.requestedById));
-  let n = 1;
-  while (used.has(n)) n += 1;
-  return `DT${String(n).padStart(3, "0")}`;
-}
 
 const Mini = ({ label, value }) => <div className="rounded-lg bg-muted/60 px-3 py-2"><p className="font-mono text-xl font-bold text-primary">{value}</p><p className="text-[11px] text-muted-foreground">{label}</p></div>;
 
-function TechCard({ u, cases, onEdit }) {
+function TechCard({ u, cases }) {
   const mine = cases.filter((c) => c.technicianId === u.id || c.finishedById === u.id);
   const done = mine.filter((c) => c.status === "completed" && (isToday(c.finishedAt) || c.finishedDate === today())).length;
   return (
@@ -35,7 +23,7 @@ function TechCard({ u, cases, onEdit }) {
         <div>
           <p className="font-mono text-xs font-semibold text-secondary">{u.id}</p>
           <h3 className="text-lg font-bold text-primary">{u.name}</h3>
-          <p className="text-xs text-muted-foreground">{departmentName(u.department)} • Auth protected</p>
+          <p className="text-xs text-muted-foreground">{departmentName(u.department)} • Login enabled</p>
         </div>
         <StatusBadge kind="account" value={u.active ? "active" : "inactive"} />
       </div>
@@ -46,8 +34,6 @@ function TechCard({ u, cases, onEdit }) {
       </div>
       <div className="flex flex-wrap gap-2">
         <Button asChild size="sm" variant="outline" data-testid={`tech-view-${u.id}`}><Link to={`/technicians/${u.id}`}>View Cases</Link></Button>
-        <Button size="sm" variant="outline" onClick={onEdit} data-testid={`tech-edit-${u.id}`}>Edit</Button>
-        <Button size="sm" variant="outline" onClick={() => demoSave(u.active ? "Technician deactivated" : "Technician activated")} data-testid={`tech-toggle-${u.id}`}>{u.active ? "Deactivate" : "Activate"}</Button>
       </div>
     </Panel>
   );
@@ -75,17 +61,18 @@ function TechnicianCases({ id }) {
 
 export default function TechniciansPage() {
   const data = useData();
+  const { user } = useSession();
   const { id } = useParams();
   const [editing, setEditing] = useState(null);
   if (id) return <TechnicianCases id={id} />;
-  const techs = data.users.filter((u) => u.role === "technician");
+  const techs = data.users.filter((u) => u.role === "technician" && u.loginEnabled);
   return (
     <>
-      <Panel description="Technician accounts sign in through the authentication provider. Passwords are never stored in the database." actions={<Button onClick={() => setEditing({})} data-testid="add-technician-button"><Plus /> Add Technician</Button>} />
+      <Panel description="Technicians sign in with individual accounts. Passwords are stored as secure hashes." actions={user.isOwner && <Button onClick={() => setEditing({})} data-testid="add-technician-button"><Plus /> Add Technician</Button>} />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {techs.map((u) => <TechCard key={u.id} u={u} cases={data.cases} onEdit={() => setEditing(u)} />)}
+        {techs.map((u) => <TechCard key={u.id} u={u} cases={data.cases} />)}
       </div>
-      {editing && <StaffDialog kind="technician" person={editing.id ? editing : null} nextId={nextTechId(data)} onClose={() => setEditing(null)} />}
+      {editing && <StaffDialog kind="technician" person={editing.id ? editing : null} onClose={() => setEditing(null)} />}
     </>
   );
 }

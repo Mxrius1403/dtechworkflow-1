@@ -4,7 +4,7 @@ Daily Flow runs the Dentaltech lab day to day. It covers receiving, production b
 
 It used to be one Firebase + vanilla JS bundle (`app.js`, `logistics.js`, `enhancements.js`, `driver.js`, `track.js`). It is now a **React frontend** and a **FastAPI backend** with **MongoDB**. Each part lives in one clear place.
 
-> **Phase 1 is a read-only demo.** All data is fixed sample data served by the backend. Every "save" action (publish route, approve holiday, send order…) shows a *Demo mode — not saved* toast and changes nothing. Real saving arrives in Phase 2 (see [Next steps](#next-steps-phase-2)).
+> **Operational data is still a read-only demo.** Cases, routes, orders and other workflow actions use sample data and are not saved. Authentication and technician-account creation are real and stored in MongoDB.
 
 ---
 
@@ -15,6 +15,8 @@ It used to be one Firebase + vanilla JS bundle (`app.js`, `logistics.js`, `enhan
 | Backend  | `backend/` → `server.py` on port 8001 | All routes start with `/api`. |
 | Frontend | `frontend/` (CRA + Tailwind) on port 3000 | Calls `http://localhost:8001` by default; override with `REACT_APP_BACKEND_URL`. |
 | Database | MongoDB from `MONGO_URL` / `DB_NAME` in `backend/.env` | The sample data is filled in automatically. |
+
+Add the required settings from `backend/.env.example` to `backend/.env` before starting the backend. The backend refuses to start without an owner email/password and a random `AUTH_SECRET_KEY`.
 
 On the platform, both services run under supervisor with hot reload:
 
@@ -32,18 +34,11 @@ cd frontend && yarn install && yarn start
 
 For a backend running on a different address, set `REACT_APP_BACKEND_URL` in `frontend/.env` (for example, `REACT_APP_BACKEND_URL=http://localhost:8001`) and restart the frontend.
 
-### Demo sign-in (no passwords in Phase 1)
+### Staff sign-in
 
-The start screen lists every active account. Click one to open its workspace.
+The owner account is provisioned from `OWNER_NAME`, `OWNER_EMAIL` and `OWNER_PASSWORD` in `backend/.env`. The password must contain 12–72 UTF-8 bytes. Generate `AUTH_SECRET_KEY` with `openssl rand -hex 32`; use a different secret in each environment. In production, set `AUTH_COOKIE_SECURE=true` and configure `CORS_ORIGINS` with the exact frontend origin(s), comma-separated.
 
-| Persona | ID | What you see |
-|---|---|---|
-| Aoife Byrne — Owner | `OWNER001` | Everything + Owner Control |
-| Ciarán Walsh — Manager | `MGR0001` | Manager dashboard, Deliveries & Collections, Case Search, orders, technicians, holidays, reports |
-| Liam O'Connor / Emma Brennan — Denture | `DT001` / `DT002` | Technician board, Tooth Order, Order TDS, Holidays |
-| Conor Gallagher / Róisín Kavanagh — Ortho | `DT003` / `DT004` | + Other Work |
-| Darragh Quinn — Digital | `DT005` | + Digital Receiving |
-| Seán Murphy / Niamh Kelly / Patrick O'Brien — Drivers | `D0001` / `D0002` / `D0003` | Driver app (`/driver`) |
+Sign-in uses a 30-minute JWT in an HttpOnly cookie. Passwords are bcrypt-hashed; session data is not stored in browser local storage. Sign-in attempts are throttled after five failures per client IP/email pair for 15 minutes. The owner can create technician accounts through **Technicians → Add Technician**. New accounts receive a unique ID, can sign in immediately and survive the daily demo refresh; credentials are stored in MongoDB's `auth_users` collection. The old persona picker is removed: demo staff and drivers are not valid login accounts. Driver authentication is not yet included.
 
 The clinic tracking page is public: `/track?token=<48-hex token>`. Managers can open it from **Deliveries & Collections → Routes → Open → "Clinic page"**.
 
@@ -58,8 +53,10 @@ backend/
 │   ├── config.py          Environment (MONGO_URL, DB_NAME, CORS_ORIGINS) and constants
 │   ├── database.py        Mongo client (Motor)
 │   ├── models.py          BaseDocument: Mongo `_id` <-> API `id`
-│   └── collections.py     API name -> Mongo collection (one place to expose data)
+│   ├── collections.py     API name -> Mongo collection (one place to expose data)
+│   └── security.py        Password hashing, signed sessions and auth dependencies
 ├── routers/
+│   ├── auth.py            Login/logout/current user + owner-only technician creation
 │   ├── data.py            GET /api/data (everything) and /api/data/{name}
 │   ├── catalog.py         GET /api/catalog (TDS materials + tooth groups)
 │   └── logistics.py       GET /api/tracking/{token}, GET /api/clinics/{id}/contact
@@ -74,7 +71,7 @@ frontend/src/
 │   └── constants.js       App name, logo, service types, activities, suppliers
 ├── context/
 │   ├── DataContext.js     Loads /api/data + /api/catalog once; lookups via byId
-│   └── SessionContext.js  Demo sign-in (selected persona kept in localStorage)
+│   └── SessionContext.js  Cookie-backed authentication session
 ├── lib/                   Plain business rules, no React (easy to unit test)
 │   ├── cases.js           Case status, scan/receiving rules, overdue, history
 │   ├── logistics.js       Ready-for-delivery, route plans, driver week, maps links
@@ -141,16 +138,20 @@ Add `"apiName": "mongo_collection"` to `PUBLIC_COLLECTIONS` in `backend/core/col
 
 ---
 
-## 4. API (read-only)
+## 4. API
 
 | Method | Path | Returns |
 |---|---|---|
 | GET | `/api/health` | `{status, mode}` |
-| GET | `/api/data` | All collections in one response + `settings` |
-| GET | `/api/data/{name}` | One collection (e.g. `routes`, `cases`) or `settings` |
-| GET | `/api/catalog` | `{materials, toothGroups}` |
+| POST | `/api/auth/login` | Sign in with `{email, password}`; sets an HttpOnly session cookie |
+| POST | `/api/auth/logout` | Revoke the current session and clear its cookie |
+| GET | `/api/auth/me` | Current authenticated staff account |
+| POST | `/api/auth/technicians` | **Owner only.** Create a technician account |
+| GET | `/api/data` | **Authenticated.** All collections in one response + `settings` |
+| GET | `/api/data/{name}` | **Authenticated.** One collection (e.g. `routes`, `cases`) or `settings` |
+| GET | `/api/catalog` | **Authenticated.** `{materials, toothGroups}` |
 | GET | `/api/tracking/{token}` | Public tracking record (400 invalid, 404 unknown/expired) |
-| GET | `/api/clinics/{id}/contact` | Protected clinic contact fields |
+| GET | `/api/clinics/{id}/contact` | **Authenticated.** Clinic contact fields |
 
 ---
 
@@ -203,7 +204,7 @@ The items below were dropped on purpose because they only make sense with the ol
 
 ## Next steps (Phase 2)
 
-Every write action ends in `demoSave()` in `frontend/src/lib/notify.js`, so they are easy to find with `grep -rn demoSave frontend/src`. To make one real:
+Workflow write actions other than account creation still end in `demoSave()` in `frontend/src/lib/notify.js`, so they are easy to find with `grep -rn demoSave frontend/src`. To make one real:
 1. Add a `POST`/`PATCH` endpoint in a backend router (validate with a Pydantic model and store with `BaseDocument.to_mongo()`).
 2. Add the call to `frontend/src/lib/api.js`.
 3. Replace the `demoSave(…)` call with the API call, then refresh with `queryClient.invalidateQueries({ queryKey: ["data"] })`.

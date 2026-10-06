@@ -2,6 +2,7 @@ import "@/App.css";
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { AppShell } from "@/components/layout/AppShell";
+import { FullScreenMessage } from "@/components/common/FullScreenMessage";
 import { canOpen, pageForPath } from "@/config/navigation";
 import { DataProvider } from "@/context/DataContext";
 import { SessionProvider, useSession } from "@/context/SessionContext";
@@ -9,7 +10,6 @@ import AttentionPage from "@/pages/AttentionPage";
 import CaseSearchPage from "@/pages/CaseSearchPage";
 import CompletionReviewPage from "@/pages/CompletionReviewPage";
 import DashboardPage from "@/pages/dashboard/DashboardPage";
-import DriverPortalPage from "@/pages/driver/DriverPortalPage";
 import HolidaysPage from "@/pages/holidays/HolidaysPage";
 import LogisticsPage from "@/pages/logistics/LogisticsPage";
 import MaterialsPage from "@/pages/materials/MaterialsPage";
@@ -45,22 +45,21 @@ const SCREENS = [
   ["/owner-control", OwnerControlPage],
 ];
 
-const DataLayout = () => (
-  <DataProvider>
-    <SessionProvider>
-      <Outlet />
-    </SessionProvider>
-  </DataProvider>
-);
-
 function StaffArea() {
   const { user } = useSession();
   return user ? <AppShell /> : <Navigate to="/" replace />;
 }
 
 function DriverArea() {
-  const { driver } = useSession();
-  return driver ? <DriverPortalPage /> : <Navigate to="/" replace />;
+  return <Navigate to="/dashboard" replace />;
+}
+
+function ProtectedDataLayout() {
+  const { user, loading, error } = useSession();
+  if (loading) return <FullScreenMessage title="Dental Tech Daily" text="Checking your sign-in…" loading />;
+  if (error) return <FullScreenMessage title="Sign-in unavailable" text="The authentication service could not be reached. Check the connection and retry." action={{ label: "Retry", onClick: () => window.location.reload() }} />;
+  if (!user) return <Navigate to="/" replace />;
+  return <DataProvider><Outlet /></DataProvider>;
 }
 
 function Guarded({ path, Page }) {
@@ -71,17 +70,19 @@ function Guarded({ path, Page }) {
 export default function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/track" element={<TrackingPage />} />
-        <Route element={<DataLayout />}>
+      <SessionProvider>
+        <Routes>
+          <Route path="/track" element={<TrackingPage />} />
           <Route path="/" element={<SignInPage />} />
-          <Route path="/driver" element={<DriverArea />} />
-          <Route element={<StaffArea />}>
-            {SCREENS.map(([path, Page]) => <Route key={path} path={path} element={<Guarded path={path} Page={Page} />} />)}
+          <Route element={<ProtectedDataLayout />}>
+            <Route path="/driver" element={<DriverArea />} />
+            <Route element={<StaffArea />}>
+              {SCREENS.map(([path, Page]) => <Route key={path} path={path} element={<Guarded path={path} Page={Page} />} />)}
+            </Route>
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
-      </Routes>
+        </Routes>
+      </SessionProvider>
       <Toaster position="top-right" richColors closeButton />
     </BrowserRouter>
   );

@@ -18,15 +18,12 @@ export function AccountDialog({ onClose }) {
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-md" data-testid="account-dialog">
         <DialogHeader>
-          <DialogTitle>Manager Account</DialogTitle>
-          <DialogDescription>Passwords are managed by the sign-in provider and never stored in the database.</DialogDescription>
+          <DialogTitle>Staff Account</DialogTitle>
+          <DialogDescription>Your password is securely hashed. Account profile changes are still demo-only.</DialogDescription>
         </DialogHeader>
         <Field label="Name"><Input value={name} onChange={(e) => setName(e.target.value)} data-testid="account-name-input" /></Field>
         <Field label="Staff ID"><Input value={user.id} disabled /></Field>
-        <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => demoSave("Password reset email sent")} data-testid="account-reset-password">Send Password Reset</Button>
-          <Button onClick={save} data-testid="account-save">Save Name</Button>
-        </DialogFooter>
+        <DialogFooter><Button onClick={save} data-testid="account-save">Save Name</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );

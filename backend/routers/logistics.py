@@ -1,11 +1,11 @@
 import re
 import time
 
-from fastapi import APIRouter, Depends, HTTPException
-
 from core.collections import CLINIC_CONTACTS, PUBLIC_TRACKING
 from core.database import db
 from core.models import BaseDocument
+from core.security import current_account
+from fastapi import APIRouter, Depends, HTTPException
 from seed.loader import ensure_demo_data
 
 router = APIRouter(prefix="/api", tags=["logistics"], dependencies=[Depends(ensure_demo_data)])
@@ -27,7 +27,7 @@ async def public_tracking(token: str) -> dict:
     return data
 
 
-@router.get("/clinics/{clinic_id}/contact")
+@router.get("/clinics/{clinic_id}/contact", dependencies=[Depends(current_account)])
 async def clinic_contact(clinic_id: str) -> dict:
     """Protected clinic contact fields (encrypted at rest in the original Firebase build)."""
     doc = await db[CLINIC_CONTACTS].find_one({"_id": clinic_id})
