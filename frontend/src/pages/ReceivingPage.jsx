@@ -93,7 +93,7 @@ export default function ReceivingPage() {
   };
   const saveDraft = async (details) => {
     try {
-      await createReceivedCase({
+      const createdCase = await createReceivedCase({
         ...details,
         code: draft.code,
         department: draft.department,
@@ -101,6 +101,7 @@ export default function ReceivingPage() {
       });
       await queryClient.invalidateQueries({ queryKey: ["data"] });
       notify(`Case ${draft.code} due by ${nice(details.productionDate)}`);
+      setSelectedCaseId(createdCase.id);
       setDraft(null);
       return true;
     } catch (error) {
