@@ -158,6 +158,8 @@ Add `"apiName": "mongo_collection"` to `PUBLIC_COLLECTIONS` in `backend/core/col
 | GET | `/api/clinics/{id}/contact` | **Authenticated.** Clinic contact fields |
 | POST | `/api/receiving/cases` | **Manager or Digital technician.** Create a case or re-enter a completed case |
 | POST | `/api/receiving/cases/{id}/restore` | **Manager or Digital technician.** Restore a removed case to the queue |
+| PATCH | `/api/receiving/cases/{id}` | **Manager or Digital technician.** Update case department, status and responsible technician |
+| PATCH | `/api/receiving/cases/{id}/attention` | **Manager or Digital technician.** Update attention status with a required reason (max. 100 characters) |
 
 Technician and case department values use `prosthesis`, `ortho` or `digital`.
 Existing `denture` department values are migrated to `prosthesis` at backend startup.

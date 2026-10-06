@@ -18,7 +18,7 @@ export const STATUS = {
   leave: { pending: ["Pending", "amber"], approved: ["Approved", "emerald"], rejected: ["Rejected", "rose"], cancelled: ["Cancelled", "zinc"] },
   account: { active: ["Active", "emerald"], inactive: ["Inactive", "zinc"] },
   flag: {
-    overdue: ["Overdue", "rose"], on_hold: ["On Hold", "amber"], need_information: ["Need Information", "indigo"],
+    overdue: ["Overdue", "rose"], active: ["Active", "emerald"], on_hold: ["On Hold", "amber"], need_information: ["Need Information", "indigo"],
     awaiting: ["Awaiting Confirmation", "sky"], reason: ["Reason Required", "rose"], ontime: ["On Time", "emerald"],
     urgent: ["New Urgent Stop", "rose"], protected: ["Auth protected", "emerald"], encrypted: ["Email encrypted", "emerald"],
   },

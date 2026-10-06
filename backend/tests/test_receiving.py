@@ -53,10 +53,17 @@ class FakeCases:
 class FakeDatabase:
     def __init__(self, cases):
         self.cases = cases
+        self.users = cases.users
+        self.auth_users = cases.auth_users
 
     def __getitem__(self, name):
-        assert name == "cases"
-        return self.cases
+        if name == "cases":
+            return self.cases
+        if name == "users":
+            return self.users
+        if name == "auth_users":
+            return self.auth_users
+        raise AssertionError(f"Unexpected collection: {name}")
 
 
 def receive_payload(**overrides):
@@ -74,6 +81,8 @@ def receive_payload(**overrides):
 @pytest.fixture
 def receiving_db(monkeypatch):
     collection = FakeCases()
+    collection.users = FakeCases()
+    collection.auth_users = FakeCases()
     monkeypatch.setattr(receiving, "db", FakeDatabase(collection))
     monkeypatch.setattr(receiving, "_receiving_day", lambda: date(2026, 10, 6))
     monkeypatch.setattr(
@@ -228,3 +237,174 @@ def test_digital_receiving_cannot_create_cases_for_other_departments(
         )
 
     assert error.value.status_code == 403
+
+
+def test_update_case_assigns_department_status_and_technician(receiving_db):
+    receiving_db.documents["CASE-1"] = {
+        "_id": "CASE-1",
+        "code": "RCV-1001",
+        "department": "prosthesis",
+        "status": "queue",
+        "history": [],
+    }
+    receiving_db.auth_users.documents["DT001"] = {
+        "_id": "DT001",
+        "name": "Liam O'Connor",
+        "role": "technician",
+        "active": True,
+    }
+
+    result = asyncio.run(
+        receiving.update_received_case(
+            "CASE-1",
+            receiving.UpdateCase(
+                department="ortho", status="production", technicianId="DT001"
+            ),
+            {"_id": "MGR0001", "role": "manager", "name": "Manager"},
+        )
+    )
+
+    assert result["department"] == "ortho"
+    assert result["status"] == "production"
+    assert result["technicianId"] == "DT001"
+    assert result["technician"] == "Liam O'Connor"
+    assert result["startedAt"] == "2026-10-06T12:00:00.000Z"
+    assert result["history"][-1]["by"] == "Manager"
+
+
+def test_completing_case_records_finish_and_responsible_technician(receiving_db):
+    receiving_db.documents["CASE-1"] = {
+        "_id": "CASE-1",
+        "department": "prosthesis",
+        "status": "queue",
+        "history": [],
+    }
+    receiving_db.auth_users.documents["DT001"] = {
+        "_id": "DT001",
+        "name": "Liam O'Connor",
+        "role": "technician",
+        "active": True,
+    }
+
+    result = asyncio.run(
+        receiving.update_received_case(
+            "CASE-1",
+            receiving.UpdateCase(
+                department="prosthesis", status="completed", technicianId="DT001"
+            ),
+            {"_id": "MGR0001", "role": "manager", "name": "Manager"},
+        )
+    )
+
+    assert result["finishedAt"] == "2026-10-06T12:00:00.000Z"
+    assert result["finishedById"] == "DT001"
+    assert result["finishedBy"] == "Liam O'Connor"
+
+
+def test_update_case_rejects_unknown_technician(receiving_db):
+    receiving_db.documents["CASE-1"] = {
+        "_id": "CASE-1",
+        "department": "prosthesis",
+        "status": "queue",
+        "history": [],
+    }
+
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(
+            receiving.update_received_case(
+                "CASE-1",
+                receiving.UpdateCase(
+                    department="prosthesis",
+                    status="production",
+                    technicianId="UNKNOWN",
+                ),
+                {"_id": "MGR0001", "role": "manager", "name": "Manager"},
+            )
+        )
+
+    assert error.value.status_code == 422
+
+
+def test_digital_receiving_cannot_update_another_department(receiving_db):
+    receiving_db.documents["CASE-1"] = {
+        "_id": "CASE-1",
+        "department": "ortho",
+        "status": "queue",
+        "history": [],
+    }
+
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(
+            receiving.update_received_case(
+                "CASE-1",
+                receiving.UpdateCase(department="digital", status="queue"),
+                {
+                    "_id": "DT005",
+                    "role": "technician",
+                    "department": "digital",
+                },
+            )
+        )
+
+    assert error.value.status_code == 403
+
+
+@pytest.mark.parametrize(
+    "status, reason",
+    [
+        ("on_hold", "Waiting for clinic response"),
+        ("need_information", "Need a new scan"),
+        ("active", ""),
+    ],
+)
+def test_update_attention_saves_status_and_optional_reason(
+    receiving_db, status, reason
+):
+    receiving_db.documents["CASE-1"] = {
+        "_id": "CASE-1",
+        "department": "digital",
+        "attentionStatus": "on_hold",
+        "attentionNote": "Old reason",
+        "history": [],
+    }
+
+    result = asyncio.run(
+        receiving.update_case_attention(
+            "CASE-1",
+            receiving.UpdateAttention(
+                attentionStatus=status,
+                **({"attentionNote": reason} if reason else {}),
+            ),
+            {"_id": "MGR0001", "role": "manager", "name": "Manager"},
+        )
+    )
+
+    assert result["attentionStatus"] == status
+    assert result["attentionNote"] == reason
+    if reason:
+        assert reason in result["history"][-1]["action"]
+    else:
+        assert result["history"][-1]["action"] == "Attention status changed to active"
+
+
+@pytest.mark.parametrize("reason", ["", " " * 4, "x" * 101])
+def test_attention_requires_reason_for_non_active_status(reason):
+    with pytest.raises(ValidationError):
+        receiving.UpdateAttention(attentionStatus="on_hold", attentionNote=reason)
+
+
+def test_attention_allows_optional_reason_for_active_status():
+    result = receiving.UpdateAttention(attentionStatus="active")
+
+    assert result.attentionNote == ""
+
+
+def test_attention_active_reason_is_optional_but_limited_to_100_characters():
+    result = receiving.UpdateAttention(
+        attentionStatus="active", attentionNote="x" * 100
+    )
+
+    assert result.attentionNote == "x" * 100
+
+    with pytest.raises(ValidationError):
+        receiving.UpdateAttention(attentionStatus="active", attentionNote="x" * 101)

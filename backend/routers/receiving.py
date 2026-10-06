@@ -3,6 +3,7 @@ from typing import Literal
 from zoneinfo import ZoneInfo
 
 from bson import ObjectId
+from core.collections import AUTH_USERS
 from core.config import TIMEZONE
 from core.database import db
 from core.models import BaseDocument
@@ -46,6 +47,24 @@ class ReceiveCase(BaseModel):
             raise ValueError(
                 "Service types and arch are only used for prosthesis cases."
             )
+        return self
+
+
+class UpdateCase(BaseModel):
+    department: Literal["prosthesis", "ortho", "digital"]
+    status: Literal["queue", "production", "completed"]
+    technicianId: str = Field(default="", max_length=100)
+
+
+class UpdateAttention(BaseModel):
+    attentionStatus: Literal["active", "on_hold", "need_information"]
+    attentionNote: str = Field(default="", max_length=100)
+
+    @model_validator(mode="after")
+    def validate_attention_note(self):
+        self.attentionNote = self.attentionNote.strip()
+        if self.attentionStatus != "active" and not self.attentionNote:
+            raise ValueError("Enter a short reason.")
         return self
 
 
@@ -331,5 +350,181 @@ async def restore_received_case(
                 "The case changed before it could be restored. Refresh and "
                 "try again."
             ),
+        )
+    return BaseDocument.from_mongo(case).to_api()
+
+
+@router.patch("/cases/{case_id}")
+async def update_received_case(
+    case_id: str,
+    body: UpdateCase,
+    account: dict = Depends(receiving_account),
+) -> dict:
+    existing = await db["cases"].find_one({"_id": case_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Case not found.")
+    if (
+        account.get("role") == "technician"
+        and (
+            existing.get("department") != "digital"
+            or body.department != "digital"
+        )
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Digital Receiving can only update digital cases.",
+        )
+    if existing.get("completionReviewStatus") == "pending":
+        raise HTTPException(
+            status_code=409,
+            detail="This completion is awaiting Manager confirmation.",
+        )
+
+    technician = None
+    if body.technicianId:
+        technician = await db[AUTH_USERS].find_one(
+            {"_id": body.technicianId, "role": "technician"}
+        )
+        if not technician:
+            technician = await db["users"].find_one(
+                {"_id": body.technicianId, "role": "technician"}
+            )
+        if not technician:
+            raise HTTPException(
+                status_code=422, detail="Select a valid technician."
+            )
+        if body.status in ("production", "completed") and not technician.get(
+            "active", True
+        ):
+            raise HTTPException(
+                status_code=422,
+                detail="Select an active technician for this case status.",
+            )
+    elif body.status in ("production", "completed"):
+        raise HTTPException(
+            status_code=422,
+            detail="Select a responsible technician for this case status.",
+        )
+
+    timestamp, local_date, local_time = _now()
+    display_name = account.get("name", account.get("email", "Receiving"))
+    changes = {
+        "department": body.department,
+        "status": body.status,
+        "technicianId": body.technicianId,
+        "technician": technician.get("name", "") if technician else "",
+        "updatedAt": timestamp,
+    }
+    if body.status == "production" and existing.get("status") != "production":
+        changes.update(
+            startedAt=timestamp,
+            startedDate=local_date.isoformat(),
+            startedTime=local_time,
+            finishedAt="",
+            finishedDate="",
+            finishedTime="",
+            finishedById="",
+            finishedBy="",
+            completionReviewRequired=False,
+            completionReviewStatus="",
+            managerConfirmedAt="",
+            managerConfirmedById="",
+            managerConfirmedBy="",
+        )
+    elif body.status == "completed":
+        if not existing.get("startedAt"):
+            changes.update(
+                startedAt=timestamp,
+                startedDate=local_date.isoformat(),
+                startedTime=local_time,
+            )
+        if existing.get("status") != "completed" or not existing.get("finishedAt"):
+            changes.update(
+                finishedAt=timestamp,
+                finishedDate=local_date.isoformat(),
+                finishedTime=local_time,
+            )
+        changes.update(
+            finishedById=body.technicianId,
+            finishedBy=technician.get("name", ""),
+            completionReviewRequired=False,
+        )
+    case = await db["cases"].find_one_and_update(
+        {"_id": case_id},
+        {
+            "$set": changes,
+            "$push": {
+                "history": {
+                    "at": timestamp,
+                    "action": (
+                        f"Receiving updated: {body.department}, "
+                        f"{body.status.replace('_', ' ')}; technician "
+                        f"{changes['technician'] or 'unassigned'}"
+                    ),
+                    "by": display_name,
+                }
+            },
+        },
+        return_document=ReturnDocument.AFTER,
+    )
+    if not case:
+        raise HTTPException(
+            status_code=409,
+            detail="The case changed before it could be updated. Refresh and try again.",
+        )
+    return BaseDocument.from_mongo(case).to_api()
+
+
+@router.patch("/cases/{case_id}/attention")
+async def update_case_attention(
+    case_id: str,
+    body: UpdateAttention,
+    account: dict = Depends(receiving_account),
+) -> dict:
+    existing = await db["cases"].find_one({"_id": case_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Case not found.")
+    if (
+        account.get("role") == "technician"
+        and existing.get("department") != "digital"
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Digital Receiving can only update digital cases.",
+        )
+
+    timestamp, _, _ = _now()
+    display_name = account.get("name", account.get("email", "Receiving"))
+    case = await db["cases"].find_one_and_update(
+        {"_id": case_id},
+        {
+            "$set": {
+                "attentionStatus": body.attentionStatus,
+                "attentionNote": body.attentionNote,
+                "updatedAt": timestamp,
+            },
+            "$push": {
+                "history": {
+                    "at": timestamp,
+                    "action": (
+                        f"Attention status changed to "
+                        f"{body.attentionStatus.replace('_', ' ')}: "
+                        f"{body.attentionNote}"
+                        if body.attentionNote
+                        else (
+                            "Attention status changed to "
+                            f"{body.attentionStatus.replace('_', ' ')}"
+                        )
+                    ),
+                    "by": display_name,
+                }
+            },
+        },
+        return_document=ReturnDocument.AFTER,
+    )
+    if not case:
+        raise HTTPException(
+            status_code=409,
+            detail="The case changed before its attention status could be updated.",
         )
     return BaseDocument.from_mongo(case).to_api()
