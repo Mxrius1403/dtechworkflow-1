@@ -129,7 +129,7 @@ export default function ReceivingPage() {
             {sections.map(([key, label]) => (
               <section key={key} className="mt-5" aria-label={`${label} ${name} cases`}>
                 <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">{label} — {name} ({byStatus[key].length})</h3>
-                <div className="grid min-w-0 max-h-96 gap-2 overflow-y-auto">
+                <div className="grid min-w-0 max-h-[70vh] gap-2 overflow-y-auto">
                   {byStatus[key].map((caseItem) => <CaseCard key={caseItem.id} c={caseItem} onClick={() => setSelectedCaseId(caseItem.id)} />)}
                   {!byStatus[key].length && <Muted>No {label.toLowerCase()} {name.toLowerCase()} cases.</Muted>}
                 </div>
