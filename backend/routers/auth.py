@@ -17,6 +17,7 @@ from core.security import (
     record_login_failure,
     require_allowed_origin,
     require_role,
+    require_roles,
     set_session_cookie,
     verify_password,
 )
@@ -50,6 +51,10 @@ class ManagerCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     email: EmailStr
     password: str = Field(min_length=12, max_length=72)
+
+
+class ManagerStatusUpdate(BaseModel):
+    active: bool
 
 
 class OwnershipTransfer(BaseModel):
@@ -219,7 +224,7 @@ async def get_me(account: dict = Depends(current_account)) -> dict:
 )
 async def create_technician(
     body: TechnicianCreate,
-    owner: dict = Depends(require_role("owner")),
+    creator: dict = Depends(require_roles("owner", "manager")),
 ) -> dict:
     password_bytes = body.password.encode("utf-8")
     if len(password_bytes) > 72:
@@ -239,7 +244,7 @@ async def create_technician(
         "active": True,
         "authVersion": 0,
         "createdAt": datetime.now(timezone.utc).isoformat(),
-        "createdBy": str(owner["_id"]),
+        "createdBy": str(creator["_id"]),
     }
     if not account["name"]:
         raise HTTPException(
@@ -317,6 +322,29 @@ async def create_manager(
             status_code=status.HTTP_409_CONFLICT,
             detail="Could not allocate a unique manager ID.",
         )
+    return {"user": public_account(account)}
+
+
+@router.patch(
+    "/managers/{manager_id}",
+    dependencies=[Depends(require_allowed_origin)],
+)
+async def update_manager_status(
+    manager_id: str,
+    body: ManagerStatusUpdate,
+    owner: dict = Depends(require_role("owner")),
+) -> dict:
+    result = await db[AUTH_USERS].update_one(
+        {"_id": manager_id, "role": "manager"},
+        {"$set": {"active": body.active}, "$inc": {"authVersion": 1}},
+    )
+    if result.matched_count != 1:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Manager account not found.",
+        )
+
+    account = await db[AUTH_USERS].find_one({"_id": manager_id})
     return {"user": public_account(account)}
 
 

@@ -23,7 +23,7 @@ function TechCard({ u, cases }) {
         <div>
           <p className="font-mono text-xs font-semibold text-secondary">{u.id}</p>
           <h3 className="text-lg font-bold text-primary">{u.name}</h3>
-          <p className="text-xs text-muted-foreground">{departmentName(u.department)} • Login enabled</p>
+          <p className="text-xs text-muted-foreground">{departmentName(u.department)} • Login {u.active ? "enabled" : "disabled"}</p>
         </div>
         <StatusBadge kind="account" value={u.active ? "active" : "inactive"} />
       </div>
@@ -68,7 +68,7 @@ export default function TechniciansPage() {
   const techs = data.users.filter((u) => u.role === "technician" && u.loginEnabled);
   return (
     <>
-      <Panel description="Technicians sign in with individual accounts. Passwords are stored as secure hashes." actions={user.isOwner && <Button onClick={() => setEditing({})} data-testid="add-technician-button"><Plus /> Add Technician</Button>} />
+      <Panel description="Technicians sign in with individual accounts. Passwords are stored as secure hashes." actions={user.isManager && <Button onClick={() => setEditing({})} data-testid="add-technician-button"><Plus /> Add Technician</Button>} />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {techs.map((u) => <TechCard key={u.id} u={u} cases={data.cases} />)}
       </div>

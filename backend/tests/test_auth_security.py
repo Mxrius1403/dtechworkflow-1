@@ -8,6 +8,7 @@ from routers import auth
 from routers.auth import (
     LoginRequest,
     ManagerCreate,
+    ManagerStatusUpdate,
     OwnerSetup,
     OwnershipTransfer,
     TechnicianCreate,
@@ -187,6 +188,163 @@ def test_owner_creates_manager_as_separate_login_role(monkeypatch):
     assert security.verify_password("long-enough-password", account["passwordHash"])
     assert result["user"]["isManager"] is True
     assert result["user"]["isOwner"] is False
+
+
+def test_manager_can_create_technician_account(monkeypatch):
+    class Collection:
+        account = None
+
+        async def insert_one(self, account):
+            self.account = account
+
+    class Database:
+        def __init__(self):
+            self.collection = Collection()
+
+        def __getitem__(self, _name):
+            return self.collection
+
+    database = Database()
+    monkeypatch.setattr(auth, "db", database)
+    monkeypatch.setattr(
+        auth, "allocate_technician_id", lambda: asyncio.sleep(0, result="DT001")
+    )
+
+    result = asyncio.run(
+        auth.create_technician(
+            TechnicianCreate(
+                name="New Technician",
+                email="tech@example.com",
+                password="long-enough-password",
+                department="denture",
+            ),
+            {"_id": "MGR0001", "role": "manager"},
+        )
+    )
+
+    account = database.collection.account
+    assert account["_id"] == "DT001"
+    assert account["role"] == "technician"
+    assert account["createdBy"] == "MGR0001"
+    assert result["user"]["id"] == "DT001"
+
+
+def test_technician_creation_allows_managers_and_owners_only():
+    check_role = security.require_roles("owner", "manager")
+    assert asyncio.run(check_role({"role": "manager"}))["role"] == "manager"
+    assert asyncio.run(check_role({"role": "owner"}))["role"] == "owner"
+
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(check_role({"role": "technician"}))
+    assert error.value.status_code == 403
+
+
+def test_owner_can_deactivate_manager_and_invalidate_sessions(monkeypatch):
+    account = {
+        "_id": "MGR0001",
+        "name": "Manager",
+        "email": "manager@example.com",
+        "role": "manager",
+        "department": None,
+        "active": True,
+        "authVersion": 2,
+    }
+
+    class Collection:
+        async def update_one(self, query, update):
+            assert query == {"_id": "MGR0001", "role": "manager"}
+            account.update(update["$set"])
+            account["authVersion"] += update["$inc"]["authVersion"]
+            return type("Result", (), {"matched_count": 1})()
+
+        async def find_one(self, _query):
+            return account
+
+    class Database:
+        def __getitem__(self, _name):
+            return Collection()
+
+    monkeypatch.setattr(auth, "db", Database())
+    result = asyncio.run(
+        auth.update_manager_status(
+            "MGR0001",
+            ManagerStatusUpdate(active=False),
+            {"_id": "OWNER001", "role": "owner"},
+        )
+    )
+
+    assert account["active"] is False
+    assert account["authVersion"] == 3
+    assert result["user"]["active"] is False
+
+
+def test_inactive_account_cannot_sign_in(monkeypatch):
+    account = {
+        "_id": "MGR0001",
+        "passwordHash": "stored-hash",
+        "active": False,
+        "authVersion": 0,
+    }
+
+    class Collection:
+        async def find_one(self, _query):
+            return account
+
+    class Database:
+        def __getitem__(self, _name):
+            return Collection()
+
+    request = Request(
+        {
+            "type": "http",
+            "http_version": "1.1",
+            "method": "POST",
+            "scheme": "http",
+            "path": "/api/auth/login",
+            "raw_path": b"/api/auth/login",
+            "query_string": b"",
+            "headers": [],
+            "server": ("testserver", 80),
+            "client": ("127.0.0.1", 1234),
+        }
+    )
+    monkeypatch.setattr(auth, "db", Database())
+    monkeypatch.setattr(auth, "verify_password", lambda _password, _hash: True)
+    monkeypatch.setattr(auth, "check_login_rate_limit", lambda _request, _email: "key")
+    monkeypatch.setattr(auth, "record_login_failure", lambda _key: None)
+
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(
+            auth.login(
+                LoginRequest(email="manager@example.com", password="valid-password"),
+                request,
+                Response(),
+            )
+        )
+
+    assert error.value.status_code == 401
+
+
+def test_manager_status_update_rejects_non_manager_account(monkeypatch):
+    class Collection:
+        async def update_one(self, _query, _update):
+            return type("Result", (), {"matched_count": 0})()
+
+    class Database:
+        def __getitem__(self, _name):
+            return Collection()
+
+    monkeypatch.setattr(auth, "db", Database())
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(
+            auth.update_manager_status(
+                "OWNER001",
+                ManagerStatusUpdate(active=False),
+                {"_id": "OWNER001", "role": "owner"},
+            )
+        )
+
+    assert error.value.status_code == 404
 
 
 def test_ownership_transfer_rejects_selecting_current_owner():

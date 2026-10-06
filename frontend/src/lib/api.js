@@ -12,6 +12,7 @@ export const logout = () => api.post("/auth/logout");
 export const createTechnician = (technician) => api.post("/auth/technicians", technician).then((r) => r.data.user);
 export const fetchManagers = () => api.get("/auth/managers").then((r) => r.data.managers);
 export const createManager = (manager) => api.post("/auth/managers", manager).then((r) => r.data.user);
+export const updateManagerStatus = (managerId, active) => api.patch(`/auth/managers/${managerId}`, { active }).then((r) => r.data.user);
 export const transferOwnership = (managerId) => api.post("/auth/ownership/transfer", { managerId }).then((r) => r.data.user);
 export const fetchAllData = () => api.get("/data").then((r) => r.data);
 export const fetchCatalog = () => api.get("/catalog").then((r) => r.data);

@@ -111,10 +111,14 @@ async def current_account(request: Request) -> dict[str, Any]:
 
 
 def require_role(role: str):
+    return require_roles(role)
+
+
+def require_roles(*roles: str):
     async def check_role(
         account: dict[str, Any] = Depends(current_account),
     ) -> dict[str, Any]:
-        if account.get("role") != role:
+        if account.get("role") not in roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Insufficient permissions.",

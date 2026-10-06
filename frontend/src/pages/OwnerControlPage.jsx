@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRightLeft, Crown, Plus } from "lucide-react";
+import { ArrowRightLeft, Crown, Plus, Power } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -17,7 +17,7 @@ import { Panel } from "@/components/common/Panel";
 import { StatCard } from "@/components/common/StatCard";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { useSession } from "@/context/SessionContext";
-import { fetchManagers } from "@/lib/api";
+import { fetchManagers, updateManagerStatus } from "@/lib/api";
 import { notify, notifyError } from "@/lib/notify";
 import { StaffDialog } from "@/pages/technicians/StaffDialog";
 
@@ -28,6 +28,8 @@ export default function OwnerControlPage() {
   const [addingManager, setAddingManager] = useState(false);
   const [selectedManager, setSelectedManager] = useState(null);
   const [transferring, setTransferring] = useState(false);
+  const [managerStatusTarget, setManagerStatusTarget] = useState(null);
+  const [updatingManagerStatus, setUpdatingManagerStatus] = useState(false);
   const managers = managersQuery.data || [];
   const activeManagers = managers.filter((manager) => manager.active).length;
 
@@ -44,6 +46,22 @@ export default function OwnerControlPage() {
       notifyError(typeof detail === "string" ? detail : "Could not transfer ownership");
     } finally {
       setTransferring(false);
+    }
+  };
+
+  const confirmManagerStatusChange = async () => {
+    if (!managerStatusTarget) return;
+    setUpdatingManagerStatus(true);
+    try {
+      await updateManagerStatus(managerStatusTarget.id, !managerStatusTarget.active);
+      await queryClient.invalidateQueries({ queryKey: ["managers"] });
+      notify(`${managerStatusTarget.name}'s account ${managerStatusTarget.active ? "deactivated" : "activated"}`);
+      setManagerStatusTarget(null);
+    } catch (error) {
+      const detail = error.response?.data?.detail;
+      notifyError(typeof detail === "string" ? detail : "Could not update manager account");
+    } finally {
+      setUpdatingManagerStatus(false);
     }
   };
 
@@ -88,6 +106,14 @@ export default function OwnerControlPage() {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <StatusBadge kind="account" value={manager.active ? "active" : "inactive"} />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setManagerStatusTarget(manager)}
+                    data-testid={`manager-toggle-active-${manager.id}`}
+                  >
+                    <Power /> {manager.active ? "Deactivate" : "Activate"}
+                  </Button>
                   {manager.active && (
                     <Button
                       variant="outline"
@@ -108,6 +134,42 @@ export default function OwnerControlPage() {
       </Panel>
 
       {addingManager && <StaffDialog kind="manager" onClose={() => setAddingManager(false)} />}
+
+      <AlertDialog
+        open={Boolean(managerStatusTarget)}
+        onOpenChange={(open) => {
+          if (!open && !updatingManagerStatus) setManagerStatusTarget(null);
+        }}
+      >
+        <AlertDialogContent data-testid="manager-status-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {managerStatusTarget?.active ? "Deactivate manager account?" : "Activate manager account?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {managerStatusTarget && (
+                managerStatusTarget.active
+                  ? `${managerStatusTarget.name} will no longer be able to sign in. Any active sessions will be signed out.`
+                  : `${managerStatusTarget.name} will be able to sign in again.`
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={updatingManagerStatus} data-testid="manager-status-cancel">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className={managerStatusTarget?.active ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : ""}
+              disabled={updatingManagerStatus}
+              onClick={(event) => {
+                event.preventDefault();
+                void confirmManagerStatusChange();
+              }}
+              data-testid="manager-status-confirm"
+            >
+              <Power /> {updatingManagerStatus ? "Saving…" : managerStatusTarget?.active ? "Deactivate account" : "Activate account"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog
         open={Boolean(selectedManager)}
