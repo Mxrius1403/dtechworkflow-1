@@ -25,7 +25,7 @@ export const STATUS = {
 };
 
 export const DEPARTMENT_STYLE = {
-  denture: { dot: "bg-[#0097a7]", text: "text-[#007784]", soft: "bg-teal-50", ring: "border-l-[#0097a7]", initial: "D" },
+  prosthesis: { dot: "bg-[#0097a7]", text: "text-[#007784]", soft: "bg-teal-50", ring: "border-l-[#0097a7]", initial: "P" },
   ortho: { dot: "bg-indigo-500", text: "text-indigo-700", soft: "bg-indigo-50", ring: "border-l-indigo-500", initial: "O" },
   digital: { dot: "bg-sky-600", text: "text-sky-700", soft: "bg-sky-50", ring: "border-l-sky-600", initial: "DG" },
 };

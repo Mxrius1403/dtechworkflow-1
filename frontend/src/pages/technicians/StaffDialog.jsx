@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input";
 import { Field, NativeSelect } from "@/components/common/Field";
 import { isEmail } from "@/lib/csv";
+import { departmentKey } from "@/lib/cases";
 import { createDriver, createManager, createTechnician, updateDriver } from "@/lib/api";
 import { demoSave, notify, notifyError } from "@/lib/notify";
 
@@ -13,7 +14,7 @@ const LABEL = { technician: "Technician", manager: "Manager", driver: "Driver" }
 /** Add / edit dialog shared by technicians, managers (Owner Control) and drivers. */
 export function StaffDialog({ kind, person, nextId, onClose }) {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState({ name: person?.name || "", email: person?.email || "", password: "", department: person?.department || "denture", active: person ? String(person.active) : "true" });
+  const [form, setForm] = useState({ name: person?.name || "", email: person?.email || "", password: "", department: departmentKey(person?.department), active: person ? String(person.active) : "true" });
   const [saving, setSaving] = useState(false);
   const needsLogin = kind !== "driver";
   const set = (key) => (e) => setForm((current) => ({ ...current, [key]: e.target.value }));
@@ -87,7 +88,7 @@ export function StaffDialog({ kind, person, nextId, onClose }) {
           {kind === "technician" ? (
             <Field label="Department">
               <NativeSelect value={form.department} onChange={set("department")} data-testid={`${kind}-department-select`}>
-                <option value="denture">Denture</option><option value="ortho">Ortho</option><option value="digital">Digital</option>
+                <option value="prosthesis">Prosthesis</option><option value="ortho">Ortho</option><option value="digital">Digital</option>
               </NativeSelect>
             </Field>
           ) : kind === "driver" ? (

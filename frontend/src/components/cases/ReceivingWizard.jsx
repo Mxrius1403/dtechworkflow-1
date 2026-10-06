@@ -5,18 +5,20 @@ import { Input } from "@/components/ui/input";
 import { ARCH_OPTIONS, SERVICE_TYPES } from "@/config/constants";
 import { nice, today } from "@/lib/format";
 import { nextProductionDay, productionDayInfo } from "@/lib/holidays";
-import { demoSave, notify, notifyError } from "@/lib/notify";
+import { departmentName } from "@/lib/cases";
+import { notify, notifyError } from "@/lib/notify";
 import { cn } from "@/lib/utils";
 
 const chip = (on) => cn("rounded-lg border-2 px-3 py-3 text-sm font-semibold transition-colors", on ? "border-secondary bg-accent text-accent-foreground" : "border-border bg-card hover:border-secondary/50");
 
-/** Receiving wizard: Denture = service types → arch → production date; other departments = date only. */
-export function ReceivingWizard({ draft, onClose }) {
-  const denture = draft.department === "denture";
-  const [step, setStep] = useState(denture ? "types" : "schedule");
+/** Receiving wizard: Prosthesis = service types → arch → production date; other departments = date only. */
+export function ReceivingWizard({ draft, onClose, onSave }) {
+  const prosthesis = draft.department === "prosthesis" || draft.department === "denture";
+  const [step, setStep] = useState(prosthesis ? "types" : "schedule");
   const [types, setTypes] = useState([]);
   const [arch, setArch] = useState("");
   const [date, setDate] = useState(nextProductionDay(today()));
+  const [saving, setSaving] = useState(false);
   const label = `${draft.reentry ? "Re-entry" : "New case"} ${draft.code}`;
 
   const toggle = (t) => setTypes(types.includes(t) ? types.filter((x) => x !== t) : [...types, t]);
@@ -27,10 +29,15 @@ export function ReceivingWizard({ draft, onClose }) {
     setDate(next);
     notify(info.holiday ? `${info.holiday.name} is unavailable. Moved to ${nice(next)}.` : `Weekends are unavailable. Moved to ${nice(next)}.`);
   };
-  const save = () => {
+  const save = async () => {
     if (!date) return notifyError("Choose a production date");
-    demoSave(`${draft.code} scheduled for ${nice(date)}`);
-    onClose();
+    setSaving(true);
+    try {
+      const saved = await onSave({ productionDate: date, serviceTypes: types, arch });
+      if (saved) onClose();
+    } finally {
+      setSaving(false);
+    }
   };
 
   const steps = {
@@ -48,27 +55,27 @@ export function ReceivingWizard({ draft, onClose }) {
       title: `Schedule Case ${draft.code}`, description: "Saturdays, Sundays and Irish public holidays are unavailable. Re-entry starts with a fresh overdue status.",
       body: (
         <div className="grid gap-3">
-          {denture && <p className="text-sm"><b>{types.join(" + ")}</b> • {arch}</p>}
+          {prosthesis && <p className="text-sm"><b>{types.join(" + ")}</b> • {arch}</p>}
           <Input type="date" min={today()} value={date} onChange={(e) => pickDate(e.target.value)} data-testid="receiving-date-input" />
         </div>
       ),
-      next: save, nextLabel: "Add to Schedule", back: denture ? () => setStep("arch") : null,
+      next: save, nextLabel: "Add to Schedule", back: prosthesis ? () => setStep("arch") : null,
     },
   }[step];
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
+    <Dialog open onOpenChange={(open) => !open && !saving && onClose()}>
       <DialogContent className="max-w-lg" data-testid="receiving-wizard">
         <DialogHeader>
-          <p className="eyebrow">{draft.department} receiving</p>
+          <p className="eyebrow">{departmentName(draft.department)} receiving</p>
           <DialogTitle>{steps.title}</DialogTitle>
           <DialogDescription>{steps.description}</DialogDescription>
         </DialogHeader>
         {steps.body}
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={onClose} data-testid="receiving-cancel">Cancel</Button>
-          {steps.back && <Button variant="outline" onClick={steps.back} data-testid="receiving-back">Back</Button>}
-          {steps.next && <Button onClick={steps.next} data-testid="receiving-next">{steps.nextLabel}</Button>}
+          <Button variant="outline" onClick={onClose} disabled={saving} data-testid="receiving-cancel">Cancel</Button>
+          {steps.back && <Button variant="outline" onClick={steps.back} disabled={saving} data-testid="receiving-back">Back</Button>}
+          {steps.next && <Button onClick={steps.next} disabled={saving} data-testid="receiving-next">{saving ? "Saving…" : steps.nextLabel}</Button>}
         </DialogFooter>
       </DialogContent>
     </Dialog>

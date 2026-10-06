@@ -54,7 +54,7 @@ export function OrderTds() {
     <>
       <div className="grid items-start gap-5 lg:grid-cols-[1fr_360px]">
         <div className="grid min-w-0 gap-5">
-          <Panel title="Find Products" description="Search by product name, code, brand, supplier or keywords such as cutter, acrylic, brush, lathe, micromotor, ortho or denture.">
+          <Panel title="Find Products" description="Search by product name, code, brand, supplier or keywords such as cutter, acrylic, brush, lathe, micromotor, ortho or prosthesis.">
             <div className="grid gap-3 md:grid-cols-[2fr_1fr_1fr]">
               <Field label="Search"><Input value={form.search} onChange={set("search")} onKeyDown={(e) => e.key === "Enter" && setFilters(form)} placeholder="Example: cutter, acrylic, EDE/0664…" data-testid="material-search" /></Field>
               <Field label="Supplier"><NativeSelect value={form.supplier} onChange={set("supplier")} data-testid="material-supplier"><option value="all">All suppliers</option><Options items={MATERIAL_SUPPLIERS.map((s) => [s, s])} /></NativeSelect></Field>

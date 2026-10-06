@@ -18,6 +18,8 @@ export const fetchAllData = () => api.get("/data").then((r) => r.data);
 export const fetchCatalog = () => api.get("/catalog").then((r) => r.data);
 export const fetchTracking = (token) => api.get(`/tracking/${token}`).then((r) => r.data);
 export const fetchClinicContact = (clinicId) => api.get(`/clinics/${clinicId}/contact`).then((r) => r.data);
+export const createReceivedCase = (receivedCase) => api.post("/receiving/cases", receivedCase).then((r) => r.data);
+export const restoreReceivedCase = (caseId) => api.post(`/receiving/cases/${encodeURIComponent(caseId)}/restore`).then((r) => r.data);
 export const createLogisticsRoute = (route) => api.post("/routes", route).then((r) => r.data);
 export const addRouteStop = (routeId, stop) => api.post(`/routes/${routeId}/stops`, stop).then((r) => r.data);
 export const transferRouteStop = (routeId, stopId, driverId) => api.patch(`/routes/${routeId}/stops/${stopId}/transfer`, { driverId }).then((r) => r.data);

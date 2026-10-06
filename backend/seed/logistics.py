@@ -109,7 +109,7 @@ def current_routes(book: RouteBook, confirmed: list[dict], route_today: date) ->
     s1 = book.stop(started, "C0001", deliveries=[ready["4107"]], collection="Two repairs boxed at reception",
                    state="completed", at=iso(route_today, 9, 55))
     s2 = book.stop(started, "C0003", deliveries=[ready["5207"]], state="arrived", at=iso(route_today, 10, 40))
-    s3 = book.stop(started, "C0004", collection="Impressions for upper denture")
+    s3 = book.stop(started, "C0004", collection="Impressions for upper prosthesis")
     s4 = book.stop(started, "C0007", deliveries=[ready["6305"]])
     s5 = book.stop(started, "C0005", collection="Urgent repair pick-up", urgent=True, at=iso(route_today, 10, 5))
     book.plan(started, [s1["id"], s2["id"], s4["id"], s3["id"]], iso(route_today, 9, 10))
@@ -125,7 +125,7 @@ def current_routes(book: RouteBook, confirmed: list[dict], route_today: date) ->
     published = book.route(route_today, "D0002", "published", created_at=created)
     book.stop(published, "C0002", deliveries=[ready["4112"]], collection="")
     book.stop(published, "C0006", collection="Return articulator")
-    book.stop(published, "C0001", collection="Impressions for new upper denture")
+    book.stop(published, "C0001", collection="Impressions for new upper prosthesis")
 
     tomorrow = next_production_day(route_today + timedelta(days=1))
     upcoming = book.route(tomorrow, "D0001", "published", created_at=iso(route_today, 11, 0))

@@ -44,7 +44,7 @@ class TechnicianCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     email: EmailStr
     password: str = Field(min_length=12, max_length=72)
-    department: Literal["denture", "ortho", "digital"]
+    department: Literal["prosthesis", "ortho", "digital"]
 
 
 class ManagerCreate(BaseModel):

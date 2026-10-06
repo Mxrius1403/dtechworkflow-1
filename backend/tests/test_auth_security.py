@@ -70,7 +70,7 @@ def test_technician_credentials_and_department_are_validated():
             name="New Tech",
             email="tech@example.com",
             password="short",
-            department="denture",
+            department="prosthesis",
         )
     with pytest.raises(ValidationError):
         TechnicianCreate(
@@ -216,7 +216,7 @@ def test_manager_can_create_technician_account(monkeypatch):
                 name="New Technician",
                 email="tech@example.com",
                 password="long-enough-password",
-                department="denture",
+                department="prosthesis",
             ),
             {"_id": "MGR0001", "role": "manager"},
         )

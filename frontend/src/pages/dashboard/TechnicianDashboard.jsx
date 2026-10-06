@@ -7,7 +7,7 @@ import { StatCard, StatGrid } from "@/components/common/StatCard";
 import { DEPARTMENT_STYLE } from "@/config/statuses";
 import { useData } from "@/context/DataContext";
 import { useSession } from "@/context/SessionContext";
-import { caseDepartment, departmentName, scanOutcome, todayCases } from "@/lib/cases";
+import { caseDepartment, departmentKey, departmentName, scanOutcome, todayCases } from "@/lib/cases";
 import { demoSave, notifyError } from "@/lib/notify";
 import { cn } from "@/lib/utils";
 
@@ -15,7 +15,7 @@ export function TechnicianDashboard() {
   const { cases, toothOrders, techName } = useData();
   const { user } = useSession();
   const { openCase, openAttention, openOverdueReason } = useCaseDialogs();
-  const dept = user.department || "denture";
+  const dept = departmentKey(user.department);
   const rows = todayCases(cases).filter((c) => caseDepartment(c) === dept);
   const mine = (c, key) => c[key] === user.id;
 

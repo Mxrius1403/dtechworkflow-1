@@ -41,7 +41,7 @@ export function ManagerHolidays() {
       <Panel title="Pending Requests" description="Approve or reject holiday requests. Only approved dates appear on the official calendar." actions={
         <Field label="Calendar department">
           <NativeSelect value={department} onChange={(e) => setDepartment(e.target.value)} data-testid="leave-department-filter">
-            <option value="all">All Departments</option><option value="denture">Denture</option><option value="ortho">Ortho</option><option value="digital">Digital</option>
+            <option value="all">All Departments</option><option value="prosthesis">Prosthesis</option><option value="ortho">Ortho</option><option value="digital">Digital</option>
           </NativeSelect>
         </Field>
       }>

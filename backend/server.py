@@ -6,7 +6,7 @@ from core.config import CORS_ORIGINS
 from core.database import client, db
 from core.security import validate_security_config
 from fastapi import FastAPI
-from routers import auth, catalog, data, logistics
+from routers import auth, catalog, data, logistics, receiving
 from seed.loader import ensure_demo_data
 from starlette.middleware.cors import CORSMiddleware
 
@@ -17,6 +17,11 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(level
 async def lifespan(_: FastAPI):
     validate_security_config()
     await ensure_demo_data()
+    for collection_name in ("auth_users", "users", "cases", "leave_requests"):
+        await db[collection_name].update_many(
+            {"department": "denture"},
+            {"$set": {"department": "prosthesis"}},
+        )
     await db[AUTH_USERS].create_index("email", unique=True)
     yield
     client.close()
@@ -24,7 +29,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="Dentaltech Daily Flow API", lifespan=lifespan)
 
-for module in (auth, data, catalog, logistics):
+for module in (auth, data, catalog, logistics, receiving):
     app.include_router(module.router)
 
 

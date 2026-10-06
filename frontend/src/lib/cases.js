@@ -1,8 +1,13 @@
 import { calendarDaysBetween, dateKey, isToday, timeOf, today } from "./format";
 
-export const DEPARTMENTS = ["denture", "ortho", "digital"];
-export const departmentName = (d) => (d === "ortho" ? "Ortho" : d === "digital" ? "Digital" : "Denture");
-export const caseDepartment = (c) => c.department || "denture";
+export const DEPARTMENTS = ["prosthesis", "ortho", "digital"];
+export const departmentKey = (department) =>
+  department === "denture" ? "prosthesis" : department || "prosthesis";
+export const departmentName = (department) => {
+  const key = departmentKey(department);
+  return key === "ortho" ? "Ortho" : key === "digital" ? "Digital" : "Prosthesis";
+};
+export const caseDepartment = (c) => departmentKey(c.department);
 
 export const scheduledKey = (c) => c.currentDueDate || c.scheduledDate || c.receivedDate || "";
 
@@ -102,7 +107,7 @@ export function scanOutcome(cases, value, user, techName) {
   if (!selected) return { kind: "error", message: user.isManager ? "Case not found. Add it in Receiving." : "Case not found. Ask Receiving." };
   if (user.isManager) return { kind: "manage", caseItem: selected };
   if (selected.overdueReasonRequired && selected.technicianId === user.id && !selected.overdueReason) return { kind: "overdueReason", caseItem: selected };
-  if (caseDepartment(selected) !== (user.department || "denture")) return { kind: "error", message: `This case belongs to ${departmentName(caseDepartment(selected))}.` };
+  if (caseDepartment(selected) !== departmentKey(user.department)) return { kind: "error", message: `This case belongs to ${departmentName(caseDepartment(selected))}.` };
   if (selected.status === "queue") return { kind: "save", message: `Case ${code} started` };
   if (selected.status === "production" && selected.technicianId !== user.id) {
     return { kind: "error", message: `Already in production by ${techName(selected.technicianId, selected.technician) || "another technician"}` };

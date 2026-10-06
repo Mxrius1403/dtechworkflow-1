@@ -49,7 +49,7 @@ export function CaseControlDialog({ c, onClose, onAttention, onOverdueReason }) 
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Department">
             <NativeSelect value={form.department} onChange={set("department")} data-testid="case-department-select">
-              <option value="denture">Denture</option><option value="ortho">Ortho</option><option value="digital">Digital</option>
+              <option value="prosthesis">Prosthesis</option><option value="ortho">Ortho</option><option value="digital">Digital</option>
             </NativeSelect>
           </Field>
           <Field label="Status">

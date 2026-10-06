@@ -156,6 +156,11 @@ Add `"apiName": "mongo_collection"` to `PUBLIC_COLLECTIONS` in `backend/core/col
 | GET | `/api/catalog` | **Authenticated.** `{materials, toothGroups}` |
 | GET | `/api/tracking/{token}` | Public tracking record (400 invalid, 404 unknown/expired) |
 | GET | `/api/clinics/{id}/contact` | **Authenticated.** Clinic contact fields |
+| POST | `/api/receiving/cases` | **Manager or Digital technician.** Create a case or re-enter a completed case |
+| POST | `/api/receiving/cases/{id}/restore` | **Manager or Digital technician.** Restore a removed case to the queue |
+
+Technician and case department values use `prosthesis`, `ortho` or `digital`.
+Existing `denture` department values are migrated to `prosthesis` at backend startup.
 
 ---
 
@@ -209,7 +214,7 @@ The items below were dropped on purpose because they only make sense with the ol
 
 ## Remaining backend work
 
-Workflow write actions outside Deliveries & Collections still end in `demoSave()` in `frontend/src/lib/notify.js`. To make one real:
+Workflow write actions outside Deliveries & Collections and Receiving still end in `demoSave()` in `frontend/src/lib/notify.js`. To make one real:
 1. Add a `POST`/`PATCH` endpoint in a backend router (validate with a Pydantic model and store with `BaseDocument.to_mongo()`).
 2. Add the call to `frontend/src/lib/api.js`.
 3. Replace the `demoSave(…)` call with the API call, then refresh with `queryClient.invalidateQueries({ queryKey: ["data"] })`.
