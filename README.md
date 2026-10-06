@@ -13,7 +13,7 @@ It used to be one Firebase + vanilla JS bundle (`app.js`, `logistics.js`, `enhan
 | Service  | Where                        | Notes |
 |----------|------------------------------|-------|
 | Backend  | `backend/` → `server.py` on port 8001 | All routes start with `/api`. |
-| Frontend | `frontend/` (CRA + Tailwind) on port 3000 | Calls the backend through `REACT_APP_BACKEND_URL`. |
+| Frontend | `frontend/` (CRA + Tailwind) on port 3000 | Calls `http://localhost:8001` by default; override with `REACT_APP_BACKEND_URL`. |
 | Database | MongoDB from `MONGO_URL` / `DB_NAME` in `backend/.env` | The sample data is filled in automatically. |
 
 On the platform, both services run under supervisor with hot reload:
@@ -29,6 +29,8 @@ To run them locally yourself:
 cd backend  && pip install -r requirements.txt && uvicorn server:app --port 8001 --reload
 cd frontend && yarn install && yarn start
 ```
+
+For a backend running on a different address, set `REACT_APP_BACKEND_URL` in `frontend/.env` (for example, `REACT_APP_BACKEND_URL=http://localhost:8001`) and restart the frontend.
 
 ### Demo sign-in (no passwords in Phase 1)
 
