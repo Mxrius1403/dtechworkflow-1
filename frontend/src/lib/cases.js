@@ -137,7 +137,11 @@ export function casePlace(c, techName) {
 }
 
 export function caseWho(c, techName) {
-  if (c.status === "queue") return `Received ${c.receivedDate || ""} ${c.receivedTime || ""}`.trim();
+  if (c.status === "queue") {
+    const received = `Received ${c.receivedDate || ""} ${c.receivedTime || ""}`.trim();
+    if (!c.technicianId) return received;
+    return `${techName(c.technicianId, c.technician) || c.technicianId} (${c.technicianId}) • ${received}`;
+  }
   if (c.status === "production") return `${techName(c.technicianId, c.technician)} (${c.technicianId}) • started ${c.startedTime || timeOf(c.startedAt)}`;
   if (c.status === "completed") return `${techName(c.finishedById, c.finishedBy)} (${c.finishedById}) • finished ${c.finishedTime || timeOf(c.finishedAt)}`;
   return "Removed from queue";

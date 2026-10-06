@@ -111,7 +111,7 @@ export default function ReceivingPage() {
   };
 
   return (
-    <div className={cn("grid gap-5", departments.length > 1 && "xl:grid-cols-3")}>
+    <div className={cn("grid min-w-0 gap-5", departments.length > 1 && "xl:grid-cols-3")}>
       {departments.map((dep) => {
         const name = departmentName(dep);
         const byStatus = {
@@ -124,12 +124,12 @@ export default function ReceivingPage() {
         };
         const sections = [["queue", "In Queue"], ["production", "In Production"], ["completed", "Completed"]];
         return (
-          <Panel key={dep} eyebrow={<span className={DEPARTMENT_STYLE[dep].text}>{name}</span>} title={`Receive ${name}`} description="Scan new cases or open a case below to update its workflow details." className={cn("border-l-4", DEPARTMENT_STYLE[dep].ring)} data-testid={`receiving-${dep}`}>
+          <Panel key={dep} eyebrow={<span className={DEPARTMENT_STYLE[dep].text}>{name}</span>} title={`Receive ${name}`} description="Scan new cases or open a case below to update its workflow details." className={cn("min-w-0 border-l-4", DEPARTMENT_STYLE[dep].ring)} data-testid={`receiving-${dep}`}>
             <ScanBar placeholder={`Scan ${name.toLowerCase()} case`} buttonLabel="Receive" onScan={receive(dep)} testId={`receive-${dep}`} />
             {sections.map(([key, label]) => (
               <section key={key} className="mt-5" aria-label={`${label} ${name} cases`}>
                 <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">{label} — {name} ({byStatus[key].length})</h3>
-                <div className="grid max-h-96 gap-2 overflow-y-auto">
+                <div className="grid min-w-0 max-h-96 gap-2 overflow-y-auto">
                   {byStatus[key].map((caseItem) => <CaseCard key={caseItem.id} c={caseItem} onClick={() => setSelectedCaseId(caseItem.id)} />)}
                   {!byStatus[key].length && <Muted>No {label.toLowerCase()} {name.toLowerCase()} cases.</Muted>}
                 </div>
