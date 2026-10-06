@@ -100,7 +100,7 @@ export default function ReceivingPage() {
         caseId: draft.caseId || null,
       });
       await queryClient.invalidateQueries({ queryKey: ["data"] });
-      notify(`Case ${draft.code} scheduled for ${nice(details.productionDate)}`);
+      notify(`Case ${draft.code} due by ${nice(details.productionDate)}`);
       setDraft(null);
       return true;
     } catch (error) {
