@@ -46,6 +46,16 @@ class TechnicianCreate(BaseModel):
     department: Literal["denture", "ortho", "digital"]
 
 
+class ManagerCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    email: EmailStr
+    password: str = Field(min_length=12, max_length=72)
+
+
+class OwnershipTransfer(BaseModel):
+    manager_id: str = Field(validation_alias="managerId", min_length=1, max_length=100)
+
+
 @router.get("/setup")
 async def get_setup_status() -> dict:
     collection = db[AUTH_USERS]
@@ -136,6 +146,29 @@ async def allocate_technician_id() -> str:
     return f"DT{number:03d}"
 
 
+async def allocate_manager_id() -> str:
+    used_ids = {
+        row["_id"] for row in await db["users"].find({}, {"_id": 1}).to_list(10_000)
+    }
+    used_ids.update(
+        row["_id"] for row in await db[AUTH_USERS].find({}, {"_id": 1}).to_list(10_000)
+    )
+    number = 1
+    while f"MGR{number:04d}" in used_ids:
+        number += 1
+    return f"MGR{number:04d}"
+
+
+def normalized_email(value: str) -> str:
+    try:
+        return validate_email(value, check_deliverability=False).normalized.lower()
+    except EmailNotValidError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Enter a valid email address.",
+        ) from error
+
+
 @router.post("/login", dependencies=[Depends(require_allowed_origin)])
 async def login(body: LoginRequest, request: Request, response: Response) -> dict:
     try:
@@ -195,15 +228,7 @@ async def create_technician(
             detail="Password must be no longer than 72 UTF-8 bytes.",
         )
 
-    try:
-        email = validate_email(
-            str(body.email), check_deliverability=False
-        ).normalized.lower()
-    except EmailNotValidError as error:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Enter a valid email address.",
-        ) from error
+    email = normalized_email(str(body.email))
 
     account = {
         "name": body.name.strip(),
@@ -237,3 +262,107 @@ async def create_technician(
             detail="Could not allocate a unique technician ID.",
         )
     return {"user": public_account(account)}
+
+
+@router.get("/managers", dependencies=[Depends(require_role("owner"))])
+async def list_managers() -> dict:
+    accounts = await db[AUTH_USERS].find({"role": "manager"}).to_list(10_000)
+    return {"managers": [public_account(account) for account in accounts]}
+
+
+@router.post(
+    "/managers",
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_allowed_origin)],
+)
+async def create_manager(
+    body: ManagerCreate,
+    owner: dict = Depends(require_role("owner")),
+) -> dict:
+    if not body.name.strip():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Enter a name."
+        )
+    if len(body.password.encode("utf-8")) > 72:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Password must be no longer than 72 UTF-8 bytes.",
+        )
+
+    email = normalized_email(str(body.email))
+    account = {
+        "name": body.name.strip(),
+        "email": email,
+        "passwordHash": hash_password(body.password),
+        "role": "manager",
+        "department": None,
+        "active": True,
+        "authVersion": 0,
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+        "createdBy": str(owner["_id"]),
+    }
+    for _ in range(3):
+        account["_id"] = await allocate_manager_id()
+        try:
+            await db[AUTH_USERS].insert_one(account)
+            break
+        except DuplicateKeyError as error:
+            if await db[AUTH_USERS].find_one({"email": email}):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="An account with this email already exists.",
+                ) from error
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Could not allocate a unique manager ID.",
+        )
+    return {"user": public_account(account)}
+
+
+@router.post(
+    "/ownership/transfer",
+    dependencies=[Depends(require_allowed_origin)],
+)
+async def transfer_ownership(
+    body: OwnershipTransfer,
+    response: Response,
+    owner: dict = Depends(require_role("owner")),
+) -> dict:
+    owner_id = str(owner["_id"])
+    if body.manager_id == owner_id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Choose a different manager.",
+        )
+
+    async def transfer(session) -> None:
+        result = await db[AUTH_USERS].update_one(
+            {"_id": owner_id, "role": "owner", "active": True},
+            {"$set": {"role": "manager"}, "$inc": {"authVersion": 1}},
+            session=session,
+        )
+        if result.matched_count != 1:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Owner permissions have changed. Refresh and try again.",
+            )
+
+        result = await db[AUTH_USERS].update_one(
+            {"_id": body.manager_id, "role": "manager", "active": True},
+            {"$set": {"role": "owner"}, "$inc": {"authVersion": 1}},
+            session=session,
+        )
+        if result.matched_count != 1:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="The selected manager is no longer active. Refresh and try again.",
+            )
+
+    async with await db.client.start_session() as session:
+        await session.with_transaction(transfer)
+
+    updated_owner = await db[AUTH_USERS].find_one({"_id": owner_id})
+    token = create_session_token(owner_id, updated_owner.get("authVersion", 0))
+    set_session_cookie(response, token)
+    return {"user": public_account(updated_owner)}

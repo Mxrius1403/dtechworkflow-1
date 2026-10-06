@@ -5,7 +5,13 @@ from core import security
 from fastapi import HTTPException, Response
 from pydantic import ValidationError
 from routers import auth
-from routers.auth import LoginRequest, OwnerSetup, TechnicianCreate
+from routers.auth import (
+    LoginRequest,
+    ManagerCreate,
+    OwnerSetup,
+    OwnershipTransfer,
+    TechnicianCreate,
+)
 from starlette.requests import Request
 
 
@@ -78,6 +84,18 @@ def test_technician_credentials_and_department_are_validated():
     )
 
 
+def test_manager_credentials_are_independent_of_technician_department():
+    manager = ManagerCreate(
+        name="Lab Manager",
+        email="manager@example.com",
+        password="long-enough-password",
+    )
+
+    assert manager.name == "Lab Manager"
+    assert not hasattr(manager, "department")
+    assert OwnershipTransfer(managerId="MGR0001").manager_id == "MGR0001"
+
+
 def test_owner_setup_creates_first_owner_and_signs_them_in(monkeypatch):
     class Collection:
         account = None
@@ -123,6 +141,137 @@ def test_owner_setup_creates_first_owner_and_signs_them_in(monkeypatch):
     assert result["user"]["id"] == "OWNER001"
     assert "dt_session=token" in response.headers["set-cookie"]
     assert asyncio.run(auth.get_setup_status()) == {"required": False}
+
+
+def test_owner_creates_manager_as_separate_login_role(monkeypatch):
+    class Collection:
+        account = None
+
+        async def find(self, _query, _projection=None):
+            return self
+
+        async def to_list(self, _limit):
+            return [{"_id": "OWNER001"}]
+
+        async def insert_one(self, account):
+            self.account = account
+
+    class Database:
+        def __init__(self):
+            self.collection = Collection()
+
+        def __getitem__(self, _name):
+            return self.collection
+
+    database = Database()
+    monkeypatch.setattr(auth, "db", database)
+    monkeypatch.setattr(auth, "allocate_manager_id", lambda: asyncio.sleep(0, result="MGR0001"))
+
+    result = asyncio.run(
+        auth.create_manager(
+            ManagerCreate(
+                name=" Manager ",
+                email="manager@example.com",
+                password="long-enough-password",
+            ),
+            {"_id": "OWNER001"},
+        )
+    )
+
+    account = database.collection.account
+    assert account["_id"] == "MGR0001"
+    assert account["name"] == "Manager"
+    assert account["role"] == "manager"
+    assert account["department"] is None
+    assert account["createdBy"] == "OWNER001"
+    assert security.verify_password("long-enough-password", account["passwordHash"])
+    assert result["user"]["isManager"] is True
+    assert result["user"]["isOwner"] is False
+
+
+def test_ownership_transfer_rejects_selecting_current_owner():
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(
+            auth.transfer_ownership(
+                OwnershipTransfer(managerId="OWNER001"),
+                Response(),
+                {"_id": "OWNER001"},
+            )
+        )
+
+    assert error.value.status_code == 422
+
+
+def test_ownership_transfer_swaps_roles_and_rotates_sessions(monkeypatch):
+    accounts = {
+        "OWNER001": {
+            "_id": "OWNER001",
+            "name": "Current Owner",
+            "email": "owner@example.com",
+            "role": "owner",
+            "active": True,
+            "authVersion": 0,
+        },
+        "MGR0001": {
+            "_id": "MGR0001",
+            "name": "New Owner",
+            "email": "manager@example.com",
+            "role": "manager",
+            "active": True,
+            "authVersion": 2,
+        },
+    }
+
+    class Collection:
+        async def update_one(self, query, update, session=None):
+            account = accounts.get(query["_id"])
+            if not account or account["role"] != query["role"] or not account["active"]:
+                return type("Result", (), {"matched_count": 0})()
+            account["role"] = update["$set"]["role"]
+            account["authVersion"] += update["$inc"]["authVersion"]
+            return type("Result", (), {"matched_count": 1})()
+
+        async def find_one(self, query):
+            return accounts.get(query["_id"])
+
+    class Session:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return False
+
+        async def with_transaction(self, callback):
+            await callback(self)
+
+    class Client:
+        async def start_session(self):
+            return Session()
+
+    class Database:
+        client = Client()
+
+        def __getitem__(self, _name):
+            return Collection()
+
+    monkeypatch.setattr(auth, "db", Database())
+    monkeypatch.setattr(auth, "create_session_token", lambda user_id, version: f"{user_id}:{version}")
+
+    response = Response()
+    result = asyncio.run(
+        auth.transfer_ownership(
+            OwnershipTransfer(managerId="MGR0001"),
+            response,
+            accounts["OWNER001"],
+        )
+    )
+
+    assert accounts["OWNER001"]["role"] == "manager"
+    assert accounts["OWNER001"]["authVersion"] == 1
+    assert accounts["MGR0001"]["role"] == "owner"
+    assert accounts["MGR0001"]["authVersion"] == 3
+    assert result["user"]["isOwner"] is False
+    assert "dt_session=OWNER001:1" in response.headers["set-cookie"]
 
 
 def test_owner_setup_rejects_second_owner(monkeypatch):

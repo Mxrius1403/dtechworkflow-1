@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input";
 import { Field, NativeSelect } from "@/components/common/Field";
 import { isEmail } from "@/lib/csv";
-import { createTechnician } from "@/lib/api";
+import { createManager, createTechnician } from "@/lib/api";
 import { demoSave, notify, notifyError } from "@/lib/notify";
 
 const LABEL = { technician: "Technician", manager: "Manager", driver: "Driver" };
@@ -21,21 +21,30 @@ export function StaffDialog({ kind, person, nextId, onClose }) {
     if (!person && (!isEmail(form.email.trim()) || form.password.length < 12)) {
       return notifyError("Enter a valid email and a temporary password of at least 12 characters");
     }
-    if (kind === "technician" && !person) {
+    if ((kind === "technician" || kind === "manager") && !person) {
       setSaving(true);
       try {
-        await createTechnician({
+        const createAccount = kind === "manager" ? createManager : createTechnician;
+        const details = {
           name: form.name.trim(),
           email: form.email.trim(),
           password: form.password,
-          department: form.department,
-        });
-        await queryClient.invalidateQueries({ queryKey: ["data"] });
-        notify("Technician account created");
+        };
+        if (kind === "technician") {
+          await createAccount({ ...details, department: form.department });
+        } else {
+          await createAccount(details);
+        }
+        if (kind === "technician") {
+          await queryClient.invalidateQueries({ queryKey: ["data"] });
+        } else {
+          await queryClient.invalidateQueries({ queryKey: ["managers"] });
+        }
+        notify(`${LABEL[kind]} account created`);
         onClose();
       } catch (error) {
         const detail = error.response?.data?.detail;
-        notifyError(typeof detail === "string" ? detail : "Could not create technician account");
+        notifyError(typeof detail === "string" ? detail : `Could not create ${kind} account`);
       } finally {
         setSaving(false);
       }
@@ -63,13 +72,13 @@ export function StaffDialog({ kind, person, nextId, onClose }) {
                 <option value="denture">Denture</option><option value="ortho">Ortho</option><option value="digital">Digital</option>
               </NativeSelect>
             </Field>
-          ) : (
+          ) : kind === "driver" ? (
             <Field label="Status">
               <NativeSelect value={form.active} onChange={set("active")} data-testid={`${kind}-active-select`}>
                 <option value="true">Active</option><option value="false">Inactive</option>
               </NativeSelect>
             </Field>
-          )}
+          ) : null}
         </div>
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={onClose} disabled={saving} data-testid={`${kind}-cancel`}>Cancel</Button>

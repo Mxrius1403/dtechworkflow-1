@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { fetchCurrentUser, fetchSetupStatus, login as requestLogin, logout as requestLogout, setupOwner as requestOwnerSetup } from "@/lib/api";
+import { fetchCurrentUser, fetchSetupStatus, login as requestLogin, logout as requestLogout, setupOwner as requestOwnerSetup, transferOwnership as requestOwnershipTransfer } from "@/lib/api";
 import { notifyError } from "@/lib/notify";
 
 const SessionContext = createContext(null);
@@ -52,6 +52,12 @@ export function SessionProvider({ children }) {
     return authenticatedUser;
   }, []);
 
+  const transferOwnership = useCallback(async (managerId) => {
+    const updatedUser = await requestOwnershipTransfer(managerId);
+    setUser(updatedUser);
+    return updatedUser;
+  }, []);
+
   const signOut = useCallback(async () => {
     try {
       await requestLogout();
@@ -63,7 +69,7 @@ export function SessionProvider({ children }) {
     }
   }, [queryClient]);
 
-  const value = useMemo(() => ({ user, loading, error, setupRequired, signIn, createOwner, signOut }), [user, loading, error, setupRequired, signIn, createOwner, signOut]);
+  const value = useMemo(() => ({ user, loading, error, setupRequired, signIn, createOwner, transferOwnership, signOut }), [user, loading, error, setupRequired, signIn, createOwner, transferOwnership, signOut]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

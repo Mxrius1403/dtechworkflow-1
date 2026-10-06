@@ -13,7 +13,7 @@ const materialsLabel = (u) => (u.isManager ? "Material Order Requests" : "Order 
  * Add the page component for a new path in src/App.js (SCREENS).
  */
 export const PAGES = [
-  { path: "/owner-control", label: "Owner Control", icon: KeyRound, access: (u) => u.isOwner, nav: (u) => u.isOwner },
+  { path: "/owner-control", label: "Ownership & Managers", icon: KeyRound, access: (u) => u.isOwner, nav: (u) => u.isOwner },
   { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard, nav: always },
   { path: "/receiving", label: "Digital Receiving", title: "Receiving Station", icon: Inbox, access: (u) => u.isManager || u.department === "digital", nav: (u) => !u.isManager && u.department === "digital" },
   { path: "/other-work", label: "Other Work", icon: Timer, access: (u) => !u.isManager && u.department === "ortho", nav: (u) => !u.isManager && u.department === "ortho" },

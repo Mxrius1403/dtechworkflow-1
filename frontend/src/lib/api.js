@@ -10,6 +10,9 @@ export const setupOwner = (details) => api.post("/auth/setup", details).then((r)
 export const login = (credentials) => api.post("/auth/login", credentials).then((r) => r.data.user);
 export const logout = () => api.post("/auth/logout");
 export const createTechnician = (technician) => api.post("/auth/technicians", technician).then((r) => r.data.user);
+export const fetchManagers = () => api.get("/auth/managers").then((r) => r.data.managers);
+export const createManager = (manager) => api.post("/auth/managers", manager).then((r) => r.data.user);
+export const transferOwnership = (managerId) => api.post("/auth/ownership/transfer", { managerId }).then((r) => r.data.user);
 export const fetchAllData = () => api.get("/data").then((r) => r.data);
 export const fetchCatalog = () => api.get("/catalog").then((r) => r.data);
 export const fetchTracking = (token) => api.get(`/tracking/${token}`).then((r) => r.data);
