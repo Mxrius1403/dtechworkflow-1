@@ -1,8 +1,10 @@
 import { useState } from "react";
+import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Field, NativeSelect, Options } from "@/components/common/Field";
+import { ConfirmAction } from "@/components/common/ConfirmAction";
 import { NOTE_LIMIT } from "@/config/constants";
 import { useData } from "@/context/DataContext";
 import { caseDepartment } from "@/lib/cases";
@@ -14,7 +16,7 @@ const ATTENTION_LABELS = {
   need_information: "Need Information",
 };
 
-export function ReceivingCaseDialog({ c, manager, onClose, onSave, onAttentionSave }) {
+export function ReceivingCaseDialog({ c, manager, onClose, onSave, onAttentionSave, onDelete }) {
   const { users } = useData();
   const technicians = users.filter((user) => user.role === "technician");
   const [department, setDepartment] = useState(caseDepartment(c));
@@ -48,6 +50,15 @@ export function ReceivingCaseDialog({ c, manager, onClose, onSave, onAttentionSa
         attentionNote: attentionNote.trim(),
       });
       if (saved) setAttentionOpen(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteCase = async () => {
+    setSaving(true);
+    try {
+      await onDelete();
     } finally {
       setSaving(false);
     }
@@ -133,6 +144,19 @@ export function ReceivingCaseDialog({ c, manager, onClose, onSave, onAttentionSa
           <Button variant="outline" onClick={() => setAttentionOpen(true)} data-testid="receiving-change-attention">Change Attention Status</Button>
         </div>
         <DialogFooter>
+          {manager && (
+            <ConfirmAction
+              title={`Delete case ${c.code}?`}
+              description="The case will be hidden from active views. Its history will be retained."
+              confirmLabel="Delete Case"
+              onConfirm={deleteCase}
+              testId="receiving-case-delete"
+            >
+              <Button variant="destructive" disabled={saving} data-testid="receiving-case-delete-button">
+                <Trash2 /> Delete Case
+              </Button>
+            </ConfirmAction>
+          )}
           <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
           <Button onClick={saveCase} disabled={saving} data-testid="receiving-case-save">{saving ? "Saving…" : "Save Changes"}</Button>
         </DialogFooter>

@@ -12,7 +12,7 @@ import { DEPARTMENT_STYLE } from "@/config/statuses";
 import { useData } from "@/context/DataContext";
 import { useSession } from "@/context/SessionContext";
 import { DEPARTMENTS, caseDepartment, casePlace, departmentName, receivingOutcome, scheduledKey } from "@/lib/cases";
-import { createReceivedCase, restoreReceivedCase, updateCaseAttention, updateReceivedCase } from "@/lib/api";
+import { createReceivedCase, deleteReceivedCase, restoreReceivedCase, updateCaseAttention, updateReceivedCase } from "@/lib/api";
 import { nice } from "@/lib/format";
 import { notify, notifyError } from "@/lib/notify";
 import { cn } from "@/lib/utils";
@@ -110,6 +110,20 @@ export default function ReceivingPage() {
       return false;
     }
   };
+  const removeCase = async (caseId) => {
+    try {
+      const code = cases.find((caseItem) => caseItem.id === caseId)?.code || "";
+      await deleteReceivedCase(caseId);
+      await queryClient.invalidateQueries({ queryKey: ["data"] });
+      notify(`Case ${code} deleted`);
+      setSelectedCaseId(null);
+      return true;
+    } catch (error) {
+      const detail = error.response?.data?.detail;
+      notifyError(typeof detail === "string" ? detail : "Could not delete the case");
+      return false;
+    }
+  };
 
   return (
     <div className={cn("grid min-w-0 gap-5", departments.length > 1 && "xl:grid-cols-3")}>
@@ -148,6 +162,7 @@ export default function ReceivingPage() {
         onClose={() => setSelectedCaseId(null)}
         onSave={(changes) => updateCase(selectedCase.id, changes, updateReceivedCase)}
         onAttentionSave={(attention) => updateCase(selectedCase.id, attention, updateCaseAttention)}
+        onDelete={() => removeCase(selectedCase.id)}
       />}
     </div>
   );

@@ -190,6 +190,48 @@ def test_restore_returns_removed_case_to_queue(receiving_db):
     assert result["history"][-1]["action"] == "Restored to queue"
 
 
+def test_delete_received_case_preserves_history_and_records_actor(receiving_db):
+    receiving_db.documents["CASE-1"] = {
+        "_id": "CASE-1",
+        "code": "RCV-1001",
+        "status": "queue",
+        "history": [],
+    }
+
+    result = asyncio.run(
+        receiving.delete_received_case(
+            "CASE-1",
+            {"_id": "MGR0001", "role": "manager", "name": "Manager"},
+        )
+    )
+
+    assert result == {"id": "CASE-1", "deleted": True}
+    deleted = receiving_db.documents["CASE-1"]
+    assert deleted["deleted"] is True
+    assert deleted["deletedAt"] == "2026-10-06T12:00:00.000Z"
+    assert deleted["deletedById"] == "MGR0001"
+    assert deleted["history"][-1]["action"] == "Case deleted"
+    assert deleted["history"][-1]["by"] == "Manager"
+
+
+def test_deleted_case_number_can_be_received_again(receiving_db):
+    receiving_db.documents["CASE-1"] = {
+        "_id": "CASE-1",
+        "code": "RCV-1001",
+        "deleted": True,
+    }
+
+    result = asyncio.run(
+        receiving.create_received_case(
+            receive_payload(),
+            {"_id": "MGR0001", "role": "manager", "name": "Manager"},
+        )
+    )
+
+    assert result["code"] == "RCV-1001"
+    assert result["id"] != "CASE-1"
+
+
 @pytest.mark.parametrize(
     "overrides",
     [

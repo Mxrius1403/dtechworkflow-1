@@ -19,6 +19,7 @@ export const fetchCatalog = () => api.get("/catalog").then((r) => r.data);
 export const fetchTracking = (token) => api.get(`/tracking/${token}`).then((r) => r.data);
 export const fetchClinicContact = (clinicId) => api.get(`/clinics/${clinicId}/contact`).then((r) => r.data);
 export const createReceivedCase = (receivedCase) => api.post("/receiving/cases", receivedCase).then((r) => r.data);
+export const deleteReceivedCase = (caseId) => api.delete(`/receiving/cases/${encodeURIComponent(caseId)}`).then((r) => r.data);
 export const restoreReceivedCase = (caseId) => api.post(`/receiving/cases/${encodeURIComponent(caseId)}/restore`).then((r) => r.data);
 export const updateReceivedCase = (caseId, changes) => api.patch(`/receiving/cases/${encodeURIComponent(caseId)}`, changes).then((r) => r.data);
 export const updateCaseAttention = (caseId, attention) => api.patch(`/receiving/cases/${encodeURIComponent(caseId)}/attention`, attention).then((r) => r.data);

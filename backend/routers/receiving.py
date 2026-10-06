@@ -7,7 +7,7 @@ from core.collections import AUTH_USERS
 from core.config import TIMEZONE
 from core.database import db
 from core.models import BaseDocument
-from core.security import current_account
+from core.security import current_account, require_roles
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, model_validator
 from pymongo import ReturnDocument
@@ -280,7 +280,9 @@ async def _create_or_reenter(body: ReceiveCase, account: dict) -> dict:
             )
         return BaseDocument.from_mongo(case).to_api()
 
-    if await db["cases"].find_one({"code": body.code}):
+    if await db["cases"].find_one(
+        {"code": body.code, "deleted": {"$ne": True}}
+    ):
         raise HTTPException(
             status_code=409,
             detail=(
@@ -352,6 +354,47 @@ async def restore_received_case(
             ),
         )
     return BaseDocument.from_mongo(case).to_api()
+
+
+@router.delete("/cases/{case_id}")
+async def delete_received_case(
+    case_id: str,
+    account: dict = Depends(require_roles("owner", "manager")),
+) -> dict:
+    existing = await db["cases"].find_one({"_id": case_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Case not found.")
+    if existing.get("deleted"):
+        raise HTTPException(status_code=409, detail="Case is already deleted.")
+
+    timestamp, _, _ = _now()
+    display_name = account.get("name", account.get("email", "Receiving"))
+    case = await db["cases"].find_one_and_update(
+        {"_id": case_id, "deleted": {"$ne": True}},
+        {
+            "$set": {
+                "deleted": True,
+                "deletedAt": timestamp,
+                "deletedById": str(account["_id"]),
+                "deletedBy": display_name,
+                "updatedAt": timestamp,
+            },
+            "$push": {
+                "history": {
+                    "at": timestamp,
+                    "action": "Case deleted",
+                    "by": display_name,
+                }
+            },
+        },
+        return_document=ReturnDocument.AFTER,
+    )
+    if not case:
+        raise HTTPException(
+            status_code=409,
+            detail="The case changed before it could be deleted. Refresh and try again.",
+        )
+    return {"id": case_id, "deleted": True}
 
 
 @router.patch("/cases/{case_id}")
