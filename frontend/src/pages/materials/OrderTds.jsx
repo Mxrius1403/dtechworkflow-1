@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Loader2, Search } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,13 @@ export function OrderTds() {
   const { user } = useSession();
   const queryClient = useQueryClient();
   const productsQuery = useQuery({ queryKey: ["products"], queryFn: fetchProducts });
+  useEffect(() => {
+    const refresh = window.setInterval(
+      () => queryClient.invalidateQueries({ queryKey: ["data"] }),
+      15000,
+    );
+    return () => window.clearInterval(refresh);
+  }, [queryClient]);
   const products = productsQuery.data || EMPTY_PRODUCTS;
   const supplierNames = useMemo(
     () => Object.fromEntries(suppliers.map((supplier) => [supplier.id, supplier.name])),
@@ -48,6 +55,7 @@ export function OrderTds() {
   const [favourites, toggleFavourite] = useFavourites(user.id);
   const cart = useCart();
   const mine = materialOrders.filter((o) => o.requestedById === user.id);
+  const openMine = mine.filter((o) => o.status !== "done");
   const recent = [...new Set([...mine].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).flatMap((o) => o.items.map((i) => i.productId)))].slice(0, 8).map((id) => byId[id]).filter(Boolean);
   const words = filters.search.toLowerCase().split(/\s+/).filter(Boolean);
   const shown = products
@@ -112,7 +120,7 @@ export function OrderTds() {
         </div>
         <MaterialCart cart={cart.cart} productsById={byId} suppliers={supplierNames} notes={notes} submitting={submitting} onNotes={setNotes} onQty={cart.qty} onRemove={cart.remove} onSubmit={submit} onClear={cart.clear} />
       </div>
-      <MaterialOrderList title="My Material Orders" orders={mine} />
+      <MaterialOrderList title="My Material Orders" orders={openMine} />
     </>
   );
 }
