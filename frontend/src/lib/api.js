@@ -45,3 +45,7 @@ export const updateDriver = (driverId, driver) => api.patch(`/drivers/${driverId
 export const createSupplier = (supplier) => api.post("/suppliers", supplier).then((r) => r.data);
 export const updateSupplier = (supplierId, supplier) => api.patch(`/suppliers/${encodeURIComponent(supplierId)}`, supplier).then((r) => r.data);
 export const deleteSupplier = (supplierId) => api.delete(`/suppliers/${encodeURIComponent(supplierId)}`).then((r) => r.data);
+export const fetchProducts = () => api.get("/products").then((r) => r.data);
+export const createProduct = (product) => api.post("/products", product).then((r) => r.data);
+export const updateProduct = (productId, product) => api.patch(`/products/${encodeURIComponent(productId)}`, product).then((r) => r.data);
+export const deleteProduct = (productId) => api.delete(`/products/${encodeURIComponent(productId)}`).then((r) => r.data);
