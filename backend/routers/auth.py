@@ -69,6 +69,14 @@ class ManagerStatusUpdate(BaseModel):
     active: bool
 
 
+class ManagerUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=100)
+    email: EmailStr
+    password: str | None = Field(default=None, min_length=12, max_length=72)
+
+
 class OwnershipTransfer(BaseModel):
     manager_id: str = Field(validation_alias="managerId", min_length=1, max_length=100)
 
@@ -403,7 +411,9 @@ async def delete_technician(
 
 @router.get("/managers", dependencies=[Depends(require_role("owner"))])
 async def list_managers() -> dict:
-    accounts = await db[AUTH_USERS].find({"role": "manager"}).to_list(10_000)
+    accounts = await db[AUTH_USERS].find(
+        {"role": "manager", "deleted": {"$ne": True}}
+    ).to_list(10_000)
     return {"managers": [public_account(account) for account in accounts]}
 
 
@@ -467,7 +477,7 @@ async def update_manager_status(
     owner: dict = Depends(require_role("owner")),
 ) -> dict:
     result = await db[AUTH_USERS].update_one(
-        {"_id": manager_id, "role": "manager"},
+        {"_id": manager_id, "role": "manager", "deleted": {"$ne": True}},
         {"$set": {"active": body.active}, "$inc": {"authVersion": 1}},
     )
     if result.matched_count != 1:
@@ -478,6 +488,100 @@ async def update_manager_status(
 
     account = await db[AUTH_USERS].find_one({"_id": manager_id})
     return {"user": public_account(account)}
+
+
+@router.patch(
+    "/managers/{manager_id}/profile",
+    dependencies=[Depends(require_allowed_origin)],
+)
+async def update_manager_profile(
+    manager_id: str,
+    body: ManagerUpdate,
+    _: dict = Depends(require_role("owner")),
+) -> dict:
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Enter a name."
+        )
+
+    changes = {
+        "name": name,
+        "email": normalized_email(str(body.email)),
+    }
+    if body.password is not None:
+        if len(body.password.encode("utf-8")) > 72:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Password must be no longer than 72 UTF-8 bytes.",
+            )
+        changes["passwordHash"] = hash_password(body.password)
+
+    try:
+        result = await db[AUTH_USERS].update_one(
+            {
+                "_id": manager_id,
+                "role": "manager",
+                "deleted": {"$ne": True},
+            },
+            {"$set": changes, "$inc": {"authVersion": 1}},
+        )
+    except DuplicateKeyError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An account with this email already exists.",
+        ) from error
+
+    if result.matched_count != 1:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Manager account not found.",
+        )
+
+    account = await db[AUTH_USERS].find_one({"_id": manager_id})
+    return {"user": public_account(account)}
+
+
+@router.delete(
+    "/managers/{manager_id}",
+    dependencies=[Depends(require_allowed_origin)],
+)
+async def delete_manager(
+    manager_id: str,
+    owner: dict = Depends(require_role("owner")),
+) -> dict:
+    result = await db[AUTH_USERS].update_one(
+        {
+            "_id": manager_id,
+            "role": "manager",
+            "active": False,
+            "deleted": {"$ne": True},
+        },
+        {
+            "$set": {
+                "deleted": True,
+                "deletedAt": datetime.now(timezone.utc).isoformat(),
+                "deletedBy": str(owner["_id"]),
+            },
+            "$unset": {"email": "", "passwordHash": ""},
+            "$inc": {"authVersion": 1},
+        },
+    )
+    if result.matched_count != 1:
+        account = await db[AUTH_USERS].find_one(
+            {"_id": manager_id, "role": "manager"}
+        )
+        if account and account.get("active") and not account.get("deleted"):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Deactivate the manager before deleting the account.",
+            )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Manager account not found.",
+        )
+
+    return {"id": manager_id, "deleted": True}
 
 
 @router.post(

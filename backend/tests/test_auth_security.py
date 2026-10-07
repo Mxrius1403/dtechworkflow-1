@@ -9,6 +9,7 @@ from routers.auth import (
     LoginRequest,
     ManagerCreate,
     ManagerStatusUpdate,
+    ManagerUpdate,
     OwnerSetup,
     OwnershipTransfer,
     TechnicianCreate,
@@ -504,7 +505,11 @@ def test_owner_can_deactivate_manager_and_invalidate_sessions(monkeypatch):
 
     class Collection:
         async def update_one(self, query, update):
-            assert query == {"_id": "MGR0001", "role": "manager"}
+            assert query == {
+                "_id": "MGR0001",
+                "role": "manager",
+                "deleted": {"$ne": True},
+            }
             account.update(update["$set"])
             account["authVersion"] += update["$inc"]["authVersion"]
             return type("Result", (), {"matched_count": 1})()
@@ -528,6 +533,152 @@ def test_owner_can_deactivate_manager_and_invalidate_sessions(monkeypatch):
     assert account["active"] is False
     assert account["authVersion"] == 3
     assert result["user"]["active"] is False
+
+
+def test_owner_can_update_manager_profile_and_revoke_sessions(monkeypatch):
+    new_password = "a-new-long-enough-password"
+    account = {
+        "_id": "MGR0001",
+        "name": "Old Name",
+        "email": "old@example.com",
+        "passwordHash": security.hash_password("old-long-enough-password"),
+        "role": "manager",
+        "active": True,
+        "authVersion": 3,
+    }
+
+    class Collection:
+        async def update_one(self, query, update):
+            assert query == {
+                "_id": "MGR0001",
+                "role": "manager",
+                "deleted": {"$ne": True},
+            }
+            account.update(update["$set"])
+            account["authVersion"] += update["$inc"]["authVersion"]
+            return type("Result", (), {"matched_count": 1})()
+
+        async def find_one(self, _query):
+            return account
+
+    class Database:
+        def __getitem__(self, name):
+            assert name == "auth_users"
+            return Collection()
+
+    monkeypatch.setattr(auth, "db", Database())
+    result = asyncio.run(
+        auth.update_manager_profile(
+            "MGR0001",
+            ManagerUpdate(
+                name="  New Name  ",
+                email="NEW@example.com",
+                password=new_password,
+            ),
+            {"_id": "OWNER001", "role": "owner"},
+        )
+    )
+
+    assert account["name"] == "New Name"
+    assert account["email"] == "new@example.com"
+    assert account["authVersion"] == 4
+    assert security.verify_password(new_password, account["passwordHash"])
+    assert result["user"]["name"] == "New Name"
+    assert result["user"]["email"] == "new@example.com"
+
+
+def test_manager_profile_rejects_duplicate_email(monkeypatch):
+    class Collection:
+        async def update_one(self, _query, _update):
+            raise auth.DuplicateKeyError("duplicate email")
+
+    class Database:
+        def __getitem__(self, _name):
+            return Collection()
+
+    monkeypatch.setattr(auth, "db", Database())
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(
+            auth.update_manager_profile(
+                "MGR0001",
+                ManagerUpdate(name="New Name", email="used@example.com"),
+                {"_id": "OWNER001", "role": "owner"},
+            )
+        )
+
+    assert error.value.status_code == 409
+    assert error.value.detail == "An account with this email already exists."
+
+
+def test_owner_can_delete_inactive_manager_without_deleting_history(monkeypatch):
+    account = {
+        "_id": "MGR0001",
+        "name": "Former Manager",
+        "email": "manager@example.com",
+        "passwordHash": "stored-hash",
+        "role": "manager",
+        "active": False,
+        "authVersion": 2,
+    }
+
+    class Collection:
+        async def update_one(self, query, update):
+            assert query == {
+                "_id": "MGR0001",
+                "role": "manager",
+                "active": False,
+                "deleted": {"$ne": True},
+            }
+            account.update(update["$set"])
+            for field in update["$unset"]:
+                account.pop(field, None)
+            account["authVersion"] += update["$inc"]["authVersion"]
+            return type("Result", (), {"matched_count": 1})()
+
+    class Database:
+        def __getitem__(self, _name):
+            return Collection()
+
+    monkeypatch.setattr(auth, "db", Database())
+    result = asyncio.run(
+        auth.delete_manager(
+            "MGR0001", {"_id": "OWNER001", "role": "owner"}
+        )
+    )
+
+    assert result == {"id": "MGR0001", "deleted": True}
+    assert account["deleted"] is True
+    assert account["active"] is False
+    assert account["authVersion"] == 3
+    assert account["name"] == "Former Manager"
+    assert "email" not in account
+    assert "passwordHash" not in account
+
+
+def test_owner_cannot_delete_active_manager(monkeypatch):
+    account = {"_id": "MGR0001", "role": "manager", "active": True}
+
+    class Collection:
+        async def update_one(self, _query, _update):
+            return type("Result", (), {"matched_count": 0})()
+
+        async def find_one(self, _query):
+            return account
+
+    class Database:
+        def __getitem__(self, _name):
+            return Collection()
+
+    monkeypatch.setattr(auth, "db", Database())
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(
+            auth.delete_manager(
+                "MGR0001", {"_id": "OWNER001", "role": "owner"}
+            )
+        )
+
+    assert error.value.status_code == 409
+    assert error.value.detail == "Deactivate the manager before deleting the account."
 
 
 def test_inactive_account_cannot_sign_in(monkeypatch):
