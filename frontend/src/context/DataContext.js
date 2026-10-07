@@ -18,7 +18,7 @@ function shape(data, catalog) {
 /** Loads every read-only collection once from /api/data and exposes lists + lookups by id. */
 export function DataProvider({ children }) {
   const { signOut } = useSession();
-  const data = useQuery({ queryKey: ["data"], queryFn: fetchAllData });
+  const data = useQuery({ queryKey: ["data"], queryFn: fetchAllData, refetchOnMount: "always" });
   const catalog = useQuery({ queryKey: ["catalog"], queryFn: fetchCatalog, staleTime: Infinity });
   const value = useMemo(() => (data.data ? shape(data.data, catalog.data) : null), [data.data, catalog.data]);
 

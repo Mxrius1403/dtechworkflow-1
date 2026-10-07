@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Outlet, useLocation } from "react-router-dom";
 import { CaseDialogsProvider } from "@/components/cases/CaseDialogsProvider";
 import { pageForPath, pageTitle } from "@/config/navigation";
@@ -10,8 +11,16 @@ import { TvBoard } from "./TvBoard";
 export function AppShell() {
   const { user } = useSession();
   const { pathname } = useLocation();
+  const queryClient = useQueryClient();
+  const previousPathname = useRef(pathname);
   const [tv, setTv] = useState(false);
   const title = pageTitle(pageForPath(pathname), user);
+
+  useEffect(() => {
+    if (previousPathname.current === pathname) return;
+    previousPathname.current = pathname;
+    queryClient.invalidateQueries({ queryKey: ["data"] });
+  }, [pathname, queryClient]);
 
   const toggleTv = useCallback(() => {
     setTv((on) => {
