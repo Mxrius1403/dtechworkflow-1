@@ -1,11 +1,11 @@
 import {
-  BarChart3, Building2, Car, ClipboardList, Inbox, KeyRound, LayoutDashboard, Package, Search, Store, TreePalm, Truck, Users,
+  BarChart3, Boxes, Building2, Car, ClipboardList, Inbox, KeyRound, LayoutDashboard, Package, Search, Store, TreePalm, Truck, Users,
 } from "lucide-react";
 
 const manager = (u) => u.isManager;
 const technician = (u) => !u.isManager;
 const always = () => true;
-const materialsLabel = (u) => (u.isManager ? "Material Order Requests" : "Order TDS");
+const materialsLabel = (u) => (u.isManager ? "Material Management" : "Order TDS");
 
 /**
  * Every staff screen in one list (order = sidebar order).
@@ -23,6 +23,8 @@ export const PAGES = [
   { path: "/case-search", label: "Case Search", icon: Search, access: manager, nav: manager },
   { path: "/tooth-order", label: "Order Tooth", icon: ClipboardList, access: technician, nav: technician },
   { path: "/tooth-orders", label: "Tooth Order Requests", icon: ClipboardList, access: manager, nav: manager },
+  { path: "/materials/requests", label: "Material Order Requests", icon: ClipboardList, access: manager },
+  { path: "/materials/products", label: "Product Management", icon: Boxes, access: manager },
   { path: "/materials", label: materialsLabel, icon: Package, nav: always },
   { path: "/technicians", label: "Technicians", icon: Users, access: manager, nav: manager },
   { path: "/holidays", label: "Holiday Requests", icon: TreePalm, nav: always },
