@@ -1,11 +1,13 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Muted } from "@/components/common/Bits";
 import { Panel } from "@/components/common/Panel";
 import { CountPill } from "@/components/common/StatusBadge";
 import { useData } from "@/context/DataContext";
-import { demoSave, notifyError } from "@/lib/notify";
+import { createToothOrder } from "@/lib/api";
+import { notify, notifyError } from "@/lib/notify";
 import { cn } from "@/lib/utils";
 import { ToothPickDialog } from "./ToothPickDialog";
 
@@ -32,13 +34,25 @@ function ToothGroup({ group, items, onPick }) {
 
 export default function ToothOrderPage() {
   const { catalog } = useData();
+  const queryClient = useQueryClient();
   const [items, setItems] = useState([]);
   const [picking, setPicking] = useState(null);
+  const [saving, setSaving] = useState(false);
   const total = items.reduce((n, i) => n + i.qty, 0);
-  const send = () => {
+  const send = async () => {
     if (!items.length) return notifyError("No teeth selected");
-    demoSave("Order sent to manager");
-    setItems([]);
+    setSaving(true);
+    try {
+      const order = await createToothOrder({ items });
+      await queryClient.invalidateQueries({ queryKey: ["data"] });
+      notify(`Tooth order ${order.id} sent to manager`);
+      setItems([]);
+    } catch (error) {
+      const detail = error.response?.data?.detail;
+      notifyError(typeof detail === "string" ? detail : "Could not send the tooth order");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -57,8 +71,8 @@ export default function ToothOrderPage() {
           {!items.length && <Muted>No teeth selected.</Muted>}
         </div>
         <div className="mt-4 grid gap-2">
-          <Button onClick={send} data-testid="tooth-order-send"><Send /> Send to Manager</Button>
-          <Button variant="outline" onClick={() => setItems([])} data-testid="tooth-order-clear">Clear</Button>
+          <Button onClick={send} disabled={saving} data-testid="tooth-order-send">{saving ? "Sending…" : <><Send /> Send to Manager</>}</Button>
+          <Button variant="outline" onClick={() => setItems([])} disabled={saving} data-testid="tooth-order-clear">Clear</Button>
         </div>
       </Panel>
       {picking && <ToothPickDialog pick={picking} onClose={() => setPicking(null)} onAdd={(shade, qty) => setItems([...items, { ...picking, shade, qty }])} />}

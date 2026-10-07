@@ -36,6 +36,7 @@ class FakeDatabase(dict):
 def test_demo_seed_excludes_technicians_and_their_records():
     data = build_demo_data(date(2026, 10, 7))
 
+    assert "tooth_orders" in loader.PERSISTENT_COLLECTIONS
     assert all(user["role"] != "technician" for user in data["users"])
     for collection in (
         "leave_requests",

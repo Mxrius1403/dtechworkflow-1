@@ -1,6 +1,17 @@
 import asyncio
 
-from server import ensure_auth_email_index
+from server import app, ensure_auth_email_index
+
+
+def test_tooth_order_routes_are_registered():
+    routes = {
+        (route.path, method)
+        for route in app.routes
+        for method in getattr(route, "methods", set())
+    }
+
+    assert ("/api/tooth-orders", "POST") in routes
+    assert ("/api/tooth-orders/{order_id}", "DELETE") in routes
 
 
 def test_auth_email_index_migrates_legacy_unique_index(monkeypatch):

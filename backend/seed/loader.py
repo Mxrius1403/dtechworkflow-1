@@ -21,6 +21,7 @@ PERSISTENT_COLLECTIONS = {
     "drivers",
     "clinics",
     "saved_reports",
+    "tooth_orders",
     CLINIC_CONTACTS,
     "routes",
     "stops",

@@ -27,6 +27,8 @@ export const updateReceivedCase = (caseId, changes) => api.patch(`/receiving/cas
 export const updateCaseAttention = (caseId, attention) => api.patch(`/receiving/cases/${encodeURIComponent(caseId)}/attention`, attention).then((r) => r.data);
 export const saveReport = (report) => api.post("/reports", report).then((r) => r.data);
 export const deleteReport = (reportId) => api.delete(`/reports/${encodeURIComponent(reportId)}`).then((r) => r.data);
+export const createToothOrder = (order) => api.post("/tooth-orders", order).then((r) => r.data);
+export const deleteToothOrder = (orderId) => api.delete(`/tooth-orders/${encodeURIComponent(orderId)}`).then((r) => r.data);
 export const createLogisticsRoute = (route) => api.post("/routes", route).then((r) => r.data);
 export const addRouteStop = (routeId, stop) => api.post(`/routes/${routeId}/stops`, stop).then((r) => r.data);
 export const transferRouteStop = (routeId, stopId, driverId) => api.patch(`/routes/${routeId}/stops/${stopId}/transfer`, { driverId }).then((r) => r.data);
