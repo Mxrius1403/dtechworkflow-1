@@ -6,7 +6,6 @@ PUBLIC_COLLECTIONS = {
     "materialOrders": "material_orders",
     "reports": "saved_reports",
     "leaveRequests": "leave_requests",
-    "otherWork": "other_work",
     "drivers": "drivers",
     "clinics": "clinics",
     "routes": "routes",

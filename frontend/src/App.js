@@ -15,7 +15,6 @@ import DriversPage from "@/pages/drivers/DriversPage";
 import HolidaysPage from "@/pages/holidays/HolidaysPage";
 import LogisticsPage from "@/pages/logistics/LogisticsPage";
 import MaterialsPage from "@/pages/materials/MaterialsPage";
-import OtherWorkPage from "@/pages/OtherWorkPage";
 import OwnerControlPage from "@/pages/OwnerControlPage";
 import ProductionCalendarPage from "@/pages/ProductionCalendarPage";
 import ReceivingPage from "@/pages/ReceivingPage";
@@ -30,7 +29,6 @@ import TrackingPage from "@/pages/tracking/TrackingPage";
 const SCREENS = [
   ["/dashboard", DashboardPage],
   ["/receiving", ReceivingPage],
-  ["/other-work", OtherWorkPage],
   ["/logistics", LogisticsPage],
   ["/drivers", DriversPage],
   ["/clinics", ClinicsPage],

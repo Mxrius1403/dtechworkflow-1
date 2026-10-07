@@ -40,7 +40,6 @@ def test_demo_seed_excludes_technicians_and_their_records():
     assert all(user["role"] != "technician" for user in data["users"])
     for collection in (
         "leave_requests",
-        "other_work",
         "tooth_orders",
         "material_orders",
         "routes",

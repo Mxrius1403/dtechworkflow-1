@@ -95,7 +95,6 @@ def build_demo_data(today: date) -> dict[str, list[dict]]:
         "tooth_orders": workflow.tooth_orders(),
         "material_orders": workflow.material_orders(),
         "leave_requests": workflow.leave_requests(),
-        "other_work": workflow.other_work(),
         SETTINGS: [workflow.settings(today)],
     }
 

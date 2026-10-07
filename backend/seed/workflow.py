@@ -29,10 +29,6 @@ def leave_requests() -> list[dict]:
     return []
 
 
-def other_work() -> list[dict]:
-    return []
-
-
 def tooth_orders() -> list[dict]:
     return []
 

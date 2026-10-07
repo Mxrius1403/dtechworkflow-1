@@ -30,8 +30,8 @@ export function makeFiveInsights(label, rows, previousRows, dayCount) {
   ];
 }
 
-/** Only manager-confirmed work sessions count. Mirrors the original report including service/arch enrichment. */
-export function buildReport({ cases, users, otherWork }, from, to) {
+/** Only manager-confirmed work sessions count. */
+export function buildReport({ cases, users }, from, to) {
   const dayCount = Math.max(1, calendarDaysBetween(from, to) + 1);
   const prevTo = addDays(from, -1), prevFrom = addDays(from, -dayCount);
   const technicians = users.filter((user) => user.role === "technician" && user.loginEnabled === true);
@@ -53,12 +53,10 @@ export function buildReport({ cases, users, otherWork }, from, to) {
 
   const byTech = technicians.map((u) => {
     const rows = current.filter((x) => x.technicianId === u.id);
-    const ow = otherWork.filter((x) => x.technicianId === u.id && x.finishedAt && inRange(x.finishedAt, from, to))
-      .map((x) => ({ ...x, code: "OW", overdue: false, finishedDate: dateKey(x.finishedAt), department: "ortho" }));
     return {
       id: u.id, name: u.name,
-      cases: [...rows, ...ow].sort((x, y) => String(x.startedAt).localeCompare(String(y.startedAt))),
-      total: rows.length, otherWork: ow.length, overdue: rows.filter((c) => c.overdue).length, avgMinutes: average(durations(rows)),
+      cases: rows.sort((x, y) => String(x.startedAt).localeCompare(String(y.startedAt))),
+      total: rows.length, overdue: rows.filter((c) => c.overdue).length, avgMinutes: average(durations(rows)),
       insights: makeFiveInsights(`${u.name} (${u.id})`, rows, previous.filter((x) => x.technicianId === u.id), dayCount),
     };
   });

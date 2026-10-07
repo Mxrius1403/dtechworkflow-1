@@ -17,7 +17,7 @@ BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://structure-hub-46.pre
 
 EXPECTED_KEYS = {
     "users", "cases", "toothOrders", "materialOrders", "reports", "leaveRequests",
-    "otherWork", "drivers", "clinics", "routes", "stops", "routePlans",
+    "drivers", "clinics", "routes", "stops", "routePlans",
     "notifications", "trackingEmails", "settings",
 }
 
@@ -88,8 +88,9 @@ def test_single_settings(client):
     assert isinstance(r.json(), dict)
 
 
-def test_unknown_collection_404(client):
-    r = client.get(f"{BASE_URL}/api/data/doesnotexist", timeout=10)
+@pytest.mark.parametrize("name", ["doesnotexist", "otherWork"])
+def test_unknown_collection_404(client, name):
+    r = client.get(f"{BASE_URL}/api/data/{name}", timeout=10)
     assert r.status_code == 404
 
 

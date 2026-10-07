@@ -92,7 +92,7 @@ frontend/src/
     ├── SignInPage.jsx
     ├── dashboard/         Manager + technician dashboards
     ├── ReceivingPage.jsx, CaseSearchPage.jsx, CompletionReviewPage.jsx,
-    │   AttentionPage.jsx, ProductionCalendarPage.jsx, OwnerControlPage.jsx, OtherWorkPage.jsx
+    │   AttentionPage.jsx, ProductionCalendarPage.jsx, OwnerControlPage.jsx
     ├── technicians/       Technician cards + staff dialog (also used for managers & drivers)
     ├── tooth/             Order Tooth (technician) + Tooth Order Requests (manager)
     ├── materials/         Order TDS (catalogue, cart, favourites) + Material Order Requests
@@ -130,7 +130,7 @@ Design tokens (colours, radius, fonts) are CSS variables in `frontend/src/index.
 - People, clinics, vocabularies → `backend/seed/reference.py`
 - Production cases (today's scenarios + history) → `backend/seed/production.py` (helpers in `seed/cases.py`)
 - Routes, stops, driver plans, tracking links → `backend/seed/logistics.py`
-- Leave, other work, orders, saved reports, settings → `backend/seed/workflow.py`
+- Leave, orders, saved reports, settings → `backend/seed/workflow.py`
 - TDS products / tooth groups → `backend/data/*.json`
 
 Dates in the sample data are relative to today, so the demo always looks current. The data is rebuilt once a day. To apply your edits right away, raise `SEED_VERSION` in `backend/seed/loader.py` and restart the backend.
@@ -188,7 +188,6 @@ Existing `denture` department values are migrated to `prosthesis` at backend sta
 | `toothOrder` / `toothOrders` | `/tooth-order` / `/tooth-orders` | `pages/tooth/*` |
 | `orderMaterials` | `/materials` | `pages/materials/*` |
 | `holidayRequests` | `/holidays` | `pages/holidays/*` |
-| `otherWork` | `/other-work` | `OtherWorkPage.jsx` |
 | `reports` | `/reports` | `pages/reports/*` |
 | `logistics` (logistics.js) | `/logistics?tab=routes\|create\|clinics\|drivers` | `pages/logistics/*` |
 | `driver.html` | `/driver` | `pages/driver/*` |

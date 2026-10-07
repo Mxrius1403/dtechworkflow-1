@@ -64,7 +64,7 @@ export default function ReportsPage() {
 
   return (
     <>
-      <Panel title="Smart Production Reports" description="Only Manager-confirmed production is counted. Ortho Other Work appears as OW.">
+      <Panel title="Smart Production Reports" description="Only Manager-confirmed production is counted.">
         <div className="grid max-w-xl gap-3 sm:grid-cols-2">
           <Field label="From"><Input type="date" value={range.from} onChange={set("from")} data-testid="report-from" /></Field>
           <Field label="To"><Input type="date" value={range.to} onChange={set("to")} data-testid="report-to" /></Field>
