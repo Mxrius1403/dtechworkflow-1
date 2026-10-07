@@ -13,6 +13,23 @@ from starlette.middleware.cors import CORSMiddleware
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 
+async def ensure_auth_email_index() -> None:
+    collection = db[AUTH_USERS]
+    partial_filter = {"email": {"$type": "string"}}
+    indexes = await collection.index_information()
+    for name, index in indexes.items():
+        if index.get("key") == [("email", 1)] and (
+            index.get("unique") is not True
+            or index.get("partialFilterExpression") != partial_filter
+        ):
+            await collection.drop_index(name)
+    await collection.create_index(
+        "email",
+        unique=True,
+        partialFilterExpression=partial_filter,
+    )
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     validate_security_config()
@@ -27,7 +44,7 @@ async def lifespan(_: FastAPI):
             {"role": "technician", "department": {"$exists": True}},
             {"$unset": {"department": ""}},
         )
-    await db[AUTH_USERS].create_index("email", unique=True)
+    await ensure_auth_email_index()
     yield
     client.close()
 
