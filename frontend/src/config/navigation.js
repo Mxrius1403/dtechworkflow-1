@@ -1,5 +1,5 @@
 import {
-  BarChart3, Building2, Car, ClipboardList, Inbox, KeyRound, LayoutDashboard, Package, Search, TreePalm, Truck, Users,
+  BarChart3, Building2, Car, ClipboardList, Inbox, KeyRound, LayoutDashboard, Package, Search, Store, TreePalm, Truck, Users,
 } from "lucide-react";
 
 const manager = (u) => u.isManager;
@@ -19,6 +19,7 @@ export const PAGES = [
   { path: "/logistics", label: "Deliveries & Collections", icon: Truck, access: manager, nav: manager },
   { path: "/drivers", label: "Drivers", icon: Car, access: manager, nav: manager },
   { path: "/clinics", label: "Clinics", icon: Building2, access: manager, nav: manager },
+  { path: "/suppliers", label: "Suppliers", icon: Store, access: manager, nav: manager },
   { path: "/case-search", label: "Case Search", icon: Search, access: manager, nav: manager },
   { path: "/tooth-order", label: "Order Tooth", icon: ClipboardList, access: technician, nav: technician },
   { path: "/tooth-orders", label: "Tooth Order Requests", icon: ClipboardList, access: manager, nav: manager },

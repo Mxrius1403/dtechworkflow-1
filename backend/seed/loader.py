@@ -20,6 +20,7 @@ SEED_VERSION = 4
 PERSISTENT_COLLECTIONS = {
     "drivers",
     "clinics",
+    "suppliers",
     "saved_reports",
     "tooth_orders",
     CLINIC_CONTACTS,

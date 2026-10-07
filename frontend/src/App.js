@@ -20,6 +20,7 @@ import ProductionCalendarPage from "@/pages/ProductionCalendarPage";
 import ReceivingPage from "@/pages/ReceivingPage";
 import ReportsPage from "@/pages/reports/ReportsPage";
 import SignInPage from "@/pages/SignInPage";
+import SuppliersPage from "@/pages/suppliers/SuppliersPage";
 import TechniciansPage from "@/pages/technicians/TechniciansPage";
 import ToothOrderPage from "@/pages/tooth/ToothOrderPage";
 import ToothOrdersPage from "@/pages/tooth/ToothOrdersPage";
@@ -32,6 +33,7 @@ const SCREENS = [
   ["/logistics", LogisticsPage],
   ["/drivers", DriversPage],
   ["/clinics", ClinicsPage],
+  ["/suppliers", SuppliersPage],
   ["/case-search", CaseSearchPage],
   ["/tooth-order", ToothOrderPage],
   ["/tooth-orders", ToothOrdersPage],

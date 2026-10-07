@@ -8,6 +8,7 @@ PUBLIC_COLLECTIONS = {
     "leaveRequests": "leave_requests",
     "drivers": "drivers",
     "clinics": "clinics",
+    "suppliers": "suppliers",
     "routes": "routes",
     "stops": "stops",
     "routePlans": "route_plans",
