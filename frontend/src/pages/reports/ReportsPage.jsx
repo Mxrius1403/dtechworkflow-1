@@ -6,10 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Muted } from "@/components/common/Bits";
 import { Field } from "@/components/common/Field";
 import { Panel } from "@/components/common/Panel";
-import { useData } from "@/context/DataContext";
+import { fetchAllData, saveReport } from "@/lib/api";
 import { endOfWeekKey, monthRange, startOfWeekKey } from "@/lib/format";
 import { notify, notifyError } from "@/lib/notify";
-import { saveReport } from "@/lib/api";
 import { buildReport } from "@/lib/reports";
 import { ReportPreview } from "./ReportPreview";
 import { SavedReports } from "./SavedReports";
@@ -17,15 +16,28 @@ import { SavedReports } from "./SavedReports";
 const thisWeek = () => ({ from: startOfWeekKey(), to: endOfWeekKey() });
 
 export default function ReportsPage() {
-  const data = useData();
   const queryClient = useQueryClient();
   const [range, setRange] = useState(thisWeek);
   const [preview, setPreview] = useState(null);
+  const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
   const set = (key) => (e) => setRange({ ...range, [key]: e.target.value });
-  const generate = () => {
+  const generate = async () => {
     if (!range.from || !range.to || range.from > range.to) return notifyError("Choose a valid period");
-    setPreview(buildReport(data, range.from, range.to));
+    setGenerating(true);
+    try {
+      const freshData = await queryClient.fetchQuery({
+        queryKey: ["data"],
+        queryFn: fetchAllData,
+        staleTime: 0,
+      });
+      setPreview(buildReport(freshData, range.from, range.to));
+    } catch (error) {
+      const detail = error.response?.data?.detail;
+      notifyError(typeof detail === "string" ? detail : "Could not refresh report data");
+    } finally {
+      setGenerating(false);
+    }
   };
   const save = async () => {
     setSaving(true);
@@ -58,7 +70,7 @@ export default function ReportsPage() {
           <Field label="To"><Input type="date" value={range.to} onChange={set("to")} data-testid="report-to" /></Field>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
-          <Button onClick={generate} data-testid="report-generate"><BarChart3 /> Generate Preview</Button>
+          <Button onClick={generate} disabled={generating} data-testid="report-generate"><BarChart3 /> {generating ? "Refreshing data…" : "Generate Preview"}</Button>
           <Button variant="outline" onClick={() => setRange(thisWeek())} data-testid="report-this-week">This Week</Button>
           <Button variant="outline" onClick={month} data-testid="report-this-month">This Month</Button>
         </div>
