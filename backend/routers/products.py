@@ -1,6 +1,6 @@
 from bson import ObjectId
 from core.database import db
-from core.security import require_roles
+from core.security import current_account, require_roles
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
 from seed.loader import ensure_demo_data
@@ -37,7 +37,7 @@ async def validate_supplier(supplier_id: str) -> None:
         raise HTTPException(status_code=422, detail="Select a valid supplier.")
 
 
-@router.get("", dependencies=[MANAGERS])
+@router.get("", dependencies=[Depends(current_account)])
 async def list_products() -> list[dict]:
     products = await db["products"].find().to_list(10_000)
     return [

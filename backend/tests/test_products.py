@@ -117,12 +117,26 @@ def test_product_update_and_delete_missing_product_return_404(monkeypatch):
     assert delete_error.value.status_code == 404
 
 
-def test_product_routes_are_limited_to_managers_and_owners():
+def test_product_list_is_available_to_authenticated_technicians():
+    route = next(
+        route
+        for route in products.router.routes
+        if route.path == "/api/products" and "GET" in route.methods
+    )
+    assert any(
+        dependency.call.__name__ == "current_account"
+        for dependency in route.dependant.dependencies
+    )
+
+
+def test_product_management_routes_are_limited_to_managers_and_owners():
     for route in products.router.routes:
         if route.path not in (
             "/api/products",
             "/api/products/{product_id}",
         ):
+            continue
+        if "GET" in route.methods:
             continue
         role_check = next(
             dependency.call
