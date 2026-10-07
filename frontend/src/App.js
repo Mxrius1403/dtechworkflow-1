@@ -12,7 +12,6 @@ import ClinicsPage from "@/pages/clinics/ClinicsPage";
 import CompletionReviewPage from "@/pages/CompletionReviewPage";
 import DashboardPage from "@/pages/dashboard/DashboardPage";
 import DriversPage from "@/pages/drivers/DriversPage";
-import HolidaysPage from "@/pages/holidays/HolidaysPage";
 import LogisticsPage from "@/pages/logistics/LogisticsPage";
 import MaterialsPage from "@/pages/materials/MaterialsPage";
 import OrderMaterialsPage from "@/pages/materials/OrderMaterialsPage";
@@ -48,7 +47,6 @@ const SCREENS = [
   ["/materials", MaterialsPage],
   ["/technicians", TechniciansPage],
   ["/technicians/:id", TechniciansPage],
-  ["/holidays", HolidaysPage],
   ["/reports", ReportsPage],
   ["/completion-review", CompletionReviewPage],
   ["/attention", AttentionPage],

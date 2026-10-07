@@ -25,10 +25,6 @@ def clinic_contacts() -> list[dict]:
             for cid, *_, c in CLINICS]
 
 
-def leave_requests() -> list[dict]:
-    return []
-
-
 def tooth_orders() -> list[dict]:
     return []
 

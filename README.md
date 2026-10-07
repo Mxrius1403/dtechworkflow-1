@@ -1,6 +1,6 @@
 # Dentaltech Daily Flow — Project Guide
 
-Daily Flow runs the Dentaltech lab day to day. It covers receiving, production boards, completion review, reports, orders, holidays, deliveries and collections, a driver app and a public clinic tracking page.
+Daily Flow runs the Dentaltech lab day to day. It covers receiving, production boards, completion review, reports, orders, deliveries and collections, a driver app and a public clinic tracking page.
 
 It used to be one Firebase + vanilla JS bundle (`app.js`, `logistics.js`, `enhancements.js`, `driver.js`, `track.js`). It is now a **React frontend** and a **FastAPI backend** with **MongoDB**. Each part lives in one clear place.
 
@@ -76,7 +76,6 @@ frontend/src/
 │   ├── cases.js           Case status, scan/receiving rules, overdue, history
 │   ├── logistics.js       Ready-for-delivery, route plans, driver week, maps links
 │   ├── reports.js         Production report + "5 insights"
-│   ├── leave.js           Annual-leave totals and overlap checks
 │   ├── holidays.js        Irish public holidays, production-day rules
 │   ├── format.js          Dates/times (Europe/Dublin), durations
 │   ├── print.js           Printable PDFs (report, tooth order, material order)
@@ -96,7 +95,6 @@ frontend/src/
     ├── technicians/       Technician cards + staff dialog (also used for managers & drivers)
     ├── tooth/             Order Tooth (technician) + Tooth Order Requests (manager)
     ├── materials/         Order TDS (catalogue, cart, favourites) + Material Order Requests
-    ├── holidays/          Technician + manager holiday screens, leave calendar
     ├── reports/           Report builder, preview, saved reports
     ├── logistics/         Deliveries & Collections: ready cases, create route and routes
     ├── clinics/           Clinic directory, editing and CSV/JSON import
@@ -187,7 +185,6 @@ Existing `denture` department values are migrated to `prosthesis` at backend sta
 | `ownerControl` | `/owner-control` | `OwnerControlPage.jsx` |
 | `toothOrder` / `toothOrders` | `/tooth-order` / `/tooth-orders` | `pages/tooth/*` |
 | `orderMaterials` | `/materials` | `pages/materials/*` |
-| `holidayRequests` | `/holidays` | `pages/holidays/*` |
 | `reports` | `/reports` | `pages/reports/*` |
 | `logistics` (logistics.js) | `/logistics?tab=routes\|create\|clinics\|drivers` | `pages/logistics/*` |
 | `driver.html` | `/driver` | `pages/driver/*` |
@@ -211,7 +208,7 @@ The items below were dropped on purpose because they only make sense with the ol
 - **Add Stop** was greyed out on *published* routes even though the action supports them. It is now available for published, started and on-break routes.
 - **Tooth order quantity** used a browser prompt, so empty or text input could be saved as an invalid quantity. A dialog now checks shade and quantity.
 - **Tooth and material order requests** are saved to the backend when sent and appear in their manager request lists; managers can download a PDF, mark handled requests as done, and delete orders.
-- **Blocking browser pop-ups** (`alert`, `confirm`, `prompt`) are replaced with in-app dialogs and toasts. This affects holidays, orders, route deletion, holiday rejection reasons and the driver's route confirmation.
+- **Blocking browser pop-ups** (`alert`, `confirm`, `prompt`) are replaced with in-app dialogs and toasts. This affects orders, route deletion and the driver's route confirmation.
 - **Dropdown options** are rendered so React shows no "invalid child" console warnings.
 
 **Demo-only behaviour**

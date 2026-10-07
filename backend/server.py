@@ -45,7 +45,7 @@ async def ensure_auth_email_index() -> None:
 async def lifespan(_: FastAPI):
     validate_security_config()
     await ensure_demo_data()
-    for collection_name in ("auth_users", "users", "cases", "leave_requests"):
+    for collection_name in ("auth_users", "users", "cases"):
         await db[collection_name].update_many(
             {"department": "denture"},
             {"$set": {"department": "prosthesis"}},

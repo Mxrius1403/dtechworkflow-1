@@ -16,7 +16,7 @@ from seed.calendar import next_production_day
 from seed.logistics import build_routes, public_tracking
 from seed.production import build_cases
 
-SEED_VERSION = 4
+SEED_VERSION = 5
 PERSISTENT_COLLECTIONS = {
     "drivers",
     "clinics",
@@ -96,7 +96,6 @@ def build_demo_data(today: date) -> dict[str, list[dict]]:
         PUBLIC_TRACKING: public_tracking(routes, int(time.time() * 1000)),
         "tooth_orders": workflow.tooth_orders(),
         "material_orders": workflow.material_orders(),
-        "leave_requests": workflow.leave_requests(),
         SETTINGS: [workflow.settings(today)],
     }
 
@@ -110,6 +109,8 @@ async def ensure_demo_data() -> None:
     async with _lock:
         meta = await db[SEED_META].find_one({"_id": "demo"})
         if not meta or meta.get("marker") != marker:
+            if not meta or meta.get("marker", "").split(":", 1)[0] != f"v{SEED_VERSION}":
+                await db["leave_requests"].drop()
             await remove_legacy_technician_routes()
             for name, docs in build_demo_data(today).items():
                 if meta and name in PERSISTENT_COLLECTIONS:

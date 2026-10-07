@@ -16,7 +16,7 @@ import requests
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://structure-hub-46.preview.emergentagent.com").rstrip("/")
 
 EXPECTED_KEYS = {
-    "users", "cases", "toothOrders", "materialOrders", "reports", "leaveRequests",
+    "users", "cases", "toothOrders", "materialOrders", "reports",
     "drivers", "clinics", "routes", "stops", "routePlans",
     "notifications", "trackingEmails", "settings",
 }
@@ -88,7 +88,7 @@ def test_single_settings(client):
     assert isinstance(r.json(), dict)
 
 
-@pytest.mark.parametrize("name", ["doesnotexist", "otherWork"])
+@pytest.mark.parametrize("name", ["doesnotexist", "otherWork", "leaveRequests"])
 def test_unknown_collection_404(client, name):
     r = client.get(f"{BASE_URL}/api/data/{name}", timeout=10)
     assert r.status_code == 404

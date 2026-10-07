@@ -5,7 +5,6 @@ PUBLIC_COLLECTIONS = {
     "toothOrders": "tooth_orders",
     "materialOrders": "material_orders",
     "reports": "saved_reports",
-    "leaveRequests": "leave_requests",
     "drivers": "drivers",
     "clinics": "clinics",
     "suppliers": "suppliers",
