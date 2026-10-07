@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from typing import Literal
 from zoneinfo import ZoneInfo
 
 from bson import ObjectId
@@ -35,6 +36,10 @@ class ToothOrderSubmit(BaseModel):
     items: list[ToothOrderItem] = Field(min_length=1, max_length=100)
 
 
+class ToothOrderStatusUpdate(BaseModel):
+    status: Literal["done"]
+
+
 @router.post(
     "",
     status_code=status.HTTP_201_CREATED,
@@ -63,6 +68,23 @@ async def submit_tooth_order(
     await db["tooth_orders"].insert_one(order)
     order["id"] = order.pop("_id")
     return order
+
+
+@router.patch(
+    "/{order_id}/status",
+    dependencies=[Depends(require_roles("owner", "manager"))],
+)
+async def update_tooth_order_status(
+    order_id: str,
+    body: ToothOrderStatusUpdate,
+) -> dict:
+    result = await db["tooth_orders"].update_one(
+        {"_id": order_id},
+        {"$set": {"status": body.status}},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Tooth order not found.")
+    return {"id": order_id, "status": body.status}
 
 
 @router.delete(

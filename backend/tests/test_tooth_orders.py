@@ -17,6 +17,13 @@ class FakeToothOrdersCollection:
         deleted = self.documents.pop(query["_id"], None)
         return type("DeleteResult", (), {"deleted_count": int(deleted is not None)})()
 
+    async def update_one(self, query, update):
+        document = self.documents.get(query["_id"])
+        if document is None:
+            return type("UpdateResult", (), {"matched_count": 0})()
+        document.update(update["$set"])
+        return type("UpdateResult", (), {"matched_count": 1})()
+
 
 class FakeDatabase:
     def __init__(self):
@@ -62,6 +69,27 @@ def test_submit_and_manager_delete_tooth_order(monkeypatch):
     deleted = asyncio.run(tooth_orders.delete_tooth_order(saved["id"]))
     assert deleted == {"id": saved["id"], "deleted": True}
     assert not database.collection.documents
+
+
+def test_manager_marks_tooth_order_done(monkeypatch):
+    database = FakeDatabase()
+    database.collection.documents["order-1"] = {"_id": "order-1", "status": "pending"}
+    monkeypatch.setattr(tooth_orders, "db", database)
+    body = tooth_orders.ToothOrderStatusUpdate.model_validate({"status": "done"})
+
+    result = asyncio.run(tooth_orders.update_tooth_order_status("order-1", body))
+
+    assert result == {"id": "order-1", "status": "done"}
+    assert database.collection.documents["order-1"]["status"] == "done"
+
+
+def test_marking_missing_tooth_order_done_returns_404(monkeypatch):
+    monkeypatch.setattr(tooth_orders, "db", FakeDatabase())
+    body = tooth_orders.ToothOrderStatusUpdate.model_validate({"status": "done"})
+
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(tooth_orders.update_tooth_order_status("missing", body))
+    assert error.value.status_code == 404
 
 
 def test_delete_missing_tooth_order_returns_404(monkeypatch):

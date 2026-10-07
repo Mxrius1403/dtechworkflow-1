@@ -161,6 +161,7 @@ Add `"apiName": "mongo_collection"` to `PUBLIC_COLLECTIONS` in `backend/core/col
 | GET | `/api/tracking/{token}` | Public tracking record (400 invalid, 404 unknown/expired) |
 | GET | `/api/clinics/{id}/contact` | **Authenticated.** Clinic contact fields |
 | POST | `/api/tooth-orders` | **Technician.** Submit a tooth order for manager review |
+| PATCH | `/api/tooth-orders/{id}/status` | **Owner or manager.** Mark a tooth order as done |
 | DELETE | `/api/tooth-orders/{id}` | **Owner or manager.** Delete a handled tooth order |
 | POST | `/api/receiving/cases` | **Any authenticated staff account.** Create a case or re-enter a completed case |
 | POST | `/api/receiving/cases/{id}/restore` | **Any authenticated staff account.** Restore a removed case to the queue |
@@ -210,7 +211,7 @@ The items below were dropped on purpose because they only make sense with the ol
 - **Saved reports** only appeared after you generated a new preview. They are now always listed on the Reports page.
 - **Add Stop** was greyed out on *published* routes even though the action supports them. It is now available for published, started and on-break routes.
 - **Tooth order quantity** used a browser prompt, so empty or text input could be saved as an invalid quantity. A dialog now checks shade and quantity.
-- **Tooth orders** are saved to the backend when sent and appear in the manager's Tooth Orders list; managers can delete handled orders.
+- **Tooth orders** are saved to the backend when sent and appear in the manager's Tooth Orders list; managers can mark handled orders as done or delete them.
 - **Blocking browser pop-ups** (`alert`, `confirm`, `prompt`) are replaced with in-app dialogs and toasts. This affects holidays, orders, route deletion, holiday rejection reasons and the driver's route confirmation.
 - **Dropdown options** are rendered so React shows no "invalid child" console warnings.
 

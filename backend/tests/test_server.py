@@ -11,6 +11,7 @@ def test_tooth_order_routes_are_registered():
     }
 
     assert ("/api/tooth-orders", "POST") in routes
+    assert ("/api/tooth-orders/{order_id}/status", "PATCH") in routes
     assert ("/api/tooth-orders/{order_id}", "DELETE") in routes
 
 
