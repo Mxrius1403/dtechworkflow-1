@@ -152,7 +152,9 @@ Add `"apiName": "mongo_collection"` to `PUBLIC_COLLECTIONS` in `backend/core/col
 | POST | `/api/auth/login` | Sign in with `{email, password}`; sets an HttpOnly session cookie |
 | POST | `/api/auth/logout` | Revoke the current session and clear its cookie |
 | GET | `/api/auth/me` | Current authenticated staff account |
-| POST | `/api/auth/technicians` | **Owner only.** Create a technician account |
+| POST | `/api/auth/technicians` | **Owner or manager.** Create a technician account |
+| PATCH | `/api/auth/technicians/{id}` | **Owner or manager.** Enable or disable technician sign-in |
+| DELETE | `/api/auth/technicians/{id}` | **Owner or manager.** Archive an inactive technician account; keep its history |
 | GET | `/api/data` | **Authenticated.** All collections in one response + `settings` |
 | GET | `/api/data/{name}` | **Authenticated.** One collection (e.g. `routes`, `cases`) or `settings` |
 | GET | `/api/catalog` | **Authenticated.** `{materials, toothGroups}` |

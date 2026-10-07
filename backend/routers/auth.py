@@ -47,6 +47,10 @@ class TechnicianCreate(BaseModel):
     password: str = Field(min_length=12, max_length=72)
 
 
+class TechnicianStatusUpdate(BaseModel):
+    active: bool
+
+
 class ManagerCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     email: EmailStr
@@ -266,6 +270,75 @@ async def create_technician(
             detail="Could not allocate a unique technician ID.",
         )
     return {"user": public_account(account)}
+
+
+@router.patch(
+    "/technicians/{technician_id}",
+    dependencies=[Depends(require_allowed_origin)],
+)
+async def update_technician_status(
+    technician_id: str,
+    body: TechnicianStatusUpdate,
+    _: dict = Depends(require_roles("owner", "manager")),
+) -> dict:
+    result = await db[AUTH_USERS].update_one(
+        {
+            "_id": technician_id,
+            "role": "technician",
+            "deleted": {"$ne": True},
+        },
+        {"$set": {"active": body.active}, "$inc": {"authVersion": 1}},
+    )
+    if result.matched_count != 1:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Technician account not found.",
+        )
+
+    account = await db[AUTH_USERS].find_one({"_id": technician_id})
+    return {"user": public_account(account)}
+
+
+@router.delete(
+    "/technicians/{technician_id}",
+    dependencies=[Depends(require_allowed_origin)],
+)
+async def delete_technician(
+    technician_id: str,
+    manager: dict = Depends(require_roles("owner", "manager")),
+) -> dict:
+    result = await db[AUTH_USERS].update_one(
+        {
+            "_id": technician_id,
+            "role": "technician",
+            "active": False,
+            "deleted": {"$ne": True},
+        },
+        {
+            "$set": {
+                "deleted": True,
+                "deletedAt": datetime.now(timezone.utc).isoformat(),
+                "deletedBy": str(manager["_id"]),
+            },
+            "$unset": {"email": "", "passwordHash": ""},
+            "$inc": {"authVersion": 1},
+        },
+    )
+    if result.matched_count != 1:
+        account = await db[AUTH_USERS].find_one(
+            {"_id": technician_id, "role": "technician"}
+        )
+        if account and account.get("active") and not account.get("deleted"):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Deactivate the technician before deleting the account.",
+            )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Technician account not found.",
+        )
+
+    return {"id": technician_id, "deleted": True}
 
 
 @router.get("/managers", dependencies=[Depends(require_role("owner"))])

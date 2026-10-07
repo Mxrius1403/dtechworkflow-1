@@ -35,6 +35,7 @@ async def read_collection(collection: str) -> list[dict]:
                 "owner": False,
                 "createdAt": account["createdAt"],
                 "loginEnabled": True,
+                "deleted": account.get("deleted", False),
             }
             for account in auth_users
             if str(account["_id"]) not in existing_ids

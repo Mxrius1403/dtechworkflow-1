@@ -12,6 +12,7 @@ from routers.auth import (
     OwnerSetup,
     OwnershipTransfer,
     TechnicianCreate,
+    TechnicianStatusUpdate,
 )
 from starlette.requests import Request
 
@@ -237,6 +238,94 @@ def test_technician_creation_allows_managers_and_owners_only():
     with pytest.raises(HTTPException) as error:
         asyncio.run(check_role({"role": "technician"}))
     assert error.value.status_code == 403
+
+
+def test_manager_can_toggle_technician_sign_in_and_archive_without_deleting_history(
+    monkeypatch,
+):
+    account = {
+        "_id": "DT001",
+        "name": "Former Technician",
+        "email": "tech@example.com",
+        "passwordHash": "stored-hash",
+        "role": "technician",
+        "active": True,
+        "authVersion": 0,
+    }
+    history = [{"technicianId": "DT001", "technician": "Former Technician"}]
+
+    class Collection:
+        async def update_one(self, query, update):
+            assert query["_id"] == "DT001"
+            if "active" in query and query["active"] != account["active"]:
+                return type("Result", (), {"matched_count": 0})()
+            if "$set" in update:
+                account.update(update["$set"])
+            for field in update.get("$unset", {}):
+                account.pop(field, None)
+            if "$inc" in update:
+                for field, amount in update["$inc"].items():
+                    account[field] = account.get(field, 0) + amount
+            return type("Result", (), {"matched_count": 1})()
+
+        async def find_one(self, query, _projection=None):
+            return account if query.get("_id") == account["_id"] else None
+
+    class Database:
+        def __getitem__(self, name):
+            assert name == "auth_users"
+            return Collection()
+
+    monkeypatch.setattr(auth, "db", Database())
+    manager = {"_id": "MGR0001", "role": "manager"}
+
+    result = asyncio.run(
+        auth.update_technician_status(
+            "DT001", TechnicianStatusUpdate(active=False), manager
+        )
+    )
+    assert account["active"] is False
+    assert account["authVersion"] == 1
+    assert result["user"]["active"] is False
+
+    result = asyncio.run(auth.delete_technician("DT001", manager))
+
+    assert result == {"id": "DT001", "deleted": True}
+    assert account["deleted"] is True
+    assert account["active"] is False
+    assert account["authVersion"] == 2
+    assert account["name"] == "Former Technician"
+    assert account["_id"] == "DT001"
+    assert "email" not in account
+    assert "passwordHash" not in account
+    assert history == [{"technicianId": "DT001", "technician": "Former Technician"}]
+
+
+def test_active_technician_cannot_be_deleted(monkeypatch):
+    account = {"_id": "DT001", "role": "technician", "active": True}
+
+    class Collection:
+        async def update_one(self, _query, _update):
+            return type("Result", (), {"matched_count": 0})()
+
+        async def find_one(self, _query):
+            return account
+
+    class Database:
+        def __getitem__(self, _name):
+            return Collection()
+
+    monkeypatch.setattr(auth, "db", Database())
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(
+            auth.delete_technician(
+                "DT001", {"_id": "MGR0001", "role": "manager"}
+            )
+        )
+
+    assert error.value.status_code == 409
+    assert account["active"] is True
+    assert "deleted" not in account
 
 
 def test_owner_can_deactivate_manager_and_invalidate_sessions(monkeypatch):

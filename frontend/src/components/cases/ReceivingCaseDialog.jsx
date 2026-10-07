@@ -18,7 +18,7 @@ const ATTENTION_LABELS = {
 
 export function ReceivingCaseDialog({ c, canDelete, onClose, onSave, onAttentionSave, onDelete }) {
   const { users } = useData();
-  const technicians = users.filter((user) => user.role === "technician");
+  const technicians = users.filter((user) => user.role === "technician" && !user.deleted);
   const [department, setDepartment] = useState(caseDepartment(c));
   const [status, setStatus] = useState(c.status);
   const [technicianId, setTechnicianId] = useState(c.technicianId || c.finishedById || "");
