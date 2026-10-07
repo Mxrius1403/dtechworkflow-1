@@ -6,7 +6,7 @@ from core.config import CORS_ORIGINS
 from core.database import client, db
 from core.security import validate_security_config
 from fastapi import FastAPI
-from routers import auth, catalog, data, logistics, receiving
+from routers import auth, catalog, data, logistics, receiving, reports
 from seed.loader import ensure_demo_data
 from starlette.middleware.cors import CORSMiddleware
 
@@ -29,7 +29,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="Dentaltech Daily Flow API", lifespan=lifespan)
 
-for module in (auth, data, catalog, logistics, receiving):
+for module in (auth, data, catalog, logistics, receiving, reports):
     app.include_router(module.router)
 
 

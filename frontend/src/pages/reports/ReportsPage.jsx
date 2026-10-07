@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +8,8 @@ import { Field } from "@/components/common/Field";
 import { Panel } from "@/components/common/Panel";
 import { useData } from "@/context/DataContext";
 import { endOfWeekKey, monthRange, startOfWeekKey } from "@/lib/format";
-import { notifyError } from "@/lib/notify";
+import { notify, notifyError } from "@/lib/notify";
+import { saveReport } from "@/lib/api";
 import { buildReport } from "@/lib/reports";
 import { ReportPreview } from "./ReportPreview";
 import { SavedReports } from "./SavedReports";
@@ -16,12 +18,32 @@ const thisWeek = () => ({ from: startOfWeekKey(), to: endOfWeekKey() });
 
 export default function ReportsPage() {
   const data = useData();
+  const queryClient = useQueryClient();
   const [range, setRange] = useState(thisWeek);
   const [preview, setPreview] = useState(null);
+  const [saving, setSaving] = useState(false);
   const set = (key) => (e) => setRange({ ...range, [key]: e.target.value });
   const generate = () => {
     if (!range.from || !range.to || range.from > range.to) return notifyError("Choose a valid period");
     setPreview(buildReport(data, range.from, range.to));
+  };
+  const save = async () => {
+    setSaving(true);
+    try {
+      await saveReport({
+        from: preview.from,
+        to: preview.to,
+        title: "Production Report",
+        data: preview,
+      });
+      await queryClient.invalidateQueries({ queryKey: ["data"] });
+      notify("Report saved");
+    } catch (error) {
+      const detail = error.response?.data?.detail;
+      notifyError(typeof detail === "string" ? detail : "Could not save the report");
+    } finally {
+      setSaving(false);
+    }
   };
   const month = () => {
     const [from, to] = monthRange();
@@ -41,7 +63,7 @@ export default function ReportsPage() {
           <Button variant="outline" onClick={month} data-testid="report-this-month">This Month</Button>
         </div>
       </Panel>
-      {preview ? <ReportPreview report={preview} /> : (
+      {preview ? <ReportPreview report={preview} onSave={save} saving={saving} /> : (
         <Panel><Muted>Choose a period and generate the report to see Smart Insights and the complete PDF structure.</Muted></Panel>
       )}
       <SavedReports />

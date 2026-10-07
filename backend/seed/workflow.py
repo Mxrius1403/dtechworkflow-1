@@ -103,12 +103,6 @@ def material_orders(today: date) -> list[dict]:
     return out
 
 
-def saved_reports(today: date) -> list[dict]:
-    monday = today - timedelta(days=today.weekday() + 7)
-    return [{"id": "REP-0001", "title": "Production Report", "from": monday.isoformat(),
-             "to": (monday + timedelta(days=6)).isoformat(), "createdAt": iso(monday + timedelta(days=7), 8, 30)}]
-
-
 def settings(today: date) -> dict:
     return {"id": "app", "timezone": TIMEZONE, "labName": COMPANY, "startEircode": LAB_EIRCODE,
             "emailNotificationsEnabled": True, "nextDriverNumber": 5, "nextClinicNumber": 9,

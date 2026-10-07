@@ -16,10 +16,11 @@ from seed.calendar import next_production_day
 from seed.logistics import build_routes, public_tracking
 from seed.production import build_cases
 
-SEED_VERSION = 2
+SEED_VERSION = 3
 PERSISTENT_COLLECTIONS = {
     "drivers",
     "clinics",
+    "saved_reports",
     CLINIC_CONTACTS,
     "routes",
     "stops",
@@ -64,7 +65,6 @@ def build_demo_data(today: date) -> dict[str, list[dict]]:
         PUBLIC_TRACKING: public_tracking(routes, int(time.time() * 1000)),
         "tooth_orders": workflow.tooth_orders(today),
         "material_orders": workflow.material_orders(today),
-        "saved_reports": workflow.saved_reports(today),
         "leave_requests": workflow.leave_requests(today),
         "other_work": workflow.other_work(today),
         SETTINGS: [workflow.settings(today)],
@@ -91,6 +91,7 @@ async def ensure_demo_data() -> None:
             await db[SEED_META].replace_one(
                 {"_id": "demo"}, {"_id": "demo", "marker": marker}, upsert=True
             )
+        await db["saved_reports"].delete_one({"_id": "REP-0001"})
         legacy_contacts = (
             await db[CLINIC_CONTACTS]
             .find({"encryptedData": {"$exists": False}})

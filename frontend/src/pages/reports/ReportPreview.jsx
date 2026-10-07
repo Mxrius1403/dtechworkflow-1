@@ -7,7 +7,6 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { INSIGHT_TONE } from "@/config/statuses";
 import { DEPARTMENTS, departmentName } from "@/lib/cases";
 import { dateKey, formatDuration, minutesBetween, nice, timeOf } from "@/lib/format";
-import { demoSave } from "@/lib/notify";
 import { printHtml, reportPdfHtml } from "@/lib/print";
 import { cn } from "@/lib/utils";
 
@@ -44,11 +43,11 @@ function TechnicianSection({ t }) {
   );
 }
 
-export function ReportPreview({ report: r }) {
+export function ReportPreview({ report: r, onSave, saving = false }) {
   return (
     <Panel title="Report Preview" description={`${nice(r.from)} to ${nice(r.to)}`} data-testid="report-preview" actions={<>
       <Button onClick={() => printHtml(reportPdfHtml(r))} data-testid="report-print"><Printer /> Print / Save PDF</Button>
-      <Button variant="outline" onClick={() => demoSave("Report saved")} data-testid="report-save"><Save /> Save Report</Button>
+      <Button variant="outline" onClick={onSave} disabled={saving} data-testid="report-save"><Save /> {saving ? "Saving…" : "Save Report"}</Button>
     </>}>
       <StatGrid>
         <StatCard label="Total Services" value={r.cases.length} testId="report-kpi-total" />
