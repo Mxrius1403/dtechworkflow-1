@@ -90,6 +90,17 @@ const sortStamp = (c) => String(c.updatedAt || c.startedAt || c.receivedAt || c.
 const latestFirst = (rows) => [...rows].sort((a, b) => sortStamp(b).localeCompare(sortStamp(a)));
 const matchingCode = (cases, code) => cases.filter((c) => !c.deleted && normaliseCaseCode(c.code) === code);
 
+export function caseSearchRows(cases, query = "") {
+  const search = query.trim().toLowerCase();
+  return latestFirst(cases.filter((c) => {
+    if (!search) return true;
+    return [
+      c.code, c.status, c.department, c.technician, c.finishedBy,
+      c.technicianId, c.finishedById,
+    ].some((value) => String(value || "").toLowerCase().includes(search));
+  }));
+}
+
 export function chooseScanCase(cases, techId) {
   const rows = latestFirst(cases);
   return rows.find((c) => c.status === "production" && c.technicianId === techId)
