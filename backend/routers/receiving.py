@@ -7,7 +7,7 @@ from core.collections import AUTH_USERS
 from core.config import TIMEZONE
 from core.database import db
 from core.models import BaseDocument
-from core.security import current_account, require_roles
+from core.security import current_account
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, model_validator
 from pymongo import ReturnDocument
@@ -333,7 +333,7 @@ async def restore_received_case(
 @router.delete("/cases/{case_id}")
 async def delete_received_case(
     case_id: str,
-    account: dict = Depends(require_roles("owner", "manager")),
+    account: dict = Depends(receiving_account),
 ) -> dict:
     existing = await db["cases"].find_one({"_id": case_id})
     if not existing:

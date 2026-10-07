@@ -213,6 +213,28 @@ def test_delete_received_case_preserves_history_and_records_actor(receiving_db):
     assert deleted["history"][-1]["by"] == "Manager"
 
 
+def test_technician_can_delete_received_case(receiving_db):
+    receiving_db.documents["CASE-1"] = {
+        "_id": "CASE-1",
+        "code": "RCV-1001",
+        "status": "queue",
+        "history": [],
+    }
+
+    result = asyncio.run(
+        receiving.delete_received_case(
+            "CASE-1",
+            {"_id": "DT005", "role": "technician", "name": "Technician"},
+        )
+    )
+
+    assert result == {"id": "CASE-1", "deleted": True}
+    deleted = receiving_db.documents["CASE-1"]
+    assert deleted["deleted"] is True
+    assert deleted["deletedById"] == "DT005"
+    assert deleted["history"][-1]["by"] == "Technician"
+
+
 def test_deleted_case_number_can_be_received_again(receiving_db):
     receiving_db.documents["CASE-1"] = {
         "_id": "CASE-1",

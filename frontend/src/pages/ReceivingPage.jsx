@@ -155,7 +155,7 @@ export default function ReceivingPage() {
       {selectedCase && <ReceivingCaseDialog
         key={selectedCase.id}
         c={selectedCase}
-        manager={user.isManager}
+        canDelete={user.isManager || user.role === "technician"}
         onClose={() => setSelectedCaseId(null)}
         onSave={(changes) => updateCase(selectedCase.id, changes, updateReceivedCase)}
         onAttentionSave={(attention) => updateCase(selectedCase.id, attention, updateCaseAttention)}

@@ -16,7 +16,7 @@ const ATTENTION_LABELS = {
   need_information: "Need Information",
 };
 
-export function ReceivingCaseDialog({ c, manager, onClose, onSave, onAttentionSave, onDelete }) {
+export function ReceivingCaseDialog({ c, canDelete, onClose, onSave, onAttentionSave, onDelete }) {
   const { users } = useData();
   const technicians = users.filter((user) => user.role === "technician");
   const [department, setDepartment] = useState(caseDepartment(c));
@@ -144,7 +144,7 @@ export function ReceivingCaseDialog({ c, manager, onClose, onSave, onAttentionSa
           <Button variant="outline" onClick={() => setAttentionOpen(true)} data-testid="receiving-change-attention">Change Attention Status</Button>
         </div>
         <DialogFooter>
-          {manager && (
+          {canDelete && (
             <ConfirmAction
               title={`Delete case ${c.code}?`}
               description="The case will be hidden from active views. Its history will be retained."
