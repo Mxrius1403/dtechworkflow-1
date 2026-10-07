@@ -44,7 +44,7 @@ export function TechnicianDashboard() {
         <StatCard label="In Production" value={rows.filter((c) => c.status === "production").length} accent="teal" testId="tech-stat-production" />
         <StatCard label="Completed" value={rows.filter((c) => c.status === "completed").length} accent="emerald" testId="tech-stat-completed" />
         <StatCard label="Overdue" value={rows.filter((c) => c.overdue && c.status !== "completed").length} accent="rose" testId="tech-stat-overdue" />
-        <StatCard label="Pending Tooth Orders" value={toothOrders.filter((o) => o.status === "pending").length} accent="indigo" testId="tech-stat-orders" />
+        <StatCard label="Pending Tooth Order Requests" value={toothOrders.filter((o) => o.status === "pending").length} accent="indigo" testId="tech-stat-orders" />
       </StatGrid>
       <ScanBar placeholder="Scan case barcode here" onScan={onScan} hint="Queue is shared. Production and Completed show only your work." testId="tech-scan" />
       <CaseBoard

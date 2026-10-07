@@ -29,20 +29,20 @@ export default function ToothOrdersPage() {
     try {
       await deleteToothOrder(orderId);
       await queryClient.invalidateQueries({ queryKey: ["data"] });
-      notify("Tooth order deleted");
+      notify("Order Tooth deleted");
     } catch (error) {
       const detail = error.response?.data?.detail;
-      notifyError(typeof detail === "string" ? detail : "Could not delete the tooth order");
+      notifyError(typeof detail === "string" ? detail : "Could not delete the Order Tooth");
     }
   };
   const markOrderDone = async (orderId) => {
     try {
       await updateToothOrderStatus(orderId, "done");
       await queryClient.invalidateQueries({ queryKey: ["data"] });
-      notify("Tooth order marked as done");
+      notify("Order Tooth marked as done");
     } catch (error) {
       const detail = error.response?.data?.detail;
-      notifyError(typeof detail === "string" ? detail : "Could not update the tooth order");
+      notifyError(typeof detail === "string" ? detail : "Could not update the Order Tooth");
     }
   };
   const renderOrders = (items, completed = false) => (
@@ -61,7 +61,7 @@ export default function ToothOrdersPage() {
             {!completed && (
               <Button size="sm" onClick={() => markOrderDone(o.id)} data-testid={`tooth-order-done-${o.id}`}><Check /> Mark done</Button>
             )}
-            <ConfirmAction title="Delete this tooth order?" description="This action cannot be undone." confirmLabel="Delete" onConfirm={() => removeOrder(o.id)} testId={`tooth-order-delete-${o.id}`}>
+            <ConfirmAction title="Delete this Order Tooth?" description="This action cannot be undone." confirmLabel="Delete" onConfirm={() => removeOrder(o.id)} testId={`tooth-order-delete-${o.id}`}>
               <Button size="sm" variant="destructive" data-testid={`tooth-order-delete-button-${o.id}`}><Trash2 /> Delete</Button>
             </ConfirmAction>
           </div>
@@ -73,7 +73,7 @@ export default function ToothOrdersPage() {
 
   return (
     <div className="grid gap-5">
-      <Panel title="Tooth Orders" description="Open the professional PDF to send the order to the supplier. Mark orders as done when they have been handled." actions={<CountPill testId="tooth-orders-count">{openOrders.length}</CountPill>}>
+      <Panel title="Tooth Order Requests" description="Open the professional PDF to send the request to the supplier. Mark requests as done when they have been handled." actions={<CountPill testId="tooth-orders-count">{openOrders.length}</CountPill>}>
         {renderOrders(openOrders)}
       </Panel>
       <Panel title="Completed orders" actions={<CountPill testId="completed-tooth-orders-count">{completedOrders.length}</CountPill>}>

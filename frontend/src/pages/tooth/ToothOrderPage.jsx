@@ -45,11 +45,11 @@ export default function ToothOrderPage() {
     try {
       const order = await createToothOrder({ items });
       await queryClient.invalidateQueries({ queryKey: ["data"] });
-      notify(`Tooth order ${order.id} sent to manager`);
+      notify(`Order Tooth ${order.id} sent to manager`);
       setItems([]);
     } catch (error) {
       const detail = error.response?.data?.detail;
-      notifyError(typeof detail === "string" ? detail : "Could not send the tooth order");
+      notifyError(typeof detail === "string" ? detail : "Could not send the Order Tooth");
     } finally {
       setSaving(false);
     }
@@ -57,7 +57,7 @@ export default function ToothOrderPage() {
 
   return (
     <div className="grid items-start gap-5 lg:grid-cols-[1fr_360px]">
-      <Panel title="New Tooth Order" description="Select a tooth, then choose its shade and quantity.">
+      <Panel title="New Order Tooth" description="Select a tooth, then choose its shade and quantity.">
         {catalog.toothGroups.map((g) => <ToothGroup key={g.name} group={g} items={items} onPick={setPicking} />)}
       </Panel>
       <Panel title="Order Summary" actions={<CountPill testId="tooth-order-total">{total} teeth</CountPill>} className="lg:sticky lg:top-24">

@@ -94,7 +94,7 @@ frontend/src/
     ├── ReceivingPage.jsx, CaseSearchPage.jsx, CompletionReviewPage.jsx,
     │   AttentionPage.jsx, ProductionCalendarPage.jsx, OwnerControlPage.jsx, OtherWorkPage.jsx
     ├── technicians/       Technician cards + staff dialog (also used for managers & drivers)
-    ├── tooth/             Tooth Order (technician) + Tooth Orders (manager)
+    ├── tooth/             Order Tooth (technician) + Tooth Order Requests (manager)
     ├── materials/         Order TDS (catalogue, cart, favourites) + Material Order Requests
     ├── holidays/          Technician + manager holiday screens, leave calendar
     ├── reports/           Report builder, preview, saved reports
@@ -211,7 +211,7 @@ The items below were dropped on purpose because they only make sense with the ol
 - **Saved reports** only appeared after you generated a new preview. They are now always listed on the Reports page.
 - **Add Stop** was greyed out on *published* routes even though the action supports them. It is now available for published, started and on-break routes.
 - **Tooth order quantity** used a browser prompt, so empty or text input could be saved as an invalid quantity. A dialog now checks shade and quantity.
-- **Tooth orders** are saved to the backend when sent and appear in the manager's Tooth Orders list; managers can mark handled orders as done or delete them.
+- **Tooth order requests** are saved to the backend when sent and appear in the manager's Tooth Order Requests list; managers can mark handled requests as done or delete them.
 - **Blocking browser pop-ups** (`alert`, `confirm`, `prompt`) are replaced with in-app dialogs and toasts. This affects holidays, orders, route deletion, holiday rejection reasons and the driver's route confirmation.
 - **Dropdown options** are rendered so React shows no "invalid child" console warnings.
 
