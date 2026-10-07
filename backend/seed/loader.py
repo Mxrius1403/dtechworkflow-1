@@ -23,6 +23,7 @@ PERSISTENT_COLLECTIONS = {
     "suppliers",
     "saved_reports",
     "tooth_orders",
+    "material_orders",
     CLINIC_CONTACTS,
     "routes",
     "stops",

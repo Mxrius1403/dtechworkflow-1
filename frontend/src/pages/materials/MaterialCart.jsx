@@ -7,7 +7,7 @@ import { Muted } from "@/components/common/Bits";
 import { Field } from "@/components/common/Field";
 import { Panel } from "@/components/common/Panel";
 
-export function MaterialCart({ cart, productsById, suppliers, notes, onNotes, onQty, onRemove, onSubmit, onClear }) {
+export function MaterialCart({ cart, productsById, suppliers, notes, submitting = false, onNotes, onQty, onRemove, onSubmit, onClear }) {
   const [selectedProduct, setSelectedProduct] = useState(null);
 
   return (
@@ -50,7 +50,7 @@ export function MaterialCart({ cart, productsById, suppliers, notes, onNotes, on
           <Textarea rows={3} maxLength={1000} value={notes} onChange={(e) => onNotes(e.target.value)} placeholder="Optional notes for the manager or supplier" data-testid="material-order-notes" />
         </Field>
         <div className="mt-3 grid gap-2">
-          <Button onClick={onSubmit} data-testid="material-order-submit"><Send /> Send Material Order</Button>
+          <Button onClick={onSubmit} disabled={submitting} data-testid="material-order-submit"><Send /> {submitting ? "Sending…" : "Send Material Order"}</Button>
           <Button variant="outline" onClick={onClear} data-testid="material-cart-clear">Clear</Button>
         </div>
       </Panel>

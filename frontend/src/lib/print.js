@@ -52,6 +52,7 @@ export function toothOrderPdfHtml(o) {
 }
 
 export function materialOrderPdfHtml(o) {
-  const meta = `<div class="box"><b>Requested by:</b> ${esc(o.requestedBy)} (${esc(o.requestedById)})<br><b>Department:</b> ${esc(departmentName(o.department))}<br><b>Date:</b> ${esc(o.date)} ${esc(o.time)}<br><b>Total quantity:</b> ${Number(o.totalItems || 0)}${o.notes ? `<br><b>Notes:</b> ${esc(o.notes)}` : ""}</div>`;
+  const department = o.department ? `<br><b>Department:</b> ${esc(departmentName(o.department))}` : "";
+  const meta = `<div class="box"><b>Requested by:</b> ${esc(o.requestedBy)} (${esc(o.requestedById)})${department}<br><b>Date:</b> ${esc(o.date)} ${esc(o.time)}<br><b>Total quantity:</b> ${Number(o.totalItems || 0)}${o.notes ? `<br><b>Notes:</b> ${esc(o.notes)}` : ""}</div>`;
   return page(o.id, "TDS Material Order", esc(o.id), meta + table(["Code", "Description", "Brand", "Pack", "Qty"], (o.items || []).map((i) => `<tr><td>${esc(i.code)}</td><td>${esc(i.description)}</td><td>${esc(i.brand)}</td><td>${esc(i.pack)}</td><td>${Number(i.qty || 0)}</td></tr>`)));
 }

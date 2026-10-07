@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Loader2, Search } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, NativeSelect, Options } from "@/components/common/Field";
@@ -8,8 +8,8 @@ import { Panel } from "@/components/common/Panel";
 import { CountPill } from "@/components/common/StatusBadge";
 import { useData } from "@/context/DataContext";
 import { useSession } from "@/context/SessionContext";
-import { fetchProducts } from "@/lib/api";
-import { demoSave, notifyError } from "@/lib/notify";
+import { createMaterialOrder, fetchProducts } from "@/lib/api";
+import { notify, notifyError } from "@/lib/notify";
 import { MaterialCart } from "./MaterialCart";
 import { MaterialGrid } from "./MaterialCard";
 import { MaterialOrderList } from "./MaterialOrderList";
@@ -33,6 +33,7 @@ function useCart() {
 export function OrderTds() {
   const { materialOrders, suppliers } = useData();
   const { user } = useSession();
+  const queryClient = useQueryClient();
   const productsQuery = useQuery({ queryKey: ["products"], queryFn: fetchProducts });
   const products = productsQuery.data || EMPTY_PRODUCTS;
   const supplierNames = useMemo(
@@ -43,6 +44,7 @@ export function OrderTds() {
   const [form, setForm] = useState(EMPTY);
   const [filters, setFilters] = useState(EMPTY);
   const [notes, setNotes] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [favourites, toggleFavourite] = useFavourites(user.id);
   const cart = useCart();
   const mine = materialOrders.filter((o) => o.requestedById === user.id);
@@ -58,11 +60,24 @@ export function OrderTds() {
       || a.title.localeCompare(b.title));
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
   const grid = { favourites, suppliers: supplierNames, onFavourite: toggleFavourite, onAdd: cart.add };
-  const submit = () => {
+  const submit = async () => {
     if (!cart.cart.length) return notifyError("Add at least one product");
-    demoSave("Material order sent");
-    cart.clear();
-    setNotes("");
+    setSubmitting(true);
+    try {
+      await createMaterialOrder({
+        items: cart.cart.map(({ productId, qty }) => ({ productId, qty })),
+        notes,
+      });
+      await queryClient.invalidateQueries({ queryKey: ["data"] });
+      cart.clear();
+      setNotes("");
+      notify("Material order sent");
+    } catch (error) {
+      const detail = error.response?.data?.detail;
+      notifyError(typeof detail === "string" ? detail : "Could not send the material order");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -95,7 +110,7 @@ export function OrderTds() {
             </>
           )}
         </div>
-        <MaterialCart cart={cart.cart} productsById={byId} suppliers={supplierNames} notes={notes} onNotes={setNotes} onQty={cart.qty} onRemove={cart.remove} onSubmit={submit} onClear={cart.clear} />
+        <MaterialCart cart={cart.cart} productsById={byId} suppliers={supplierNames} notes={notes} submitting={submitting} onNotes={setNotes} onQty={cart.qty} onRemove={cart.remove} onSubmit={submit} onClear={cart.clear} />
       </div>
       <MaterialOrderList title="My Material Orders" orders={mine} />
     </>

@@ -55,6 +55,13 @@ async def read_settings() -> dict:
     return BaseDocument.from_mongo(doc).to_api() if doc else {}
 
 
+def visible_material_orders(rows: list[dict], account: dict) -> list[dict]:
+    if account.get("role") != "technician":
+        return rows
+    account_id = str(account["_id"])
+    return [order for order in rows if order.get("requestedById") == account_id]
+
+
 @router.get("")
 async def all_data(account: dict = Depends(current_account)) -> dict:
     """Everything the authenticated app screens need."""
@@ -67,6 +74,9 @@ async def all_data(account: dict = Depends(current_account)) -> dict:
         )
     )
     payload = {api_name: items for (api_name, _), items in zip(names, rows)}
+    payload["materialOrders"] = visible_material_orders(
+        payload["materialOrders"], account
+    )
     payload["settings"] = await read_settings()
     return payload
 
@@ -77,7 +87,10 @@ async def one_collection(name: str, account: dict = Depends(current_account)):
         return await read_settings()
     if name not in PUBLIC_COLLECTIONS:
         raise HTTPException(status_code=404, detail=f"Unknown collection '{name}'")
-    return await read_collection(
+    rows = await read_collection(
         PUBLIC_COLLECTIONS[name],
         include_login_email=account.get("role") in ("owner", "manager"),
     )
+    if name == "materialOrders":
+        return visible_material_orders(rows, account)
+    return rows
