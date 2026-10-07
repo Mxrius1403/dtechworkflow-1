@@ -15,6 +15,7 @@ import DriversPage from "@/pages/drivers/DriversPage";
 import HolidaysPage from "@/pages/holidays/HolidaysPage";
 import LogisticsPage from "@/pages/logistics/LogisticsPage";
 import MaterialsPage from "@/pages/materials/MaterialsPage";
+import OrderMaterialsPage from "@/pages/materials/OrderMaterialsPage";
 import ProductManagementPage from "@/pages/materials/ProductManagementPage";
 import { MaterialRequests } from "@/pages/materials/MaterialRequests";
 import OwnerControlPage from "@/pages/OwnerControlPage";
@@ -43,6 +44,7 @@ const SCREENS = [
   ["/tooth-orders", ToothOrdersPage],
   ["/materials/requests", MaterialRequests],
   ["/materials/products", ProductManagementPage],
+  ["/materials/order", OrderMaterialsPage],
   ["/materials", MaterialsPage],
   ["/technicians", TechniciansPage],
   ["/technicians/:id", TechniciansPage],

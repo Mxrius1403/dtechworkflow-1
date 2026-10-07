@@ -1,4 +1,4 @@
-import { ArrowRight, ClipboardList, Package } from "lucide-react";
+import { ArrowRight, ClipboardList, Package, ShoppingCart } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -16,6 +16,13 @@ const sections = [
     path: "/materials/products",
     icon: Package,
     testId: "material-management-products",
+  },
+  {
+    title: "Order Materials",
+    description: "Browse products and place a material order.",
+    path: "/materials/order",
+    icon: ShoppingCart,
+    testId: "material-management-order",
   },
 ];
 
