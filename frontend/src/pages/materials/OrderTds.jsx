@@ -69,7 +69,7 @@ export function OrderTds() {
     <>
       <div className="grid items-start gap-5 lg:grid-cols-[1fr_360px]">
         <div className="grid min-w-0 gap-5">
-          <Panel title="Order TDS Products" description="Browse and search the products maintained by Product Management.">
+          <Panel title="Order Materials" description="Browse and search the products maintained by Product Management.">
             <div className="grid gap-3 md:grid-cols-[2fr_1fr]">
               <Field label="Search products"><Input value={form.search} onChange={set("search")} onKeyDown={(e) => e.key === "Enter" && setFilters(form)} placeholder="Search by reference number, title, producer or pack…" data-testid="material-search" /></Field>
               <Field label="Supplier"><NativeSelect value={form.supplier} onChange={set("supplier")} data-testid="material-supplier"><option value="all">All suppliers</option><Options items={[...new Set(products.map((product) => product.supplierId))].map((id) => [id, supplierNames[id] || "Supplier unavailable"])} /></NativeSelect></Field>

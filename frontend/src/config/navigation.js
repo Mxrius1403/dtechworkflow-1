@@ -5,7 +5,7 @@ import {
 const manager = (u) => u.isManager;
 const technician = (u) => !u.isManager;
 const always = () => true;
-const materialsLabel = (u) => (u.isManager ? "Material Management" : "Order TDS");
+const materialsLabel = (u) => (u.isManager ? "Material Management" : "Order Materials");
 
 /**
  * Every staff screen in one list (order = sidebar order).
