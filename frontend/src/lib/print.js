@@ -47,7 +47,7 @@ export function reportPdfHtml(r) {
 }
 
 export function toothOrderPdfHtml(o) {
-  const meta = `<div class="box"><b>Technician:</b> ${esc(o.technician)} (${esc(o.technicianId)})<br><b>Date:</b> ${esc(o.date)} ${esc(o.time)}<br><b>Total:</b> ${o.total} teeth</div>`;
+  const meta = `<div class="box"><b>Ordered by:</b> ${esc(o.technician)} (${esc(o.technicianId)})<br><b>Date:</b> ${esc(o.date)} ${esc(o.time)}<br><b>Total:</b> ${o.total} teeth</div>`;
   return page(o.id, "Order Tooth", esc(o.id), meta + table(["Group", "Tooth", "Shade", "Quantity"], o.items.map((i) => `<tr><td>${esc(i.group)}</td><td>${esc(i.tooth)}</td><td>${esc(i.shade)}</td><td>${i.qty}</td></tr>`)));
 }
 

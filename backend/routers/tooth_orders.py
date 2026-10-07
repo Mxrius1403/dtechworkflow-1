@@ -43,7 +43,7 @@ class ToothOrderStatusUpdate(BaseModel):
 @router.post(
     "",
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_roles("technician"))],
+    dependencies=[Depends(require_roles("technician", "manager", "owner"))],
 )
 async def submit_tooth_order(
     body: ToothOrderSubmit,

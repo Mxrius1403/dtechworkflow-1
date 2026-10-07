@@ -43,6 +43,26 @@ def test_tooth_order_requires_items_and_positive_quantities():
         )
 
 
+def test_submitting_tooth_order_allows_all_staff_roles():
+    route = next(
+        route
+        for route in tooth_orders.router.routes
+        if route.path == "/api/tooth-orders" and "POST" in route.methods
+    )
+    role_check = next(
+        dependency.call
+        for dependency in route.dependant.dependencies
+        if getattr(dependency.call, "__name__", None) == "check_role"
+    )
+
+    for role in ("technician", "manager", "owner"):
+        assert asyncio.run(role_check({"role": role}))["role"] == role
+
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(role_check({"role": "driver"}))
+    assert error.value.status_code == 403
+
+
 def test_submit_and_manager_delete_tooth_order(monkeypatch):
     database = FakeDatabase()
     monkeypatch.setattr(tooth_orders, "db", database)

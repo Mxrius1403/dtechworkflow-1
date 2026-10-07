@@ -160,7 +160,7 @@ Add `"apiName": "mongo_collection"` to `PUBLIC_COLLECTIONS` in `backend/core/col
 | GET | `/api/catalog` | **Authenticated.** `{materials, toothGroups}` |
 | GET | `/api/tracking/{token}` | Public tracking record (400 invalid, 404 unknown/expired) |
 | GET | `/api/clinics/{id}/contact` | **Authenticated.** Clinic contact fields |
-| POST | `/api/tooth-orders` | **Technician.** Submit a tooth order for manager review |
+| POST | `/api/tooth-orders` | **Any staff account.** Submit a tooth order for manager review |
 | PATCH | `/api/tooth-orders/{id}/status` | **Owner or manager.** Mark a tooth order as done |
 | DELETE | `/api/tooth-orders/{id}` | **Owner or manager.** Delete a handled tooth order |
 | POST | `/api/receiving/cases` | **Any authenticated staff account.** Create a case or re-enter a completed case |

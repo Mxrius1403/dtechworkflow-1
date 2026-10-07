@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { Check, FileText, Trash2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Muted } from "@/components/common/Bits";
+import { BackLink, Muted } from "@/components/common/Bits";
 import { ConfirmAction } from "@/components/common/ConfirmAction";
 import { Panel } from "@/components/common/Panel";
 import { CountPill } from "@/components/common/StatusBadge";
@@ -51,7 +51,7 @@ export default function ToothOrdersPage() {
         <div key={o.id} className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-l-4 border-l-indigo-500 p-3" data-testid={`tooth-order-row-${o.id}`}>
           <div className="min-w-0 space-y-1.5">
             <p className="font-mono font-bold text-primary">{o.id}</p>
-            <p className="text-xs text-muted-foreground">{o.technician} ({o.technicianId}) • {o.date} {o.time} • {o.total} teeth</p>
+            <p className="text-xs text-muted-foreground">Ordered by {o.technician} ({o.technicianId}) • {o.date} {o.time} • {o.total} teeth</p>
             <div className="flex flex-wrap gap-1.5">
               {o.items.map((i, n) => <span key={n} className="rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium">{i.tooth} • {i.shade} × {i.qty}</span>)}
             </div>
@@ -72,13 +72,16 @@ export default function ToothOrdersPage() {
   );
 
   return (
-    <div className="grid gap-5">
-      <Panel title="Tooth Order Requests" description="Open the professional PDF to send the request to the supplier. Mark requests as done when they have been handled." actions={<CountPill testId="tooth-orders-count">{openOrders.length}</CountPill>}>
-        {renderOrders(openOrders)}
-      </Panel>
-      <Panel title="Completed orders" actions={<CountPill testId="completed-tooth-orders-count">{completedOrders.length}</CountPill>}>
-        {renderOrders(completedOrders, true)}
-      </Panel>
-    </div>
+    <>
+      <BackLink to="/tooth-management">Tooth Management</BackLink>
+      <div className="grid gap-5">
+        <Panel title="Tooth Order Requests" description="Open the professional PDF to send the request to the supplier. Mark requests as done when they have been handled." actions={<CountPill testId="tooth-orders-count">{openOrders.length}</CountPill>}>
+          {renderOrders(openOrders)}
+        </Panel>
+        <Panel title="Completed orders" actions={<CountPill testId="completed-tooth-orders-count">{completedOrders.length}</CountPill>}>
+          {renderOrders(completedOrders, true)}
+        </Panel>
+      </div>
+    </>
   );
 }

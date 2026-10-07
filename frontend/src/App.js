@@ -25,6 +25,7 @@ import SignInPage from "@/pages/SignInPage";
 import SuppliersPage from "@/pages/suppliers/SuppliersPage";
 import TechniciansPage from "@/pages/technicians/TechniciansPage";
 import ToothOrderPage from "@/pages/tooth/ToothOrderPage";
+import ToothManagementPage from "@/pages/tooth/ToothManagementPage";
 import ToothOrdersPage from "@/pages/tooth/ToothOrdersPage";
 import TrackingPage from "@/pages/tracking/TrackingPage";
 
@@ -37,6 +38,7 @@ const SCREENS = [
   ["/clinics", ClinicsPage],
   ["/suppliers", SuppliersPage],
   ["/case-search", CaseSearchPage],
+  ["/tooth-management", ToothManagementPage],
   ["/tooth-order", ToothOrderPage],
   ["/tooth-orders", ToothOrdersPage],
   ["/materials/requests", MaterialRequests],
