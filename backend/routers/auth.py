@@ -51,6 +51,13 @@ class TechnicianStatusUpdate(BaseModel):
     active: bool
 
 
+class TechnicianUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=100)
+    email: EmailStr
+
+
 class ManagerCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     email: EmailStr
@@ -289,6 +296,52 @@ async def update_technician_status(
         },
         {"$set": {"active": body.active}, "$inc": {"authVersion": 1}},
     )
+    if result.matched_count != 1:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Technician account not found.",
+        )
+
+    account = await db[AUTH_USERS].find_one({"_id": technician_id})
+    return {"user": public_account(account)}
+
+
+@router.patch(
+    "/technicians/{technician_id}/profile",
+    dependencies=[Depends(require_allowed_origin)],
+)
+async def update_technician_profile(
+    technician_id: str,
+    body: TechnicianUpdate,
+    _: dict = Depends(require_roles("owner", "manager")),
+) -> dict:
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Enter a name."
+        )
+
+    try:
+        result = await db[AUTH_USERS].update_one(
+            {
+                "_id": technician_id,
+                "role": "technician",
+                "deleted": {"$ne": True},
+            },
+            {
+                "$set": {
+                    "name": name,
+                    "email": normalized_email(str(body.email)),
+                },
+                "$inc": {"authVersion": 1},
+            },
+        )
+    except DuplicateKeyError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An account with this email already exists.",
+        ) from error
+
     if result.matched_count != 1:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

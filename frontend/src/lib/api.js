@@ -10,6 +10,7 @@ export const setupOwner = (details) => api.post("/auth/setup", details).then((r)
 export const login = (credentials) => api.post("/auth/login", credentials).then((r) => r.data.user);
 export const logout = () => api.post("/auth/logout");
 export const createTechnician = (technician) => api.post("/auth/technicians", technician).then((r) => r.data.user);
+export const updateTechnician = (technicianId, details) => api.patch(`/auth/technicians/${encodeURIComponent(technicianId)}/profile`, details).then((r) => r.data.user);
 export const updateTechnicianStatus = (technicianId, active) => api.patch(`/auth/technicians/${encodeURIComponent(technicianId)}`, { active }).then((r) => r.data.user);
 export const deleteTechnician = (technicianId) => api.delete(`/auth/technicians/${encodeURIComponent(technicianId)}`).then((r) => r.data);
 export const fetchManagers = () => api.get("/auth/managers").then((r) => r.data.managers);

@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input";
 import { Field, NativeSelect } from "@/components/common/Field";
 import { isEmail } from "@/lib/csv";
-import { createDriver, createManager, createTechnician, updateDriver } from "@/lib/api";
+import { createDriver, createManager, createTechnician, updateDriver, updateTechnician } from "@/lib/api";
 import { demoSave, notify, notifyError } from "@/lib/notify";
 
 const LABEL = { technician: "Technician", manager: "Manager", driver: "Driver" };
@@ -19,7 +19,10 @@ export function StaffDialog({ kind, person, nextId, onClose }) {
   const set = (key) => (e) => setForm((current) => ({ ...current, [key]: e.target.value }));
   const save = async () => {
     if (!form.name.trim()) return notifyError("Enter a name");
-    if (needsLogin && !person && (!isEmail(form.email.trim()) || form.password.length < 12)) {
+    if (needsLogin && !isEmail(form.email.trim())) {
+      return notifyError("Enter a valid email address");
+    }
+    if (needsLogin && !person && form.password.length < 12) {
       return notifyError("Enter a valid email and a temporary password of at least 12 characters");
     }
     if (kind === "driver") {
@@ -34,6 +37,24 @@ export function StaffDialog({ kind, person, nextId, onClose }) {
       } catch (error) {
         const detail = error.response?.data?.detail;
         notifyError(typeof detail === "string" ? detail : "Could not save driver");
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+    if (kind === "technician" && person) {
+      setSaving(true);
+      try {
+        await updateTechnician(person.id, {
+          name: form.name.trim(),
+          email: form.email.trim(),
+        });
+        await queryClient.invalidateQueries({ queryKey: ["data"] });
+        notify("Technician saved");
+        onClose();
+      } catch (error) {
+        const detail = error.response?.data?.detail;
+        notifyError(typeof detail === "string" ? detail : "Could not save technician");
       } finally {
         setSaving(false);
       }
@@ -74,9 +95,11 @@ export function StaffDialog({ kind, person, nextId, onClose }) {
         <div className="grid gap-4">
           <Field label={`${LABEL[kind]} ID`}><Input value={person?.id || nextId || "Assigned when saved"} disabled data-testid={`${kind}-id-input`} /></Field>
           <Field label="Name"><Input value={form.name} onChange={set("name")} data-testid={`${kind}-name-input`} /></Field>
+          {needsLogin && (kind === "technician" || !person) && (
+            <Field label="Email"><Input type="email" value={form.email} onChange={set("email")} data-testid={`${kind}-email-input`} /></Field>
+          )}
           {!person && needsLogin && (
             <>
-              <Field label="Email"><Input type="email" value={form.email} onChange={set("email")} data-testid={`${kind}-email-input`} /></Field>
               <Field label="Initial password"><Input type="password" value={form.password} onChange={set("password")} placeholder="Minimum 12 characters" data-testid={`${kind}-password-input`} /></Field>
             </>
           )}

@@ -4,7 +4,7 @@ import pytest
 from core import security
 from fastapi import HTTPException, Response
 from pydantic import ValidationError
-from routers import auth
+from routers import auth, data
 from routers.auth import (
     LoginRequest,
     ManagerCreate,
@@ -13,6 +13,7 @@ from routers.auth import (
     OwnershipTransfer,
     TechnicianCreate,
     TechnicianStatusUpdate,
+    TechnicianUpdate,
 )
 from starlette.requests import Request
 
@@ -299,6 +300,121 @@ def test_manager_can_toggle_technician_sign_in_and_archive_without_deleting_hist
     assert "email" not in account
     assert "passwordHash" not in account
     assert history == [{"technicianId": "DT001", "technician": "Former Technician"}]
+
+
+def test_manager_can_update_technician_name_and_email_and_revoke_sessions(monkeypatch):
+    account = {
+        "_id": "DT001",
+        "name": "Old Name",
+        "email": "old@example.com",
+        "role": "technician",
+        "active": True,
+        "authVersion": 0,
+    }
+
+    class Collection:
+        async def update_one(self, query, update):
+            assert query == {
+                "_id": "DT001",
+                "role": "technician",
+                "deleted": {"$ne": True},
+            }
+            account.update(update["$set"])
+            account["authVersion"] += update["$inc"]["authVersion"]
+            return type("Result", (), {"matched_count": 1})()
+
+        async def find_one(self, _query):
+            return account
+
+    class Database:
+        def __getitem__(self, name):
+            assert name == "auth_users"
+            return Collection()
+
+    monkeypatch.setattr(auth, "db", Database())
+    result = asyncio.run(
+        auth.update_technician_profile(
+            "DT001",
+            TechnicianUpdate(name="  New Name  ", email="NEW@example.com"),
+            {"_id": "MGR0001", "role": "manager"},
+        )
+    )
+
+    assert account["name"] == "New Name"
+    assert account["email"] == "new@example.com"
+    assert account["authVersion"] == 1
+    assert result["user"]["name"] == "New Name"
+    assert result["user"]["email"] == "new@example.com"
+
+
+def test_technician_profile_update_rejects_duplicate_email(monkeypatch):
+    class Collection:
+        async def update_one(self, _query, _update):
+            raise auth.DuplicateKeyError("duplicate email")
+
+    class Database:
+        def __getitem__(self, _name):
+            return Collection()
+
+    monkeypatch.setattr(auth, "db", Database())
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(
+            auth.update_technician_profile(
+                "DT001",
+                TechnicianUpdate(name="New Name", email="used@example.com"),
+                {"_id": "MGR0001", "role": "manager"},
+            )
+        )
+
+    assert error.value.status_code == 409
+    assert error.value.detail == "An account with this email already exists."
+
+
+def test_technician_emails_are_only_included_for_managers(monkeypatch):
+    accounts = [
+        {
+            "_id": "DT001",
+            "name": "Active Technician",
+            "email": "active@example.com",
+            "role": "technician",
+            "active": True,
+            "createdAt": "2026-01-01",
+        },
+        {
+            "_id": "DT002",
+            "name": "Archived Technician",
+            "role": "technician",
+            "active": False,
+            "createdAt": "2026-01-01",
+            "deleted": True,
+        },
+    ]
+
+    class Cursor:
+        def __init__(self, rows):
+            self.rows = rows
+
+        async def to_list(self, _limit):
+            return self.rows
+
+    class Collection:
+        def __init__(self, rows):
+            self.rows = rows
+
+        def find(self, *_args, **_kwargs):
+            return Cursor(self.rows)
+
+    class Database:
+        def __getitem__(self, name):
+            return Collection(accounts if name == "auth_users" else [])
+
+    monkeypatch.setattr(data, "db", Database())
+    manager_rows = asyncio.run(data.read_collection("users", include_login_email=True))
+    technician_rows = asyncio.run(data.read_collection("users"))
+
+    assert manager_rows[0]["email"] == "active@example.com"
+    assert "email" not in manager_rows[1]
+    assert all("email" not in row for row in technician_rows)
 
 
 def test_active_technician_cannot_be_deleted(monkeypatch):

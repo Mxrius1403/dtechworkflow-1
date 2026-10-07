@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Power, Trash2 } from "lucide-react";
+import { Pencil, Plus, Power, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
@@ -20,7 +20,7 @@ import { StaffDialog } from "./StaffDialog";
 
 const Mini = ({ label, value }) => <div className="rounded-lg bg-muted/60 px-3 py-2"><p className="font-mono text-xl font-bold text-primary">{value}</p><p className="text-[11px] text-muted-foreground">{label}</p></div>;
 
-function TechCard({ u, cases, canManage, onToggleStatus, onDelete }) {
+function TechCard({ u, cases, canManage, onEdit, onToggleStatus, onDelete }) {
   const mine = cases.filter((c) => c.technicianId === u.id || c.finishedById === u.id);
   const done = mine.filter((c) => c.status === "completed" && (isToday(c.finishedAt) || c.finishedDate === today())).length;
   return (
@@ -29,6 +29,7 @@ function TechCard({ u, cases, canManage, onToggleStatus, onDelete }) {
         <div>
           <p className="font-mono text-xs font-semibold text-secondary">{u.id}</p>
           <h3 className="text-lg font-bold text-primary">{u.name}</h3>
+          {u.email && <p className="text-xs text-muted-foreground">{u.email}</p>}
           <p className="text-xs text-muted-foreground">Login {u.active ? "enabled" : "disabled"}</p>
         </div>
         <StatusBadge kind="account" value={u.active ? "active" : "inactive"} />
@@ -42,6 +43,9 @@ function TechCard({ u, cases, canManage, onToggleStatus, onDelete }) {
         <Button asChild size="sm" variant="outline" data-testid={`tech-view-${u.id}`}><Link to={`/technicians/${u.id}`}>View Cases</Link></Button>
         {canManage && (
           <>
+            <Button size="sm" variant="outline" onClick={() => onEdit(u)} data-testid={`tech-edit-${u.id}`}>
+              <Pencil /> Edit
+            </Button>
             <Button size="sm" variant="outline" onClick={() => onToggleStatus(u)} data-testid={`tech-toggle-active-${u.id}`}>
               <Power /> {u.active ? "Deactivate" : "Activate"}
             </Button>
@@ -125,7 +129,7 @@ export default function TechniciansPage() {
     <>
       <Panel description="Technicians sign in with individual accounts. Inactive accounts can be archived without removing their history." actions={user.isManager && <Button onClick={() => setEditing({})} data-testid="add-technician-button"><Plus /> Add Technician</Button>} />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {techs.map((u) => <TechCard key={u.id} u={u} cases={data.cases} canManage={user.isManager} onToggleStatus={setStatusTarget} onDelete={setDeleteTarget} />)}
+        {techs.map((u) => <TechCard key={u.id} u={u} cases={data.cases} canManage={user.isManager} onEdit={setEditing} onToggleStatus={setStatusTarget} onDelete={setDeleteTarget} />)}
       </div>
       {editing && <StaffDialog kind="technician" person={editing.id ? editing : null} onClose={() => setEditing(null)} />}
       <AlertDialog open={Boolean(statusTarget)} onOpenChange={(open) => { if (!open && !saving) setStatusTarget(null); }}>
