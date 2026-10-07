@@ -31,7 +31,7 @@ export function ReceivingCaseDialog({ c, manager, onClose, onSave, onAttentionSa
     setSaving(true);
     try {
       const saved = await onSave({
-        department: manager ? department : "digital",
+        department,
         status,
         technicianId,
       });
@@ -118,7 +118,7 @@ export function ReceivingCaseDialog({ c, manager, onClose, onSave, onAttentionSa
         </DialogHeader>
         <div className="grid gap-4">
           <Field label="Department">
-            <NativeSelect value={manager ? department : "digital"} disabled={!manager} onChange={(event) => setDepartment(event.target.value)} data-testid="receiving-case-department">
+            <NativeSelect value={department} onChange={(event) => setDepartment(event.target.value)} data-testid="receiving-case-department">
               <option value="prosthesis">Prosthesis</option>
               <option value="ortho">Ortho</option>
               <option value="digital">Digital</option>

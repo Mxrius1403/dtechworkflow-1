@@ -38,7 +38,7 @@ export function printHtml(html) {
 
 export function reportPdfHtml(r) {
   const insights = DEPARTMENTS.map((dep) => `<div class="box"><h2>${departmentName(dep)} — 5 Production Insights</h2><ol>${(r.departmentInsights?.[dep] || []).map((i) => `<li>${esc(i.text)}</li>`).join("")}</ol></div>`).join("");
-  const techs = r.byTech.map((t) => `<h2>${esc(t.id)} — ${esc(t.name)} (${departmentName(t.department)})</h2>${table(
+  const techs = r.byTech.map((t) => `<h2>${esc(t.id)} — ${esc(t.name)}</h2>${table(
     ["Case", "Service Type", "Arch", "Date", "Started", "Completed", "Duration", "Status / Reason"],
     t.cases.map((c) => `<tr><td>${esc(c.code)}${c.code === "OW" ? ` — ${esc(c.activity || "Other Work")}` : ""}</td><td>${esc((c.serviceTypes || []).join(" + ") || "-")}</td><td>${esc(c.arch || "-")}</td><td>${esc(nice(c.finishedDate || dateKey(c.finishedAt)))}</td><td>${esc(c.startedTime || timeOf(c.startedAt))}</td><td>${esc(c.finishedTime || timeOf(c.finishedAt))}</td><td>${formatDuration(minutesBetween(c.startedAt, c.finishedAt))}</td><td class="${c.code === "OW" ? "" : c.overdue ? "late" : "on"}">${c.code === "OW" ? "Other Work" : c.overdue ? "Overdue" : "On Time"}${c.overdueReason ? ` — ${esc(c.overdueReason)}` : ""}</td></tr>`),
   )}<p><b>Total:</b> ${t.total} &nbsp; <b>Overdue:</b> ${t.overdue} &nbsp; <b>Average:</b> ${formatDuration(t.avgMinutes)}</p>`).join("");

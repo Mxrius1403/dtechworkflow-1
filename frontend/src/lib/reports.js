@@ -1,5 +1,5 @@
 import { addDays, calendarDaysBetween, dateKey, formatDuration, minutesBetween } from "./format";
-import { DEPARTMENTS, caseDepartment, caseWasOverdue, departmentKey, departmentName, sessionValues } from "./cases";
+import { DEPARTMENTS, caseDepartment, caseWasOverdue, departmentName, sessionValues } from "./cases";
 
 const average = (values) => (values.length ? Math.round(values.reduce((a, b) => a + b, 0) / values.length) : 0);
 const durations = (rows) => rows.map((x) => minutesBetween(x.startedAt, x.finishedAt)).filter((v) => v !== null);
@@ -56,7 +56,7 @@ export function buildReport({ cases, users, otherWork }, from, to) {
     const ow = otherWork.filter((x) => x.technicianId === u.id && x.finishedAt && inRange(x.finishedAt, from, to))
       .map((x) => ({ ...x, code: "OW", overdue: false, finishedDate: dateKey(x.finishedAt), department: "ortho" }));
     return {
-      id: u.id, name: u.name, department: departmentKey(u.department || rows[0]?.department),
+      id: u.id, name: u.name,
       cases: [...rows, ...ow].sort((x, y) => String(x.startedAt).localeCompare(String(y.startedAt))),
       total: rows.length, otherWork: ow.length, overdue: rows.filter((c) => c.overdue).length, avgMinutes: average(durations(rows)),
       insights: makeFiveInsights(`${u.name} (${u.id})`, rows, previous.filter((x) => x.technicianId === u.id), dayCount),

@@ -1,6 +1,7 @@
 import { MoreVertical } from "lucide-react";
+import { DEPARTMENT_STYLE } from "@/config/statuses";
 import { useData } from "@/context/DataContext";
-import { caseWho, scheduledKey, serviceLabel } from "@/lib/cases";
+import { caseDepartment, caseWho, departmentName, scheduledKey, serviceLabel } from "@/lib/cases";
 import { nice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { CaseFlags } from "./CaseFlags";
@@ -17,6 +18,9 @@ export function CaseCard({ c, onClick, actions, showWho = true, compact }) {
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="font-mono text-sm font-bold text-primary">{c.code}</span>
+            <span className={cn("rounded border px-1.5 py-0.5 text-[10px] font-semibold", DEPARTMENT_STYLE[caseDepartment(c)].soft, DEPARTMENT_STYLE[caseDepartment(c)].text)}>
+              {departmentName(caseDepartment(c))}
+            </span>
             <CaseFlags c={c} />
           </div>
           <p className="whitespace-normal break-words text-xs text-muted-foreground" title={serviceLabel(c)}>

@@ -20,6 +20,8 @@ async def read_collection(collection: str) -> list[dict]:
     if collection == "users":
         for row in rows:
             row["loginEnabled"] = False
+            if row.get("role") == "technician":
+                row["department"] = None
         auth_users = await db[AUTH_USERS].find({"role": "technician"}).to_list(10_000)
         existing_ids = {row["id"] for row in rows}
         rows.extend(
@@ -28,7 +30,7 @@ async def read_collection(collection: str) -> list[dict]:
                 "uid": f"u-{str(account['_id']).lower()}",
                 "name": account["name"],
                 "role": "technician",
-                "department": account["department"],
+                "department": None,
                 "active": account["active"],
                 "owner": False,
                 "createdAt": account["createdAt"],

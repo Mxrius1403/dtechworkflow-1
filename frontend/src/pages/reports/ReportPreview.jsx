@@ -25,7 +25,6 @@ function TechnicianSection({ t }) {
     <div className="rounded-xl border p-4" data-testid={`report-tech-${t.id}`}>
       <h3 className="mb-3 flex flex-wrap items-center gap-2 text-base font-bold text-primary">
         <span className="rounded-md bg-primary px-2 py-0.5 font-mono text-xs text-white">{t.id}</span> {t.name}
-        <span className="text-xs font-medium text-muted-foreground">{departmentName(t.department)}</span>
       </h3>
       <InsightList insights={t.insights} />
       <div className="mt-3">

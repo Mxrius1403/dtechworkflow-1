@@ -88,7 +88,9 @@ def public_account(account: dict[str, Any]) -> dict[str, Any]:
         "name": account["name"],
         "email": account["email"],
         "role": account["role"],
-        "department": account.get("department"),
+        "department": (
+            None if account.get("role") == "technician" else account.get("department")
+        ),
         "active": account["active"],
         "isOwner": account["role"] == "owner",
         "isManager": account["role"] in ("owner", "manager"),

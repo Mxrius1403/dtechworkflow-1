@@ -4,7 +4,6 @@ import { useData } from "@/context/DataContext";
 import { today } from "@/lib/format";
 import { productionDayInfo } from "@/lib/holidays";
 import { activeLeave, leaveCovers } from "@/lib/leave";
-import { departmentKey } from "@/lib/cases";
 import { cn } from "@/lib/utils";
 
 /** Calendar month shared by technicians and managers; the selected year also drives the leave totals. */
@@ -20,10 +19,9 @@ const Legend = () => (
   </div>
 );
 
-export function LeaveCalendar({ ym, onChange, department = "all" }) {
-  const { leaveRequests, byId, techName } = useData();
-  const approved = activeLeave(leaveRequests).filter((r) => r.status === "approved"
-    && (department === "all" || departmentKey(byId.users[r.technicianId]?.department) === department));
+export function LeaveCalendar({ ym, onChange }) {
+  const { leaveRequests, techName } = useData();
+  const approved = activeLeave(leaveRequests).filter((r) => r.status === "approved");
 
   const renderDay = (key) => {
     const { holiday } = productionDayInfo(key);

@@ -83,12 +83,7 @@ def _now() -> tuple[str, date, str]:
 
 
 async def receiving_account(account: dict = Depends(current_account)) -> dict:
-    if account.get("role") in ("owner", "manager"):
-        return account
-    if (
-        account.get("role") == "technician"
-        and account.get("department") == "digital"
-    ):
+    if account.get("role") in ("owner", "manager", "technician"):
         return account
     raise HTTPException(status_code=403, detail="Insufficient permissions.")
 
@@ -161,25 +156,12 @@ def _new_case(body: ReceiveCase, account: dict) -> dict:
 
 async def _create_or_reenter(body: ReceiveCase, account: dict) -> dict:
     _validate_production_date(body.productionDate)
-    if account.get("role") == "technician" and body.department != "digital":
-        raise HTTPException(
-            status_code=403,
-            detail="Digital Receiving can only receive digital cases.",
-        )
 
     if body.caseId:
         existing = await db["cases"].find_one({"_id": body.caseId})
         if not existing or existing.get("code") != body.code:
             raise HTTPException(
                 status_code=404, detail="Completed case not found."
-            )
-        if (
-            account.get("role") == "technician"
-            and existing.get("department") != "digital"
-        ):
-            raise HTTPException(
-                status_code=403,
-                detail="Digital Receiving can only re-enter digital cases.",
             )
         if existing.get("completionReviewStatus") == "pending":
             raise HTTPException(
@@ -309,14 +291,6 @@ async def restore_received_case(
     existing = await db["cases"].find_one({"_id": case_id})
     if not existing:
         raise HTTPException(status_code=404, detail="Case not found.")
-    if (
-        account.get("role") == "technician"
-        and existing.get("department") != "digital"
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail="Digital Receiving can only restore digital cases.",
-        )
     if existing.get("status") != "removed":
         raise HTTPException(
             status_code=409, detail="Only removed cases can be restored."
@@ -406,17 +380,6 @@ async def update_received_case(
     existing = await db["cases"].find_one({"_id": case_id})
     if not existing:
         raise HTTPException(status_code=404, detail="Case not found.")
-    if (
-        account.get("role") == "technician"
-        and (
-            existing.get("department") != "digital"
-            or body.department != "digital"
-        )
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail="Digital Receiving can only update digital cases.",
-        )
     if existing.get("completionReviewStatus") == "pending":
         raise HTTPException(
             status_code=409,
@@ -527,15 +490,6 @@ async def update_case_attention(
     existing = await db["cases"].find_one({"_id": case_id})
     if not existing:
         raise HTTPException(status_code=404, detail="Case not found.")
-    if (
-        account.get("role") == "technician"
-        and existing.get("department") != "digital"
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail="Digital Receiving can only update digital cases.",
-        )
-
     timestamp, _, _ = _now()
     display_name = account.get("name", account.get("email", "Receiving"))
     case = await db["cases"].find_one_and_update(

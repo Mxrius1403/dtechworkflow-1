@@ -15,8 +15,8 @@ const materialsLabel = (u) => (u.isManager ? "Material Order Requests" : "Order 
 export const PAGES = [
   { path: "/owner-control", label: "Ownership & Managers", icon: KeyRound, access: (u) => u.isOwner, nav: (u) => u.isOwner },
   { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard, nav: always },
-  { path: "/receiving", label: "Receiving", title: "Receiving Station", icon: Inbox, access: (u) => u.isManager || u.department === "digital", nav: (u) => u.isManager || u.department === "digital" },
-  { path: "/other-work", label: "Other Work", icon: Timer, access: (u) => !u.isManager && u.department === "ortho", nav: (u) => !u.isManager && u.department === "ortho" },
+  { path: "/receiving", label: "Receiving", title: "Receiving Station", icon: Inbox, access: always, nav: always },
+  { path: "/other-work", label: "Other Work", icon: Timer, access: technician, nav: technician },
   { path: "/logistics", label: "Deliveries & Collections", icon: Truck, access: manager, nav: manager },
   { path: "/drivers", label: "Drivers", icon: Car, access: manager, nav: manager },
   { path: "/clinics", label: "Clinics", icon: Building2, access: manager, nav: manager },

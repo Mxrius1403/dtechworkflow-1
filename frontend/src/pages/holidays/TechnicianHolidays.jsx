@@ -12,7 +12,6 @@ import { useSession } from "@/context/SessionContext";
 import { plural, today } from "@/lib/format";
 import { publicHolidaysBetween, workingDaysBetween } from "@/lib/holidays";
 import { activeLeave, annualLeaveStats, overlapsExisting } from "@/lib/leave";
-import { departmentKey } from "@/lib/cases";
 import { demoSave, notifyError } from "@/lib/notify";
 import { LeaveCalendar, useLeaveMonth } from "./LeaveCalendar";
 import { LeaveRow } from "./LeaveRow";
@@ -59,7 +58,7 @@ export function TechnicianHolidays() {
         <StatCard label={`Total Approved ${ym[0]}`} value={stats.totalApproved} accent="indigo" testId="leave-stat-total" />
       </div>
       <RequestForm requests={requests} user={user} />
-      <Panel title="Team Calendar"><LeaveCalendar ym={ym} onChange={setYm} department={departmentKey(user.department)} /></Panel>
+      <Panel title="Team Calendar"><LeaveCalendar ym={ym} onChange={setYm} /></Panel>
       <Panel title="My Requests">
         <div className="grid gap-2">
           {mine.map((r) => (

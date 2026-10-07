@@ -64,13 +64,12 @@ def test_auth_configuration_rejects_weak_key_and_wildcard_origin(monkeypatch):
         security.validate_security_config()
 
 
-def test_technician_credentials_and_department_are_validated():
+def test_technician_credentials_and_department_assignment_are_validated():
     with pytest.raises(ValidationError):
         TechnicianCreate(
             name="New Tech",
             email="tech@example.com",
             password="short",
-            department="prosthesis",
         )
     with pytest.raises(ValidationError):
         TechnicianCreate(
@@ -216,7 +215,6 @@ def test_manager_can_create_technician_account(monkeypatch):
                 name="New Technician",
                 email="tech@example.com",
                 password="long-enough-password",
-                department="prosthesis",
             ),
             {"_id": "MGR0001", "role": "manager"},
         )
@@ -225,8 +223,10 @@ def test_manager_can_create_technician_account(monkeypatch):
     account = database.collection.account
     assert account["_id"] == "DT001"
     assert account["role"] == "technician"
+    assert "department" not in account
     assert account["createdBy"] == "MGR0001"
     assert result["user"]["id"] == "DT001"
+    assert result["user"]["department"] is None
 
 
 def test_technician_creation_allows_managers_and_owners_only():

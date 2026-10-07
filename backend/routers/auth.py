@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-from typing import Literal
 
 from core.collections import AUTH_USERS
 from core.database import db
@@ -23,7 +22,7 @@ from core.security import (
 )
 from email_validator import EmailNotValidError, validate_email
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from pymongo.errors import DuplicateKeyError
 
 router = APIRouter(prefix="/api/auth", tags=["authentication"])
@@ -41,10 +40,11 @@ class OwnerSetup(BaseModel):
 
 
 class TechnicianCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     name: str = Field(min_length=1, max_length=100)
     email: EmailStr
     password: str = Field(min_length=12, max_length=72)
-    department: Literal["prosthesis", "ortho", "digital"]
 
 
 class ManagerCreate(BaseModel):
@@ -240,7 +240,6 @@ async def create_technician(
         "email": email,
         "passwordHash": hash_password(body.password),
         "role": "technician",
-        "department": body.department,
         "active": True,
         "authVersion": 0,
         "createdAt": datetime.now(timezone.utc).isoformat(),

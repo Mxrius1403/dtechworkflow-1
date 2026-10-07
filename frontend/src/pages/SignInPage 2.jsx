@@ -3,9 +3,8 @@ import { ArrowRight, Truck, UserRound } from "lucide-react";
 import { APP_NAME, LOGO } from "@/config/constants";
 import { useData } from "@/context/DataContext";
 import { useSession } from "@/context/SessionContext";
-import { departmentName } from "@/lib/cases";
 
-const roleLabel = (u) => (u.role === "owner" ? "Owner" : u.role === "manager" ? "Manager" : `${departmentName(u.department)} Technician`);
+const roleLabel = (u) => (u.role === "owner" ? "Owner" : u.role === "manager" ? "Manager" : "Technician");
 
 function PersonaButton({ title, subtitle, code, onClick, testId }) {
   return (

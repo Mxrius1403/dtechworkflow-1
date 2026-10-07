@@ -22,6 +22,11 @@ async def lifespan(_: FastAPI):
             {"department": "denture"},
             {"$set": {"department": "prosthesis"}},
         )
+    for collection_name in ("auth_users", "users"):
+        await db[collection_name].update_many(
+            {"role": "technician", "department": {"$exists": True}},
+            {"$unset": {"department": ""}},
+        )
     await db[AUTH_USERS].create_index("email", unique=True)
     yield
     client.close()

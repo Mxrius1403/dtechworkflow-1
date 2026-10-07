@@ -107,7 +107,6 @@ export function scanOutcome(cases, value, user, techName) {
   if (!selected) return { kind: "error", message: user.isManager ? "Case not found. Add it in Receiving." : "Case not found. Ask Receiving." };
   if (user.isManager) return { kind: "manage", caseItem: selected };
   if (selected.overdueReasonRequired && selected.technicianId === user.id && !selected.overdueReason) return { kind: "overdueReason", caseItem: selected };
-  if (caseDepartment(selected) !== departmentKey(user.department)) return { kind: "error", message: `This case belongs to ${departmentName(caseDepartment(selected))}.` };
   if (selected.status === "queue") return { kind: "save", message: `Case ${code} started` };
   if (selected.status === "production" && selected.technicianId !== user.id) {
     return { kind: "error", message: `Already in production by ${techName(selected.technicianId, selected.technician) || "another technician"}` };

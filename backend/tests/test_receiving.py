@@ -262,22 +262,16 @@ def test_seeded_staff_and_cases_use_prosthesis_department():
     assert all(case["department"] != "denture" for case in cases)
 
 
-def test_digital_receiving_cannot_create_cases_for_other_departments(
-    receiving_db,
-):
-    with pytest.raises(HTTPException) as error:
-        asyncio.run(
-            receiving.create_received_case(
-                receive_payload(),
-                {
-                    "_id": "DT005",
-                    "role": "technician",
-                    "department": "digital",
-                },
-            )
+def test_technician_can_receive_cases_for_any_department(receiving_db):
+    result = asyncio.run(
+        receiving.create_received_case(
+            receive_payload(department="prosthesis"),
+            {"_id": "DT005", "role": "technician"},
         )
+    )
 
-    assert error.value.status_code == 403
+    assert result["department"] == "prosthesis"
+    assert result["status"] == "queue"
 
 
 def test_update_case_assigns_department_status_and_technician(receiving_db):
@@ -366,7 +360,7 @@ def test_update_case_rejects_unknown_technician(receiving_db):
     assert error.value.status_code == 422
 
 
-def test_digital_receiving_cannot_update_another_department(receiving_db):
+def test_technician_can_update_case_across_departments(receiving_db):
     receiving_db.documents["CASE-1"] = {
         "_id": "CASE-1",
         "department": "ortho",
@@ -374,20 +368,16 @@ def test_digital_receiving_cannot_update_another_department(receiving_db):
         "history": [],
     }
 
-    with pytest.raises(HTTPException) as error:
-        asyncio.run(
-            receiving.update_received_case(
-                "CASE-1",
-                receiving.UpdateCase(department="digital", status="queue"),
-                {
-                    "_id": "DT005",
-                    "role": "technician",
-                    "department": "digital",
-                },
-            )
+    result = asyncio.run(
+        receiving.update_received_case(
+            "CASE-1",
+            receiving.UpdateCase(department="digital", status="queue"),
+            {"_id": "DT005", "role": "technician"},
         )
+    )
 
-    assert error.value.status_code == 403
+    assert result["department"] == "digital"
+    assert result["status"] == "queue"
 
 
 @pytest.mark.parametrize(

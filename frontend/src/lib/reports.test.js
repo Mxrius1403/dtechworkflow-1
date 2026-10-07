@@ -5,9 +5,9 @@ const period = { from: "2026-10-05", to: "2026-10-11" };
 test("builds a report from confirmed production and completed other work in the selected period", () => {
   const report = buildReport({
     users: [
-      { id: "DT001", name: "Aisling Byrne", role: "technician", department: "prosthesis", loginEnabled: true },
-      { id: "DT002", name: "Demo Technician", role: "technician", department: "prosthesis", loginEnabled: false },
-      { id: "DT003", name: "Technician Without Cases", role: "technician", department: "digital", loginEnabled: true },
+      { id: "DT001", name: "Aisling Byrne", role: "technician", loginEnabled: true },
+      { id: "DT002", name: "Demo Technician", role: "technician", loginEnabled: false },
+      { id: "DT003", name: "Technician Without Cases", role: "technician", loginEnabled: true },
     ],
     cases: [
       {

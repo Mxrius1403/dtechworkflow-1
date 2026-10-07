@@ -4,10 +4,9 @@ import { CaseCard } from "@/components/cases/CaseCard";
 import { useCaseDialogs } from "@/components/cases/CaseDialogsProvider";
 import { ScanBar } from "@/components/common/ScanBar";
 import { StatCard, StatGrid } from "@/components/common/StatCard";
-import { DEPARTMENT_STYLE } from "@/config/statuses";
 import { useData } from "@/context/DataContext";
 import { useSession } from "@/context/SessionContext";
-import { caseDepartment, departmentKey, departmentName, scanOutcome, todayCases } from "@/lib/cases";
+import { scanOutcome, todayCases } from "@/lib/cases";
 import { demoSave, notifyError } from "@/lib/notify";
 import { cn } from "@/lib/utils";
 
@@ -15,8 +14,7 @@ export function TechnicianDashboard() {
   const { cases, toothOrders, techName } = useData();
   const { user } = useSession();
   const { openCase, openAttention, openOverdueReason } = useCaseDialogs();
-  const dept = departmentKey(user.department);
-  const rows = todayCases(cases).filter((c) => caseDepartment(c) === dept);
+  const rows = todayCases(cases);
   const mine = (c, key) => c[key] === user.id;
 
   const onScan = (value) => {
@@ -38,9 +36,8 @@ export function TechnicianDashboard() {
   return (
     <>
       <div className="flex items-baseline gap-3">
-        <span className={cn("h-3 w-3 rounded-full", DEPARTMENT_STYLE[dept].dot)} />
-        <h2 className="text-2xl font-extrabold text-primary" data-testid="tech-department-title">{departmentName(dept)}</h2>
-        <span className="text-sm text-muted-foreground">Your department</span>
+        <h2 className="text-2xl font-extrabold text-primary" data-testid="tech-case-scope-title">All Departments</h2>
+        <span className="text-sm text-muted-foreground">Case category shown on each case</span>
       </div>
       <StatGrid>
         <StatCard label="In Queue" value={rows.filter((c) => c.status === "queue").length} testId="tech-stat-queue" />

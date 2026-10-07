@@ -47,7 +47,7 @@ export default function ReceivingPage() {
   const [draft, setDraft] = useState(null);
   const [selectedCaseId, setSelectedCaseId] = useState(null);
   const [saving, setSaving] = useState(false);
-  const departments = user.isManager ? DEPARTMENTS : ["digital"];
+  const departments = DEPARTMENTS;
   const selectedCase = cases.find((caseItem) => caseItem.id === selectedCaseId);
 
   const updateCase = async (caseId, changes, save) => {
@@ -67,9 +67,6 @@ export default function ReceivingPage() {
     const result = receivingOutcome(cases, value);
     if (result.kind === "error") return notifyError(result.message);
     if (result.kind === "new") return setDraft({ code: result.code, department, reentry: false });
-    if (!user.isManager && caseDepartment(result.caseItem) !== department) {
-      return notifyError(`This case belongs to ${departmentName(caseDepartment(result.caseItem))}.`);
-    }
     setPrompt({ ...result, department });
   };
   const confirmPrompt = async () => {

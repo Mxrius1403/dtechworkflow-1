@@ -5,7 +5,6 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input";
 import { Field, NativeSelect } from "@/components/common/Field";
 import { isEmail } from "@/lib/csv";
-import { departmentKey } from "@/lib/cases";
 import { createDriver, createManager, createTechnician, updateDriver } from "@/lib/api";
 import { demoSave, notify, notifyError } from "@/lib/notify";
 
@@ -14,7 +13,7 @@ const LABEL = { technician: "Technician", manager: "Manager", driver: "Driver" }
 /** Add / edit dialog shared by technicians, managers (Owner Control) and drivers. */
 export function StaffDialog({ kind, person, nextId, onClose }) {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState({ name: person?.name || "", email: person?.email || "", password: "", department: departmentKey(person?.department), active: person ? String(person.active) : "true" });
+  const [form, setForm] = useState({ name: person?.name || "", email: person?.email || "", password: "", active: person ? String(person.active) : "true" });
   const [saving, setSaving] = useState(false);
   const needsLogin = kind !== "driver";
   const set = (key) => (e) => setForm((current) => ({ ...current, [key]: e.target.value }));
@@ -49,11 +48,7 @@ export function StaffDialog({ kind, person, nextId, onClose }) {
           email: form.email.trim(),
           password: form.password,
         };
-        if (kind === "technician") {
-          await createAccount({ ...details, department: form.department });
-        } else {
-          await createAccount(details);
-        }
+        await createAccount(details);
         if (kind === "technician") {
           await queryClient.invalidateQueries({ queryKey: ["data"] });
         } else {
@@ -85,13 +80,7 @@ export function StaffDialog({ kind, person, nextId, onClose }) {
               <Field label="Initial password"><Input type="password" value={form.password} onChange={set("password")} placeholder="Minimum 12 characters" data-testid={`${kind}-password-input`} /></Field>
             </>
           )}
-          {kind === "technician" ? (
-            <Field label="Department">
-              <NativeSelect value={form.department} onChange={set("department")} data-testid={`${kind}-department-select`}>
-                <option value="prosthesis">Prosthesis</option><option value="ortho">Ortho</option><option value="digital">Digital</option>
-              </NativeSelect>
-            </Field>
-          ) : kind === "driver" ? (
+          {kind === "driver" ? (
             <Field label="Status">
               <NativeSelect value={form.active} onChange={set("active")} data-testid={`${kind}-active-select`}>
                 <option value="true">Active</option><option value="false">Inactive</option>

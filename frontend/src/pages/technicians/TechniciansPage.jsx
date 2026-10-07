@@ -8,7 +8,6 @@ import { Panel } from "@/components/common/Panel";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { useData } from "@/context/DataContext";
 import { useSession } from "@/context/SessionContext";
-import { departmentName } from "@/lib/cases";
 import { isToday, today } from "@/lib/format";
 import { StaffDialog } from "./StaffDialog";
 
@@ -23,7 +22,7 @@ function TechCard({ u, cases }) {
         <div>
           <p className="font-mono text-xs font-semibold text-secondary">{u.id}</p>
           <h3 className="text-lg font-bold text-primary">{u.name}</h3>
-          <p className="text-xs text-muted-foreground">{departmentName(u.department)} • Login {u.active ? "enabled" : "disabled"}</p>
+          <p className="text-xs text-muted-foreground">Login {u.active ? "enabled" : "disabled"}</p>
         </div>
         <StatusBadge kind="account" value={u.active ? "active" : "inactive"} />
       </div>
