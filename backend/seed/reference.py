@@ -22,12 +22,6 @@ STAFF = [
     ("OWNER001", "Aoife Byrne", "owner", "", True),
     ("MGR0001", "Ciarán Walsh", "manager", "", True),
     ("MGR0002", "Sinéad Doyle", "manager", "", False),
-    ("DT001", "Liam O'Connor", "technician", "prosthesis", True),
-    ("DT002", "Emma Brennan", "technician", "prosthesis", True),
-    ("DT003", "Conor Gallagher", "technician", "ortho", True),
-    ("DT004", "Róisín Kavanagh", "technician", "ortho", True),
-    ("DT005", "Darragh Quinn", "technician", "digital", True),
-    ("DT006", "Orla Fitzgerald", "technician", "prosthesis", False),
 ]
 
 # driver id, name, active

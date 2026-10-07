@@ -186,5 +186,6 @@ def public_tracking(book: RouteBook, now_ms: int) -> list[dict]:
 def build_routes(confirmed: list[dict], route_today: date, rng: random.Random) -> RouteBook:
     book = RouteBook()
     past_routes(book, confirmed, route_today, rng)
-    current_routes(book, confirmed, route_today)
+    if confirmed:
+        current_routes(book, confirmed, route_today)
     return book

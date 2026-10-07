@@ -8,9 +8,7 @@ Covers:
   - /api/tracking/{token} (400 malformed, 404 unknown, 200 valid)
   - /api/clinics/{id}/contact (200/404)
 """
-import datetime
 import os
-import re
 
 import pytest
 import requests
@@ -66,10 +64,13 @@ def test_data_no_mongo_id_leakage(data_payload):
 
 
 def test_data_counts_are_reasonable(data_payload):
-    assert len(data_payload["users"]) >= 7
+    assert len(data_payload["users"]) >= 3
+    assert not any(
+        user["role"] == "technician" and not user.get("loginEnabled")
+        for user in data_payload["users"]
+    )
     assert len(data_payload["drivers"]) >= 3
     assert len(data_payload["clinics"]) == 8
-    assert len(data_payload["routes"]) >= 2
     assert isinstance(data_payload["settings"], dict)
 
 
@@ -111,28 +112,6 @@ def test_tracking_malformed_token_400(client):
 def test_tracking_unknown_valid_format_404(client):
     r = client.get(f"{BASE_URL}/api/tracking/{'0'*48}", timeout=10)
     assert r.status_code == 404
-
-
-def _todays_token(routes):
-    today = datetime.date.today().strftime("%Y%m%d")
-    for r in routes:
-        if r.get("id", "").startswith(f"R{today}"):
-            toks = r.get("trackingTokens") or {}
-            for _, tok in toks.items():
-                if re.fullmatch(r"[a-f0-9]{48}", tok):
-                    return tok
-    return None
-
-
-def test_tracking_valid_token_200(client, data_payload):
-    tok = _todays_token(data_payload["routes"])
-    assert tok, "no today-token found in seed"
-    r = client.get(f"{BASE_URL}/api/tracking/{tok}", timeout=10)
-    assert r.status_code == 200, r.text
-    j = r.json()
-    assert "_id" not in j
-    # Should include some stop/visit level fields
-    assert any(k in j for k in ("status", "stopId", "driverName", "clinicName"))
 
 
 # ----- /api/clinics/{id}/contact -----

@@ -1,5 +1,4 @@
 import asyncio
-import random
 from datetime import date
 
 import pytest
@@ -256,7 +255,7 @@ def test_legacy_department_value_is_no_longer_accepted():
 
 
 def test_seeded_staff_and_cases_use_prosthesis_department():
-    cases = build_cases(date(2026, 10, 6), random.Random(2026)).items
+    cases = build_cases(date(2026, 10, 6)).items
 
     assert any(case["department"] == "prosthesis" for case in cases)
     assert all(person[3] != "denture" for person in STAFF)

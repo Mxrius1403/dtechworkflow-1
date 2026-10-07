@@ -135,6 +135,8 @@ Design tokens (colours, radius, fonts) are CSS variables in `frontend/src/index.
 
 Dates in the sample data are relative to today, so the demo always looks current. The data is rebuilt once a day. To apply your edits right away, raise `SEED_VERSION` in `backend/seed/loader.py` and restart the backend.
 
+Demo technician accounts and technician-linked example records are not seeded. Technician accounts created through the app remain available.
+
 ### Expose a new collection
 Add `"apiName": "mongo_collection"` to `PUBLIC_COLLECTIONS` in `backend/core/collections.py`. It then appears in `GET /api/data` and in `useData()` on the frontend.
 

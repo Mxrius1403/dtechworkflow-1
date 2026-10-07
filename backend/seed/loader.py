@@ -16,7 +16,7 @@ from seed.calendar import next_production_day
 from seed.logistics import build_routes, public_tracking
 from seed.production import build_cases
 
-SEED_VERSION = 3
+SEED_VERSION = 4
 PERSISTENT_COLLECTIONS = {
     "drivers",
     "clinics",
@@ -32,11 +32,39 @@ PERSISTENT_COLLECTIONS = {
 }
 _lock = asyncio.Lock()
 _seeded_marker = ""
+LEGACY_DEMO_TECHNICIAN_IDS = ("DT001", "DT002", "DT003", "DT004", "DT005", "DT006")
+
+
+async def remove_legacy_technician_routes() -> None:
+    legacy_cases = await db["cases"].find({
+        "_id": {"$regex": "^CASE"},
+        "$or": [
+            {"technicianId": {"$in": LEGACY_DEMO_TECHNICIAN_IDS}},
+            {"finishedById": {"$in": LEGACY_DEMO_TECHNICIAN_IDS}},
+            {"workSessions.technicianId": {"$in": LEGACY_DEMO_TECHNICIAN_IDS}},
+        ],
+    }).to_list(10_000)
+    if not legacy_cases:
+        return
+
+    case_ids = [str(case.get("_id", case.get("id", ""))) for case in legacy_cases]
+    matching_stops = await db["stops"].find({
+        "deliveries.productionCaseId": {"$in": case_ids}
+    }).to_list(10_000)
+    route_ids = {stop["routeId"] for stop in matching_stops if stop.get("routeId")}
+    if not route_ids:
+        return
+
+    route_ids = list(route_ids)
+    await db["routes"].delete_many({"_id": {"$in": route_ids}})
+    await db["stops"].delete_many({"routeId": {"$in": route_ids}})
+    for collection in ("route_plans", "tracking_emails", "notifications", PUBLIC_TRACKING):
+        await db[collection].delete_many({"routeId": {"$in": route_ids}})
 
 
 def build_demo_data(today: date) -> dict[str, list[dict]]:
     rng = random.Random(today.isoformat())
-    cases = build_cases(today, rng)
+    cases = build_cases(today)
     routes = build_routes(cases.confirmed, next_production_day(today), rng)
     contacts = workflow.clinic_contacts()
     return {
@@ -63,10 +91,10 @@ def build_demo_data(today: date) -> dict[str, list[dict]]:
         "tracking_emails": routes.emails,
         "notifications": routes.notifications,
         PUBLIC_TRACKING: public_tracking(routes, int(time.time() * 1000)),
-        "tooth_orders": workflow.tooth_orders(today),
-        "material_orders": workflow.material_orders(today),
-        "leave_requests": workflow.leave_requests(today),
-        "other_work": workflow.other_work(today),
+        "tooth_orders": workflow.tooth_orders(),
+        "material_orders": workflow.material_orders(),
+        "leave_requests": workflow.leave_requests(),
+        "other_work": workflow.other_work(),
         SETTINGS: [workflow.settings(today)],
     }
 
@@ -80,6 +108,7 @@ async def ensure_demo_data() -> None:
     async with _lock:
         meta = await db[SEED_META].find_one({"_id": "demo"})
         if not meta or meta.get("marker") != marker:
+            await remove_legacy_technician_routes()
             for name, docs in build_demo_data(today).items():
                 if meta and name in PERSISTENT_COLLECTIONS:
                     continue
