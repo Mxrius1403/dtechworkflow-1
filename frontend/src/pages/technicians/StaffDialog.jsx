@@ -25,6 +25,9 @@ export function StaffDialog({ kind, person, nextId, onClose }) {
     if (needsLogin && !person && form.password.length < 12) {
       return notifyError("Enter a valid email and a temporary password of at least 12 characters");
     }
+    if (kind === "technician" && person && form.password && form.password.length < 12) {
+      return notifyError("New password must be at least 12 characters");
+    }
     if (kind === "driver") {
       setSaving(true);
       try {
@@ -48,6 +51,7 @@ export function StaffDialog({ kind, person, nextId, onClose }) {
         await updateTechnician(person.id, {
           name: form.name.trim(),
           email: form.email.trim(),
+          ...(form.password ? { password: form.password } : {}),
         });
         await queryClient.invalidateQueries({ queryKey: ["data"] });
         notify("Technician saved");
@@ -98,9 +102,9 @@ export function StaffDialog({ kind, person, nextId, onClose }) {
           {needsLogin && (kind === "technician" || !person) && (
             <Field label="Email"><Input type="email" value={form.email} onChange={set("email")} data-testid={`${kind}-email-input`} /></Field>
           )}
-          {!person && needsLogin && (
+          {needsLogin && (kind === "technician" || !person) && (
             <>
-              <Field label="Initial password"><Input type="password" value={form.password} onChange={set("password")} placeholder="Minimum 12 characters" data-testid={`${kind}-password-input`} /></Field>
+              <Field label={person ? "New password" : "Initial password"}><Input type="password" value={form.password} onChange={set("password")} placeholder={person ? "Leave blank to keep current password" : "Minimum 12 characters"} data-testid={`${kind}-password-input`} /></Field>
             </>
           )}
           {kind === "driver" ? (

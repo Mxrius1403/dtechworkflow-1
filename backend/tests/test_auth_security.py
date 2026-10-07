@@ -347,6 +347,53 @@ def test_manager_can_update_technician_name_and_email_and_revoke_sessions(monkey
     assert result["user"]["email"] == "new@example.com"
 
 
+def test_manager_can_change_technician_password_and_revoke_sessions(monkeypatch):
+    new_password = "a-new-long-enough-password"
+    account = {
+        "_id": "DT001",
+        "name": "Technician",
+        "email": "tech@example.com",
+        "passwordHash": security.hash_password("old-long-enough-password"),
+        "role": "technician",
+        "active": True,
+        "authVersion": 0,
+    }
+
+    class Collection:
+        async def update_one(self, _query, update):
+            account.update(update["$set"])
+            account["authVersion"] += update["$inc"]["authVersion"]
+            return type("Result", (), {"matched_count": 1})()
+
+        async def find_one(self, _query):
+            return account
+
+    class Database:
+        def __getitem__(self, name):
+            assert name == "auth_users"
+            return Collection()
+
+    monkeypatch.setattr(auth, "db", Database())
+    result = asyncio.run(
+        auth.update_technician_profile(
+            "DT001",
+            TechnicianUpdate(
+                name="Technician",
+                email="tech@example.com",
+                password=new_password,
+            ),
+            {"_id": "MGR0001", "role": "manager"},
+        )
+    )
+
+    assert account["authVersion"] == 1
+    assert security.verify_password(new_password, account["passwordHash"])
+    assert not security.verify_password(
+        "old-long-enough-password", account["passwordHash"]
+    )
+    assert result["user"]["id"] == "DT001"
+
+
 def test_technician_profile_update_rejects_duplicate_email(monkeypatch):
     class Collection:
         async def update_one(self, _query, _update):

@@ -56,6 +56,7 @@ class TechnicianUpdate(BaseModel):
 
     name: str = Field(min_length=1, max_length=100)
     email: EmailStr
+    password: str | None = Field(default=None, min_length=12, max_length=72)
 
 
 class ManagerCreate(BaseModel):
@@ -321,6 +322,18 @@ async def update_technician_profile(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Enter a name."
         )
 
+    changes = {
+        "name": name,
+        "email": normalized_email(str(body.email)),
+    }
+    if body.password is not None:
+        if len(body.password.encode("utf-8")) > 72:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Password must be no longer than 72 UTF-8 bytes.",
+            )
+        changes["passwordHash"] = hash_password(body.password)
+
     try:
         result = await db[AUTH_USERS].update_one(
             {
@@ -328,13 +341,7 @@ async def update_technician_profile(
                 "role": "technician",
                 "deleted": {"$ne": True},
             },
-            {
-                "$set": {
-                    "name": name,
-                    "email": normalized_email(str(body.email)),
-                },
-                "$inc": {"authVersion": 1},
-            },
+            {"$set": changes, "$inc": {"authVersion": 1}},
         )
     except DuplicateKeyError as error:
         raise HTTPException(
