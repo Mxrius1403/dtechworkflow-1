@@ -95,7 +95,7 @@ export function caseSearchRows(cases, query = "") {
   return latestFirst(cases.filter((c) => {
     if (!search) return true;
     return [
-      c.code, c.status, c.department, c.technician, c.finishedBy,
+      c.code, c.status, c.status === "removed" ? "Removed from Queue" : "", c.department, c.technician, c.finishedBy,
       c.technicianId, c.finishedById,
     ].some((value) => String(value || "").toLowerCase().includes(search));
   }));
@@ -134,7 +134,12 @@ export function receivingOutcome(cases, value) {
   if (rows.some((c) => c.completionReviewStatus === "pending")) return { kind: "error", message: "This completion is awaiting Manager confirmation" };
   const existing = latestFirst(rows)[0];
   if (!existing) return { kind: "new", code };
-  if (existing.status === "removed") return { kind: "removed", code, caseItem: existing };
+  if (existing.status === "removed") {
+    if (existing.autoRemovedFromQueue) {
+      return { kind: "error", message: `Case ${code} was removed after 10 days. Find it in Case Search.` };
+    }
+    return { kind: "removed", code, caseItem: existing };
+  }
   if (existing.status !== "completed") return { kind: "duplicate", code, caseItem: existing };
   return { kind: "reentry", code, caseItem: existing };
 }

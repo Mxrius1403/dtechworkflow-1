@@ -16,7 +16,7 @@ from seed.calendar import next_production_day
 from seed.logistics import build_routes, public_tracking
 from seed.production import build_cases
 
-SEED_VERSION = 5
+SEED_VERSION = 6
 PERSISTENT_COLLECTIONS = {
     "drivers",
     "clinics",

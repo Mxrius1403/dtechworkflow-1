@@ -6,6 +6,10 @@ It used to be one Firebase + vanilla JS bundle (`app.js`, `logistics.js`, `enhan
 
 > **The app uses seeded demonstration records.** Authentication, technician-account creation, and Deliveries & Collections changes are saved in MongoDB. Other workflow write actions remain demo-only. Logistics changes are retained across the daily sample-data refresh.
 
+Cases that remain **Completed** for 10 days are automatically marked **Removed from Queue**. They no longer appear in Receiving but remain available in **Case Search**.
+
+The demo seed contains exactly 100 cases, including a workflow matrix covering all combinations of department, queue/production/completed/removed status, attention status and overdue state, plus completion-review, prosthesis service/arch, and 10-day expiry examples. Three non-login demo technicians support realistic production and completed records.
+
 ---
 
 ## 1. Run the project

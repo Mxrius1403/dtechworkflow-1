@@ -1,4 +1,6 @@
-from datetime import date, datetime, timezone
+import asyncio
+import logging
+from datetime import date, datetime, timedelta, timezone
 from typing import Literal
 from zoneinfo import ZoneInfo
 
@@ -14,6 +16,10 @@ from pymongo import ReturnDocument
 from seed.calendar import is_production_day
 from seed.loader import ensure_demo_data
 from seed.reference import ARCH_OPTIONS, SERVICE_TYPES
+
+logger = logging.getLogger(__name__)
+
+COMPLETED_CASE_RETENTION = timedelta(days=10)
 
 router = APIRouter(
     prefix="/api/receiving",
@@ -80,6 +86,56 @@ def _now() -> tuple[str, date, str]:
         .replace("+00:00", "Z")
     )
     return timestamp, local_now.date(), local_now.strftime("%H:%M")
+
+
+async def expire_completed_cases(now: datetime | None = None) -> int:
+    now = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    timestamp = now.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    cutoff = (now - COMPLETED_CASE_RETENTION).isoformat(
+        timespec="milliseconds"
+    ).replace("+00:00", "Z")
+    result = await db["cases"].update_many(
+        {
+            "status": "completed",
+            "finishedAt": {"$lte": cutoff},
+            "deleted": {"$ne": True},
+            "completionReviewStatus": {"$ne": "pending"},
+        },
+        {
+            "$set": {
+                "status": "removed",
+                "removedFromQueue": True,
+                "autoRemovedFromQueue": True,
+                "queueRemovedAt": timestamp,
+                "queueRemovedById": "system",
+                "queueRemovedBy": "System",
+                "previousQueueStatus": "completed",
+                "updatedAt": timestamp,
+            },
+            "$push": {
+                "history": {
+                    "at": timestamp,
+                    "action": "Automatically removed from queue after 10 days completed",
+                    "by": "System",
+                }
+            },
+        },
+    )
+    if result.modified_count:
+        logger.info(
+            "Automatically removed %s completed cases from the Receiving queue",
+            result.modified_count,
+        )
+    return result.modified_count
+
+
+async def completed_case_expiry_loop() -> None:
+    while True:
+        await asyncio.sleep(60)
+        try:
+            await expire_completed_cases()
+        except Exception:
+            logger.exception("Failed to expire completed Receiving cases")
 
 
 async def receiving_account(account: dict = Depends(current_account)) -> dict:
@@ -294,6 +350,14 @@ async def restore_received_case(
     if existing.get("status") != "removed":
         raise HTTPException(
             status_code=409, detail="Only removed cases can be restored."
+        )
+    if existing.get("autoRemovedFromQueue"):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Cases automatically removed after 10 days can only be found "
+                "in Case Search."
+            ),
         )
 
     timestamp, _, _ = _now()

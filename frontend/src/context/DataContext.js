@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchAllData, fetchCatalog } from "@/lib/api";
+import { fetchAllData, fetchCases, fetchCatalog } from "@/lib/api";
 import { emailKey } from "@/lib/logistics";
 import { FullScreenMessage } from "@/components/common/FullScreenMessage";
 import { useSession } from "@/context/SessionContext";
@@ -19,12 +19,22 @@ function shape(data, catalog) {
 export function DataProvider({ children }) {
   const { signOut } = useSession();
   const data = useQuery({ queryKey: ["data"], queryFn: fetchAllData, refetchOnMount: "always" });
+  const cases = useQuery({
+    queryKey: ["data", "cases"],
+    queryFn: fetchCases,
+    enabled: Boolean(data.data),
+    refetchInterval: 60_000,
+  });
   const catalog = useQuery({ queryKey: ["catalog"], queryFn: fetchCatalog, staleTime: Infinity });
-  const value = useMemo(() => (data.data ? shape(data.data, catalog.data) : null), [data.data, catalog.data]);
+  const value = useMemo(() => (
+    data.data
+      ? shape({ ...data.data, cases: cases.data || data.data.cases }, catalog.data)
+      : null
+  ), [data.data, cases.data, catalog.data]);
 
   useEffect(() => {
-    if (data.error?.response?.status === 401 || catalog.error?.response?.status === 401) signOut();
-  }, [data.error, catalog.error, signOut]);
+    if (data.error?.response?.status === 401 || cases.error?.response?.status === 401 || catalog.error?.response?.status === 401) signOut();
+  }, [data.error, cases.error, catalog.error, signOut]);
 
   if (data.isError) {
     return <FullScreenMessage title="Data unavailable" text="The server could not be reached. Check the connection and try again." action={{ label: "Retry", onClick: () => data.refetch() }} />;

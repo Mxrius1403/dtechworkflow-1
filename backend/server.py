@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -56,8 +57,20 @@ async def lifespan(_: FastAPI):
             {"$unset": {"department": ""}},
         )
     await ensure_auth_email_index()
-    yield
-    client.close()
+    await receiving.expire_completed_cases()
+    expiry_task = asyncio.create_task(
+        receiving.completed_case_expiry_loop(),
+        name="completed-case-expiry",
+    )
+    try:
+        yield
+    finally:
+        expiry_task.cancel()
+        try:
+            await expiry_task
+        except asyncio.CancelledError:
+            pass
+        client.close()
 
 
 app = FastAPI(title="Dentaltech Daily Flow API", lifespan=lifespan)

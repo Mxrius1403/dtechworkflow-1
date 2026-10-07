@@ -22,6 +22,9 @@ STAFF = [
     ("OWNER001", "Aoife Byrne", "owner", "", True),
     ("MGR0001", "Ciarán Walsh", "manager", "", True),
     ("MGR0002", "Sinéad Doyle", "manager", "", False),
+    ("DEMO-TECH-1", "Demo Technician 1", "technician", "", True),
+    ("DEMO-TECH-2", "Demo Technician 2", "technician", "", True),
+    ("DEMO-TECH-3", "Demo Technician 3", "technician", "", True),
 ]
 
 # driver id, name, active

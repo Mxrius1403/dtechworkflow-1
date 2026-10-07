@@ -33,11 +33,50 @@ class FakeDatabase(dict):
         return self.setdefault(name, FakeCollection())
 
 
-def test_demo_seed_excludes_technicians_and_their_records():
+def test_demo_seed_has_100_cases_covering_all_workflow_statuses():
     data = build_demo_data(date(2026, 10, 7))
 
     assert "tooth_orders" in loader.PERSISTENT_COLLECTIONS
-    assert all(user["role"] != "technician" for user in data["users"])
+    assert len(data["cases"]) == 100
+    assert {case["status"] for case in data["cases"]} == {
+        "queue",
+        "production",
+        "completed",
+        "removed",
+    }
+    assert {case["department"] for case in data["cases"]} == {
+        "prosthesis",
+        "ortho",
+        "digital",
+    }
+    assert {
+        case["attentionStatus"] for case in data["cases"]
+    } == {"active", "on_hold", "need_information"}
+    generated = [case for case in data["cases"] if int(case["code"]) >= 7001]
+    assert {
+        (
+            case["department"],
+            case["status"],
+            case["attentionStatus"],
+            case["overdue"],
+        )
+        for case in generated
+    } == {
+        (department, status, attention, overdue)
+        for department in ("prosthesis", "ortho", "digital")
+        for status in ("queue", "production", "completed", "removed")
+        for attention in ("active", "on_hold", "need_information")
+        for overdue in (False, True)
+    }
+    assert any(case["completionReviewStatus"] == "pending" for case in data["cases"])
+    assert any(case["completionReviewStatus"] == "confirmed" for case in data["cases"])
+    assert any(case["overdue"] for case in data["cases"])
+    assert any(case["serviceTypes"] for case in data["cases"])
+    assert any(case["arch"] for case in data["cases"])
+    assert any(
+        case.get("managerConfirmedAt", "") < "2026-09-27"
+        for case in data["cases"]
+    )
     assert "leave_requests" not in data
     for collection in (
         "tooth_orders",
@@ -51,8 +90,11 @@ def test_demo_seed_excludes_technicians_and_their_records():
     ):
         assert data[collection] == []
 
-    assert all(not case["technicianId"] for case in data["cases"])
-    assert all(not case["workSessions"] for case in data["cases"])
+    assert all(
+        case["technicianId"].startswith("DEMO-TECH-")
+        for case in data["cases"]
+        if case["status"] in ("production", "completed")
+    )
 
 
 def test_legacy_route_cleanup_targets_seed_cases(monkeypatch):

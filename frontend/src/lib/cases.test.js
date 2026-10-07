@@ -1,4 +1,4 @@
-import { caseSearchRows, scanOutcome } from "./cases";
+import { caseSearchRows, receivingOutcome, scanOutcome } from "./cases";
 
 test("case search includes every status and soft-deleted cases", () => {
   const cases = [
@@ -19,6 +19,29 @@ test("case search matches the case number without regard to letter case", () => 
   ];
 
   expect(caseSearchRows(cases, "case-4102").map((c) => c.id)).toEqual(["2"]);
+});
+
+test("case search finds cases by the Removed from Queue label", () => {
+  const cases = [{ id: "1", code: "CASE-1", status: "removed" }];
+
+  expect(caseSearchRows(cases, "Removed from Queue").map((c) => c.id)).toEqual(["1"]);
+});
+
+test("automatically removed cases are directed to Case Search", () => {
+  const result = receivingOutcome(
+    [{
+      id: "case-1",
+      code: "CASE-1",
+      status: "removed",
+      autoRemovedFromQueue: true,
+    }],
+    "CASE-1",
+  );
+
+  expect(result).toEqual({
+    kind: "error",
+    message: "Case CASE-1 was removed after 10 days. Find it in Case Search.",
+  });
 });
 
 test.each(["prosthesis", "ortho", "digital"])(

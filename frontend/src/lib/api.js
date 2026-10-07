@@ -20,6 +20,7 @@ export const updateManagerStatus = (managerId, active) => api.patch(`/auth/manag
 export const deleteManager = (managerId) => api.delete(`/auth/managers/${encodeURIComponent(managerId)}`).then((r) => r.data);
 export const transferOwnership = (managerId) => api.post("/auth/ownership/transfer", { managerId }).then((r) => r.data.user);
 export const fetchAllData = () => api.get("/data").then((r) => r.data);
+export const fetchCases = () => api.get("/data/cases").then((r) => r.data);
 export const fetchCatalog = () => api.get("/catalog").then((r) => r.data);
 export const fetchTracking = (token) => api.get(`/tracking/${token}`).then((r) => r.data);
 export const fetchClinicContact = (clinicId) => api.get(`/clinics/${clinicId}/contact`).then((r) => r.data);

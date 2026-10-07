@@ -1,5 +1,6 @@
 import asyncio
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
+from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
@@ -35,6 +36,27 @@ class FakeCases:
 
     async def insert_one(self, document):
         self.documents[document["_id"]] = document
+
+    async def update_many(self, query, update):
+        modified_count = 0
+        for document in self.documents.values():
+            matches = True
+            for key, value in query.items():
+                current = document.get(key)
+                if isinstance(value, dict) and "$ne" in value:
+                    matches = matches and current != value["$ne"]
+                elif isinstance(value, dict) and "$lte" in value:
+                    matches = matches and current is not None and current <= value["$lte"]
+                else:
+                    matches = matches and current == value
+            if not matches:
+                continue
+            for key, value in update.get("$set", {}).items():
+                document[key] = value
+            for key, value in update.get("$push", {}).items():
+                document.setdefault(key, []).append(value)
+            modified_count += 1
+        return SimpleNamespace(modified_count=modified_count)
 
     async def find_one_and_update(self, query, update, return_document=None):
         document = await self.find_one(query)
@@ -187,6 +209,28 @@ def test_restore_returns_removed_case_to_queue(receiving_db):
     assert result["removedFromQueue"] is False
     assert result["queueRestoredBy"] == "Digital"
     assert result["history"][-1]["action"] == "Restored to queue"
+
+
+def test_auto_removed_case_cannot_be_restored_from_receiving(receiving_db):
+    receiving_db.documents["CASE-1"] = {
+        "_id": "CASE-1",
+        "code": "RCV-1001",
+        "department": "digital",
+        "status": "removed",
+        "autoRemovedFromQueue": True,
+        "history": [],
+    }
+
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(
+            receiving.restore_received_case(
+                "CASE-1",
+                {"_id": "DT005", "role": "technician", "name": "Digital"},
+            )
+        )
+
+    assert error.value.status_code == 409
+    assert receiving_db.documents["CASE-1"]["status"] == "removed"
 
 
 def test_delete_received_case_preserves_history_and_records_actor(receiving_db):
@@ -356,6 +400,69 @@ def test_completing_case_records_finish_and_responsible_technician(receiving_db)
     assert result["finishedAt"] == "2026-10-06T12:00:00.000Z"
     assert result["finishedById"] == "DT001"
     assert result["finishedBy"] == "Liam O'Connor"
+
+
+def test_completed_cases_are_removed_after_ten_days(receiving_db):
+    now = datetime(2026, 10, 16, 12, tzinfo=timezone.utc)
+    cutoff = (now - timedelta(days=10)).isoformat(timespec="milliseconds").replace(
+        "+00:00", "Z"
+    )
+    receiving_db.documents.update(
+        {
+            "EXPIRED": {
+                "_id": "EXPIRED",
+                "status": "completed",
+                "finishedAt": cutoff,
+                "history": [],
+            },
+            "RECENT": {
+                "_id": "RECENT",
+                "status": "completed",
+                "finishedAt": "2026-10-06T12:00:00.001Z",
+                "history": [],
+            },
+            "AWAITING_REVIEW": {
+                "_id": "AWAITING_REVIEW",
+                "status": "completed",
+                "finishedAt": "2026-10-01T12:00:00.000Z",
+                "completionReviewStatus": "pending",
+                "history": [],
+            },
+            "DELETED": {
+                "_id": "DELETED",
+                "status": "completed",
+                "finishedAt": "2026-10-01T12:00:00.000Z",
+                "deleted": True,
+                "history": [],
+            },
+            "IN_PRODUCTION": {
+                "_id": "IN_PRODUCTION",
+                "status": "production",
+                "finishedAt": "2026-10-01T12:00:00.000Z",
+                "history": [],
+            },
+        }
+    )
+
+    modified = asyncio.run(receiving.expire_completed_cases(now))
+
+    expired = receiving_db.documents["EXPIRED"]
+    assert modified == 1
+    assert expired["status"] == "removed"
+    assert expired["removedFromQueue"] is True
+    assert expired["autoRemovedFromQueue"] is True
+    assert expired["queueRemovedAt"] == "2026-10-16T12:00:00.000Z"
+    assert expired["queueRemovedBy"] == "System"
+    assert expired["previousQueueStatus"] == "completed"
+    assert expired["history"][-1] == {
+        "at": "2026-10-16T12:00:00.000Z",
+        "action": "Automatically removed from queue after 10 days completed",
+        "by": "System",
+    }
+    assert receiving_db.documents["RECENT"]["status"] == "completed"
+    assert receiving_db.documents["AWAITING_REVIEW"]["status"] == "completed"
+    assert receiving_db.documents["DELETED"]["status"] == "completed"
+    assert receiving_db.documents["IN_PRODUCTION"]["status"] == "production"
 
 
 def test_update_case_rejects_unknown_technician(receiving_db):

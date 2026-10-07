@@ -75,7 +75,7 @@ class CaseBook:
         case["history"].append({"at": at, "action": f"Moved to Production by {name}", "by": name})
         return case
 
-    def finish(self, case, d, hh, mm, *, confirmed=True):
+    def finish(self, case, d, hh, mm, *, confirmed=True, include_in_routes=True):
         at, name, session = iso(d, hh, mm), case["technician"], case["workSessions"][-1]
         done = {"finishedAt": at, "finishedDate": d.isoformat(), "finishedTime": hm(hh, mm)}
         session.update(done, overdue=case["wasOverdue"])
@@ -93,7 +93,8 @@ class CaseBook:
         session.update(confirmation, completionReviewRequired=False, managerConfirmed=True)
         case.update(confirmation, completionReviewRequired=False, completionReviewStatus="confirmed", updatedAt=c_at)
         case["history"].append({"at": c_at, "action": "Completion confirmed by Manager", "by": MANAGER[1]})
-        self.confirmed.append({"caseId": case["id"], "code": case["code"], "finishedDay": d, "confirmedAt": c_at})
+        if include_in_routes:
+            self.confirmed.append({"caseId": case["id"], "code": case["code"], "finishedDay": d, "confirmedAt": c_at})
         return case
 
     def reenter(self, case, due: date, received: date):
