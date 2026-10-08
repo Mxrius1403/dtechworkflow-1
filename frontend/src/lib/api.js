@@ -5,6 +5,7 @@ export const API_BASE = `${backendUrl}/api`;
 const api = axios.create({ baseURL: API_BASE, withCredentials: true });
 
 export const fetchCurrentUser = () => api.get("/auth/me").then((r) => r.data.user);
+export const updateMyProfile = (details) => api.patch("/auth/me/profile", details).then((r) => r.data.user);
 export const refreshSession = () => api.post("/auth/refresh");
 export const fetchSetupStatus = () => api.get("/auth/setup").then((r) => r.data.required);
 export const setupOwner = (details) => api.post("/auth/setup", details).then((r) => r.data.user);

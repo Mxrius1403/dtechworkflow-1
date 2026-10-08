@@ -77,6 +77,12 @@ class ManagerUpdate(BaseModel):
     password: str | None = Field(default=None, min_length=12, max_length=72)
 
 
+class AccountProfileUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=100)
+
+
 class OwnershipTransfer(BaseModel):
     manager_id: str = Field(validation_alias="managerId", min_length=1, max_length=100)
 
@@ -235,6 +241,39 @@ async def logout(request: Request, response: Response) -> dict:
 @router.get("/me")
 async def get_me(account: dict = Depends(current_account)) -> dict:
     return {"user": public_account(account)}
+
+
+@router.patch(
+    "/me/profile",
+    dependencies=[Depends(require_allowed_origin)],
+)
+async def update_my_profile(
+    body: AccountProfileUpdate,
+    account: dict = Depends(require_roles("owner", "manager")),
+) -> dict:
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Enter a name."
+        )
+
+    result = await db[AUTH_USERS].update_one(
+        {
+            "_id": str(account["_id"]),
+            "role": account["role"],
+            "active": True,
+            "deleted": {"$ne": True},
+        },
+        {"$set": {"name": name}},
+    )
+    if result.matched_count != 1:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Account permissions have changed. Refresh and try again.",
+        )
+
+    updated_account = await db[AUTH_USERS].find_one({"_id": account["_id"]})
+    return {"user": public_account(updated_account)}
 
 
 @router.post("/refresh", dependencies=[Depends(require_allowed_origin)])

@@ -6,6 +6,7 @@ from fastapi import HTTPException, Response
 from pydantic import ValidationError
 from routers import auth, data
 from routers.auth import (
+    AccountProfileUpdate,
     LoginRequest,
     ManagerCreate,
     ManagerStatusUpdate,
@@ -97,6 +98,69 @@ def test_manager_credentials_are_independent_of_technician_department():
     assert manager.name == "Lab Manager"
     assert not hasattr(manager, "department")
     assert OwnershipTransfer(managerId="MGR0001").manager_id == "MGR0001"
+
+
+@pytest.mark.parametrize(
+    ("account_id", "role"),
+    [("MGR0001", "manager"), ("OWNER001", "owner")],
+)
+def test_account_owner_or_manager_can_update_own_name_without_revoking_session(
+    monkeypatch, account_id, role
+):
+    account = {
+        "_id": account_id,
+        "name": "Old Name",
+        "email": "manager@example.com",
+        "role": role,
+        "active": True,
+        "authVersion": 4,
+    }
+
+    class Collection:
+        async def update_one(self, query, update):
+            assert query == {
+                "_id": account_id,
+                "role": role,
+                "active": True,
+                "deleted": {"$ne": True},
+            }
+            assert update == {"$set": {"name": "New Name"}}
+            account.update(update["$set"])
+            return type("Result", (), {"matched_count": 1})()
+
+        async def find_one(self, query):
+            assert query == {"_id": account_id}
+            return account
+
+    class Database:
+        def __getitem__(self, name):
+            assert name == "auth_users"
+            return Collection()
+
+    monkeypatch.setattr(auth, "db", Database())
+    result = asyncio.run(
+        auth.update_my_profile(
+            AccountProfileUpdate(name="  New Name  "),
+            account,
+        )
+    )
+
+    assert account["name"] == "New Name"
+    assert account["authVersion"] == 4
+    assert result["user"]["name"] == "New Name"
+
+
+def test_own_profile_update_rejects_blank_name():
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(
+            auth.update_my_profile(
+                AccountProfileUpdate(name="   "),
+                {"_id": "OWNER001", "role": "owner"},
+            )
+        )
+
+    assert error.value.status_code == 422
+    assert error.value.detail == "Enter a name."
 
 
 def test_owner_setup_creates_first_owner_and_signs_them_in(monkeypatch):
