@@ -1241,16 +1241,6 @@
   resolved "https://registry.yarnpkg.com/@date-fns/tz/-/tz-1.5.0.tgz#e9e79b7583f0b1322c53db884a0112551095e3f3"
   integrity sha512-lwYN/vDPeNRULcepoE/LO2Pgx+7/RV+S9ARfbc9lr2DtGkOD7pAiruHvbR1RX3Qyf6ja47EWJDMsNK5vK08DJg==
 
-"@emergentbase/overlay@https://assets.emergent.sh/npm/emergentbase-overlay-0.1.31.tgz":
-  version "0.1.31"
-  resolved "https://assets.emergent.sh/npm/emergentbase-overlay-0.1.31.tgz#34ef84415d729ae89a1eb6748a53f511cc130b1b"
-  dependencies:
-    "@jridgewell/trace-mapping" "^0.3.25"
-
-"@emergentbase/visual-edits@https://assets.emergent.sh/npm/emergentbase-visual-edits-1.0.13.tgz":
-  version "1.0.12"
-  resolved "https://assets.emergent.sh/npm/emergentbase-visual-edits-1.0.13.tgz#8348921e75b6dc4b785a2bf3966d0ad378925f2e"
-
 "@eslint-community/eslint-utils@^4.2.0":
   version "4.10.1"
   resolved "https://registry.yarnpkg.com/@eslint-community/eslint-utils/-/eslint-utils-4.10.1.tgz#8911bd72b2c3640a543609e0400b8c4d2e7e7cb6"
