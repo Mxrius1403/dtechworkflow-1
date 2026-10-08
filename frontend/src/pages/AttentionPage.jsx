@@ -49,9 +49,14 @@ export default function AttentionPage() {
         <StatCard label="Need Information" value={g.info.length} accent="indigo" testId="attention-kpi-info" />
         <StatCard label="Overdue" value={g.overdue.length} accent="rose" testId="attention-kpi-overdue" />
       </div>
-      <AttentionList title="Overdue Cases" rows={g.overdue} edge="border-l-rose-500" testId="attention-overdue" />
-      <AttentionList title="On Hold" rows={g.holds} edge="border-l-amber-400" testId="attention-hold" />
-      <AttentionList title="Need Information" rows={g.info} edge="border-l-indigo-500" testId="attention-info" />
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+        <AttentionList title="Due Today" rows={g.due} edge="border-l-teal-500" testId="attention-due" />
+        <div className="grid content-start gap-4">
+          <AttentionList title="Overdue Cases" rows={g.overdue} edge="border-l-rose-500" testId="attention-overdue" />
+          <AttentionList title="On Hold" rows={g.holds} edge="border-l-amber-400" testId="attention-hold" />
+          <AttentionList title="Need Information" rows={g.info} edge="border-l-indigo-500" testId="attention-info" />
+        </div>
+      </div>
     </>
   );
 }
