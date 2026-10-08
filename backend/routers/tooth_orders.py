@@ -2,9 +2,9 @@ from datetime import datetime, timezone
 from typing import Literal
 from zoneinfo import ZoneInfo
 
-from bson import ObjectId
 from core.config import TIMEZONE
 from core.database import db
+from core.order_ids import allocate_order_id
 from core.security import current_account, require_roles
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
@@ -49,7 +49,7 @@ async def submit_tooth_order(
 ) -> dict:
     local_now = datetime.now(ZoneInfo(TIMEZONE))
     order = {
-        "_id": str(ObjectId()),
+        "_id": await allocate_order_id(db, "nextToothOrderNumber", "TO"),
         "technicianId": str(account["_id"]),
         "technician": account["name"],
         "date": local_now.date().isoformat(),

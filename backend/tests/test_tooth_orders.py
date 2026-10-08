@@ -25,13 +25,32 @@ class FakeToothOrdersCollection:
         return type("UpdateResult", (), {"matched_count": 1})()
 
 
+class FakeSettingsCollection:
+    def __init__(self):
+        self.document = None
+
+    async def find_one_and_update(
+        self, query, update, upsert=False, return_document=None
+    ):
+        if self.document is None:
+            if not upsert:
+                return None
+            self.document = {"_id": query["_id"]}
+        for field, value in update.get("$inc", {}).items():
+            self.document[field] = self.document.get(field, 0) + value
+        return self.document
+
+
 class FakeDatabase:
     def __init__(self):
-        self.collection = FakeToothOrdersCollection()
+        self.collections = {
+            "tooth_orders": FakeToothOrdersCollection(),
+            "settings": FakeSettingsCollection(),
+        }
+        self.collection = self.collections["tooth_orders"]
 
     def __getitem__(self, name):
-        assert name == "tooth_orders"
-        return self.collection
+        return self.collections[name]
 
 
 def test_tooth_order_requires_items_and_positive_quantities():
@@ -77,8 +96,11 @@ def test_submit_and_manager_delete_tooth_order(monkeypatch):
     account = {"_id": "TECH001", "name": "Test Technician"}
 
     saved = asyncio.run(tooth_orders.submit_tooth_order(body, account))
-    stored = database.collection.documents[saved["id"]]
+    stored = database["tooth_orders"].documents[saved["id"]]
+    second = asyncio.run(tooth_orders.submit_tooth_order(body, account))
 
+    assert saved["id"] == "TO1"
+    assert second["id"] == "TO2"
     assert saved["technicianId"] == account["_id"]
     assert saved["technician"] == account["name"]
     assert saved["items"] == [item.model_dump() for item in body.items]
@@ -88,7 +110,7 @@ def test_submit_and_manager_delete_tooth_order(monkeypatch):
 
     deleted = asyncio.run(tooth_orders.delete_tooth_order(saved["id"]))
     assert deleted == {"id": saved["id"], "deleted": True}
-    assert not database.collection.documents
+    assert set(database["tooth_orders"].documents) == {"TO2"}
 
 
 def test_manager_marks_tooth_order_done(monkeypatch):

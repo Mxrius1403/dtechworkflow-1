@@ -13,6 +13,19 @@ class FakeCollection:
     async def find_one(self, query):
         return self.documents.get(query["_id"])
 
+    async def find_one_and_update(
+        self, query, update, upsert=False, return_document=None
+    ):
+        document = self.documents.get(query["_id"])
+        if document is None:
+            if not upsert:
+                return None
+            document = {"_id": query["_id"]}
+            self.documents[query["_id"]] = document
+        for field, value in update.get("$inc", {}).items():
+            document[field] = document.get(field, 0) + value
+        return document
+
     async def insert_one(self, document):
         self.documents[document["_id"]] = document
 
@@ -45,6 +58,7 @@ class FakeDatabase:
                 ]
             ),
             "material_orders": FakeCollection(),
+            "settings": FakeCollection(),
         }
 
     def __getitem__(self, name):
@@ -124,7 +138,10 @@ def test_submit_material_order_saves_product_snapshots(monkeypatch):
 
     saved = asyncio.run(material_orders.submit_material_order(body, account))
     stored = database["material_orders"].documents[saved["id"]]
+    second = asyncio.run(material_orders.submit_material_order(body, account))
 
+    assert saved["id"] == "MO1"
+    assert second["id"] == "MO2"
     assert saved["requestedById"] == account["_id"]
     assert saved["requestedBy"] == account["name"]
     assert saved["items"] == [
