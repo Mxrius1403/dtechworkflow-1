@@ -16,6 +16,8 @@ from core.models import BaseDocument
 from core.security import current_account, require_roles
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
+from pymongo import ReturnDocument
+from pymongo.errors import DuplicateKeyError
 
 router = APIRouter(prefix="/api", tags=["logistics"])
 TOKEN_PATTERN = re.compile(r"^[a-f0-9]{48}$")
@@ -82,6 +84,32 @@ class DriverSave(BaseModel):
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+async def allocate_entity_id(
+    collection_name: str, counter_field: str, prefix: str
+) -> str:
+    ids = db[collection_name].find(
+        {"_id": {"$regex": f"^{re.escape(prefix)}\\d+$"}}, {"_id": 1}
+    )
+    highest_existing_number = 0
+    async for document in ids:
+        highest_existing_number = max(
+            highest_existing_number, int(document["_id"][len(prefix) :])
+        )
+    await db[SETTINGS].find_one_and_update(
+        {"_id": "app"},
+        {"$max": {counter_field: highest_existing_number}},
+        upsert=True,
+    )
+    settings = await db[SETTINGS].find_one_and_update(
+        {"_id": "app"},
+        {"$inc": {counter_field: 1}},
+        return_document=ReturnDocument.AFTER,
+    )
+    if not settings:
+        raise RuntimeError(f"Could not advance the {counter_field} counter.")
+    return f"{prefix}{settings[counter_field]:04d}"
 
 
 def tracking_record(route: dict, stop: dict, clinic: dict) -> dict:
@@ -584,24 +612,25 @@ async def save_clinic(clinic_id: str | None, body: ClinicSave) -> dict:
                     {"stopId": {"$in": stop_ids}}, {"$set": {"clinicName": name}}
                 )
     else:
-        settings = await db[SETTINGS].find_one_and_update(
-            {"_id": "app"}, {"$inc": {"nextClinicNumber": 1}}
-        )
-        next_number = (settings or {}).get("nextClinicNumber", 1)
-        clinic_id = f"C{next_number:04d}"
-        if await db["clinics"].find_one({"_id": clinic_id}):
+        for _ in range(3):
+            clinic_id = await allocate_entity_id("clinics", "nextClinicNumber", "C")
+            clinic = {
+                "_id": clinic_id,
+                "name": name,
+                "address": address,
+                "eircode": eircode,
+                "active": body.active,
+                "hasEmail": bool(body.email.strip()),
+            }
+            try:
+                await db["clinics"].insert_one(clinic)
+                break
+            except DuplicateKeyError:
+                continue
+        else:
             raise HTTPException(
                 status_code=409, detail="Could not allocate a unique clinic ID."
             )
-        clinic = {
-            "_id": clinic_id,
-            "name": name,
-            "address": address,
-            "eircode": eircode,
-            "active": body.active,
-            "hasEmail": bool(body.email.strip()),
-        }
-        await db["clinics"].insert_one(clinic)
     await db[CLINIC_CONTACTS].replace_one(
         {"_id": clinic_id},
         {
@@ -655,22 +684,23 @@ async def create_driver(body: DriverSave) -> dict:
     name = body.name.strip()
     if not name:
         raise HTTPException(status_code=422, detail="Enter a driver name.")
-    settings = await db[SETTINGS].find_one_and_update(
-        {"_id": "app"}, {"$inc": {"nextDriverNumber": 1}}
-    )
-    next_number = (settings or {}).get("nextDriverNumber", 1)
-    driver_id = f"D{next_number:04d}"
-    if await db["drivers"].find_one({"_id": driver_id}):
+    for _ in range(3):
+        driver_id = await allocate_entity_id("drivers", "nextDriverNumber", "D")
+        driver = {
+            "_id": driver_id,
+            "uid": f"u-{driver_id.lower()}",
+            "name": name,
+            "active": body.active,
+        }
+        try:
+            await db["drivers"].insert_one(driver)
+            break
+        except DuplicateKeyError:
+            continue
+    else:
         raise HTTPException(
             status_code=409, detail="Could not allocate a unique driver ID."
         )
-    driver = {
-        "_id": driver_id,
-        "uid": f"u-{driver_id.lower()}",
-        "name": name,
-        "active": body.active,
-    }
-    await db["drivers"].insert_one(driver)
     return BaseDocument.from_mongo(driver).to_api()
 
 
