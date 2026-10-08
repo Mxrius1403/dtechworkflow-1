@@ -18,7 +18,7 @@ Cases that remain **Completed** for 10 days are automatically marked **Removed f
 
 Copy `backend/.env.example` to `backend/.env` and `frontend/.env.example` to `frontend/.env`, then set the deployment-specific values. The backend refuses to start without a random `AUTH_SECRET_KEY`. On the first visit to the website, create the owner account in the setup form.
 
-For production, serve the frontend and backend under the same public origin where possible, and configure the reverse proxy to forward `/api` to the backend. This lets the same frontend build run on different hosts without embedding a server-specific address. If they use separate origins, set `REACT_APP_BACKEND_URL` to the public backend URL before `yarn build`; CRA embeds this value in the build, so changing the file afterward requires a new build. Set `CORS_ORIGINS` to the exact frontend origin(s). Set `HOST` to `0.0.0.0` when the backend must be reachable outside its host/container.
+For Netlify deployments, set `API_ORIGIN` in Netlify's environment variables to the backend origin (for example, `https://your-service.onrender.com`). The configured build command generates a same-origin `/api` proxy rewrite and the SPA route fallback; the API URL is not embedded in the frontend bundle. Set `CORS_ORIGINS` on the backend to the exact Netlify site origin. If you deploy elsewhere, serve the frontend and backend under the same public origin or configure an equivalent reverse proxy. For a direct cross-origin frontend connection, set `REACT_APP_BACKEND_URL` to the public backend URL before building. Set `HOST` to `0.0.0.0` when the backend must be reachable outside its host/container.
 
 On the platform, both services run under supervisor with hot reload:
 
