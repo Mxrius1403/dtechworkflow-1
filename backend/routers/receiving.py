@@ -39,14 +39,9 @@ class ReceiveCase(BaseModel):
     def validate_work_details(self):
         if any(item not in SERVICE_TYPES for item in self.serviceTypes):
             raise ValueError("Select valid service types.")
-        if self.department == "prosthesis":
-            if not self.serviceTypes or self.arch not in ARCH_OPTIONS:
-                raise ValueError(
-                    "Select at least one service type and a valid arch."
-                )
-        elif self.serviceTypes or self.arch:
+        if not self.serviceTypes or self.arch not in ARCH_OPTIONS:
             raise ValueError(
-                "Service types and arch are only used for prosthesis cases."
+                "Select at least one service type and a valid arch."
             )
         return self
 

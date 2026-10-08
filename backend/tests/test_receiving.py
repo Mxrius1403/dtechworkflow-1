@@ -341,14 +341,13 @@ def test_deleted_case_number_can_be_received_again(receiving_db):
 @pytest.mark.parametrize(
     "overrides",
     [
-        {"department": "denture", "serviceTypes": [], "arch": ""},
+        {"serviceTypes": [], "arch": ""},
         {
-            "department": "denture",
             "serviceTypes": ["Invalid"],
             "arch": "Upper",
         },
         {"department": "digital", "serviceTypes": ["Repair"], "arch": ""},
-        {"department": "ortho", "productionDate": date(2026, 10, 10)},
+        {"department": "ortho", "serviceTypes": [], "arch": ""},
     ],
 )
 def test_receive_rejects_invalid_work_details(overrides):
@@ -359,6 +358,27 @@ def test_receive_rejects_invalid_work_details(overrides):
 def test_legacy_department_value_is_no_longer_accepted():
     with pytest.raises(ValidationError):
         receive_payload(department="denture")
+
+
+@pytest.mark.parametrize("department", ["prosthesis", "ortho", "digital"])
+def test_receive_accepts_work_details_for_every_department(department):
+    payload = receive_payload(department=department)
+
+    assert payload.serviceTypes == ["Repair"]
+    assert payload.arch == "Upper"
+
+
+@pytest.mark.parametrize("department", ["prosthesis", "ortho", "digital"])
+def test_receive_saves_work_details_for_every_department(receiving_db, department):
+    result = asyncio.run(
+        receiving.create_received_case(
+            receive_payload(department=department),
+            {"_id": "MGR0001", "role": "manager", "name": "Manager"},
+        )
+    )
+
+    assert result["serviceTypes"] == ["Repair"]
+    assert result["arch"] == "Upper"
 
 
 def test_technician_can_receive_cases_for_any_department(receiving_db):

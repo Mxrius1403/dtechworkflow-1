@@ -11,10 +11,9 @@ import { cn } from "@/lib/utils";
 
 const chip = (on) => cn("rounded-lg border-2 px-3 py-3 text-sm font-semibold transition-colors", on ? "border-secondary bg-accent text-accent-foreground" : "border-border bg-card hover:border-secondary/50");
 
-/** Receiving wizard: Prosthesis = service types → arch → completion due date; other departments = date only. */
+/** Receiving wizard: service types → arch → completion due date for every department. */
 export function ReceivingWizard({ draft, onClose, onSave }) {
-  const prosthesis = draft.department === "prosthesis" || draft.department === "denture";
-  const [step, setStep] = useState(prosthesis ? "types" : "schedule");
+  const [step, setStep] = useState("types");
   const [types, setTypes] = useState([]);
   const [arch, setArch] = useState("");
   const [date, setDate] = useState(nextProductionDay(today()));
@@ -55,7 +54,7 @@ export function ReceivingWizard({ draft, onClose, onSave }) {
       title: `Schedule Case ${draft.code}`, description: "Saturdays, Sundays and Irish public holidays are unavailable. Re-entry starts with a fresh overdue status.",
       body: (
         <div className="grid gap-3">
-          {prosthesis && <p className="text-sm"><b>{types.join(" + ")}</b> • {arch}</p>}
+          <p className="text-sm"><b>{types.join(" + ")}</b> • {arch}</p>
           <label htmlFor="receiving-due-date" className="grid gap-2 text-sm font-medium">
             Completion due date
             <Input id="receiving-due-date" type="date" min={today()} value={date} onChange={(e) => pickDate(e.target.value)} data-testid="receiving-date-input" />
@@ -63,7 +62,7 @@ export function ReceivingWizard({ draft, onClose, onSave }) {
           </label>
         </div>
       ),
-      next: save, nextLabel: "Add to Schedule", back: prosthesis ? () => setStep("arch") : null,
+      next: save, nextLabel: "Add to Schedule", back: () => setStep("arch"),
     },
   }[step];
 
