@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { useCaseDialogs } from "@/components/cases/CaseDialogsProvider";
 import { OverdueSchedule } from "@/components/cases/OverdueSchedule";
-import { BackLink, Muted } from "@/components/common/Bits";
+import { Muted } from "@/components/common/Bits";
 import { Panel } from "@/components/common/Panel";
 import { StatCard } from "@/components/common/StatCard";
 import { CountPill } from "@/components/common/StatusBadge";
@@ -43,7 +43,6 @@ export default function AttentionPage() {
   const g = attentionGroups(cases);
   return (
     <>
-      <BackLink to="/dashboard">Back to Dashboard</BackLink>
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatCard label="Due Today" value={g.due.length} accent="teal" testId="attention-kpi-due" />
         <StatCard label="On Hold" value={g.holds.length} accent="amber" testId="attention-kpi-hold" />
