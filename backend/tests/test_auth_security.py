@@ -884,6 +884,28 @@ def test_current_user_endpoint_rejects_requests_without_a_session():
     assert error.value.status_code == 401
 
 
+def test_refresh_session_renews_cookie_for_authenticated_activity(monkeypatch):
+    token_calls = []
+    monkeypatch.setattr(
+        auth,
+        "create_session_token",
+        lambda user_id, version: token_calls.append((user_id, version)) or "fresh-token",
+    )
+    response = Response()
+
+    result = asyncio.run(
+        auth.refresh_session(
+            response,
+            {"_id": "DT006", "authVersion": 4},
+        )
+    )
+
+    assert result == {"status": "ok"}
+    assert token_calls == [("DT006", 4)]
+    assert "dt_session=fresh-token" in response.headers["set-cookie"]
+    assert "Max-Age=1800" in response.headers["set-cookie"]
+
+
 def test_login_rate_limit_after_five_failed_attempts():
     request = Request(
         {

@@ -237,6 +237,15 @@ async def get_me(account: dict = Depends(current_account)) -> dict:
     return {"user": public_account(account)}
 
 
+@router.post("/refresh", dependencies=[Depends(require_allowed_origin)])
+async def refresh_session(
+    response: Response, account: dict = Depends(current_account)
+) -> dict:
+    token = create_session_token(str(account["_id"]), account.get("authVersion", 0))
+    set_session_cookie(response, token)
+    return {"status": "ok"}
+
+
 @router.post(
     "/technicians",
     status_code=status.HTTP_201_CREATED,

@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { fetchCurrentUser, fetchSetupStatus, login as requestLogin, logout as requestLogout, setupOwner as requestOwnerSetup, transferOwnership as requestOwnershipTransfer } from "@/lib/api";
+import { fetchCurrentUser, fetchSetupStatus, login as requestLogin, logout as requestLogout, refreshSession as requestSessionRefresh, setupOwner as requestOwnerSetup, transferOwnership as requestOwnershipTransfer } from "@/lib/api";
 import { notifyError } from "@/lib/notify";
 
 const SessionContext = createContext(null);
@@ -35,6 +35,32 @@ export function SessionProvider({ children }) {
       });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    if (!user) return undefined;
+    let timer;
+    const refreshOnActivity = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(async () => {
+        try {
+          await requestSessionRefresh();
+        } catch (requestError) {
+          if (requestError.response?.status === 401) {
+            setUser(null);
+            queryClient.clear();
+          } else {
+            notifyError("Could not keep your session active. Check your connection.");
+          }
+        }
+      }, 1000);
+    };
+    const activityEvents = ["pointerdown", "click", "keydown", "touchstart", "wheel"];
+    activityEvents.forEach((eventName) => window.addEventListener(eventName, refreshOnActivity, { passive: true }));
+    return () => {
+      window.clearTimeout(timer);
+      activityEvents.forEach((eventName) => window.removeEventListener(eventName, refreshOnActivity));
+    };
+  }, [user, queryClient]);
 
   const signIn = useCallback(async (credentials) => {
     const authenticatedUser = await requestLogin(credentials);
