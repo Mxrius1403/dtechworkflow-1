@@ -209,6 +209,49 @@ def test_restore_returns_removed_case_to_queue(receiving_db):
     assert result["history"][-1]["action"] == "Restored to queue"
 
 
+def test_remove_received_case_from_active_queue_preserves_history(receiving_db):
+    receiving_db.documents["CASE-1"] = {
+        "_id": "CASE-1",
+        "code": "RCV-1001",
+        "status": "production",
+        "history": [],
+    }
+
+    result = asyncio.run(
+        receiving.remove_received_case(
+            "CASE-1",
+            {"_id": "DT005", "role": "technician", "name": "Technician"},
+        )
+    )
+
+    assert result["status"] == "removed"
+    assert result["removedFromQueue"] is True
+    assert result["autoRemovedFromQueue"] is False
+    assert result["previousQueueStatus"] == "queue"
+    assert result["queueRemovedAt"] == "2026-10-06T12:00:00.000Z"
+    assert result["queueRemovedBy"] == "Technician"
+    assert result["history"][-1]["action"] == "Removed from queue"
+
+
+def test_remove_received_case_rejects_completed_case(receiving_db):
+    receiving_db.documents["CASE-1"] = {
+        "_id": "CASE-1",
+        "status": "completed",
+        "history": [],
+    }
+
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(
+            receiving.remove_received_case(
+                "CASE-1",
+                {"_id": "DT005", "role": "technician", "name": "Technician"},
+            )
+        )
+
+    assert error.value.status_code == 409
+    assert receiving_db.documents["CASE-1"]["status"] == "completed"
+
+
 def test_auto_removed_case_cannot_be_restored_from_receiving(receiving_db):
     receiving_db.documents["CASE-1"] = {
         "_id": "CASE-1",
@@ -361,6 +404,35 @@ def test_update_case_assigns_department_status_and_technician(receiving_db):
     assert result["technician"] == "Liam O'Connor"
     assert result["startedAt"] == "2026-10-06T12:00:00.000Z"
     assert result["history"][-1]["by"] == "Manager"
+
+
+def test_update_case_saves_operational_time_and_overdue_status(receiving_db):
+    receiving_db.documents["CASE-1"] = {
+        "_id": "CASE-1",
+        "code": "RCV-1001",
+        "department": "prosthesis",
+        "status": "queue",
+        "history": [],
+    }
+
+    result = asyncio.run(
+        receiving.update_received_case(
+            "CASE-1",
+            receiving.UpdateCase(
+                department="digital",
+                status="queue",
+                operationalAt=datetime(2026, 10, 7, 14, 30),
+                overdue=True,
+            ),
+            {"_id": "MGR0001", "role": "manager", "name": "Manager"},
+        )
+    )
+
+    assert result["department"] == "digital"
+    assert result["receivedAt"] == "2026-10-07T13:30:00.000Z"
+    assert result["receivedDate"] == "2026-10-07"
+    assert result["receivedTime"] == "14:30"
+    assert result["overdue"] is True
 
 
 def test_completing_case_records_finish_and_responsible_technician(receiving_db):

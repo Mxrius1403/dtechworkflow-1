@@ -53,8 +53,10 @@ class ReceiveCase(BaseModel):
 
 class UpdateCase(BaseModel):
     department: Literal["prosthesis", "ortho", "digital"]
-    status: Literal["queue", "production", "completed"]
+    status: Literal["queue", "production", "completed", "removed"]
     technicianId: str = Field(default="", max_length=100)
+    operationalAt: datetime | None = None
+    overdue: bool | None = None
 
 
 class UpdateAttention(BaseModel):
@@ -389,6 +391,62 @@ async def restore_received_case(
     return BaseDocument.from_mongo(case).to_api()
 
 
+@router.post("/cases/{case_id}/remove")
+async def remove_received_case(
+    case_id: str, account: dict = Depends(receiving_account)
+) -> dict:
+    existing = await db["cases"].find_one({"_id": case_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Case not found.")
+    if existing.get("status") not in ("queue", "production"):
+        if existing.get("completionReviewStatus") == "pending":
+            raise HTTPException(
+                status_code=409,
+                detail="This completion is awaiting Manager confirmation.",
+            )
+        raise HTTPException(
+            status_code=409,
+            detail="Only active queue or production cases can be removed.",
+        )
+
+    timestamp, _, _ = _now()
+    display_name = account.get("name", account.get("email", "Receiving"))
+    case = await db["cases"].find_one_and_update(
+        {
+            "_id": case_id,
+            "status": existing["status"],
+            "deleted": {"$ne": True},
+            "completionReviewStatus": {"$ne": "pending"},
+        },
+        {
+            "$set": {
+                "status": "removed",
+                "removedFromQueue": True,
+                "autoRemovedFromQueue": False,
+                "queueRemovedAt": timestamp,
+                "queueRemovedById": str(account["_id"]),
+                "queueRemovedBy": display_name,
+                "previousQueueStatus": "queue",
+                "updatedAt": timestamp,
+            },
+            "$push": {
+                "history": {
+                    "at": timestamp,
+                    "action": "Removed from queue",
+                    "by": display_name,
+                }
+            },
+        },
+        return_document=ReturnDocument.AFTER,
+    )
+    if not case:
+        raise HTTPException(
+            status_code=409,
+            detail="The case changed before it could be removed. Refresh and try again.",
+        )
+    return BaseDocument.from_mongo(case).to_api()
+
+
 @router.delete("/cases/{case_id}")
 async def delete_received_case(
     case_id: str,
@@ -444,6 +502,11 @@ async def update_received_case(
             status_code=409,
             detail="This completion is awaiting Manager confirmation.",
         )
+    if body.status == "removed" and existing.get("status") != "removed":
+        raise HTTPException(
+            status_code=422,
+            detail="Only removed cases can keep the removed status.",
+        )
 
     technician = None
     if body.technicianId:
@@ -471,7 +534,21 @@ async def update_received_case(
             detail="Select a responsible technician for this case status.",
         )
 
-    timestamp, local_date, local_time = _now()
+    if body.operationalAt is None:
+        timestamp, local_date, local_time = _now()
+    else:
+        operational_at = body.operationalAt
+        if operational_at.tzinfo is None:
+            operational_at = operational_at.replace(tzinfo=ZoneInfo(TIMEZONE))
+        else:
+            operational_at = operational_at.astimezone(ZoneInfo(TIMEZONE))
+        timestamp = (
+            operational_at.astimezone(timezone.utc)
+            .isoformat(timespec="milliseconds")
+            .replace("+00:00", "Z")
+        )
+        local_date = operational_at.date()
+        local_time = operational_at.strftime("%H:%M")
     display_name = account.get("name", account.get("email", "Receiving"))
     changes = {
         "department": body.department,
@@ -480,6 +557,29 @@ async def update_received_case(
         "technician": technician.get("name", "") if technician else "",
         "updatedAt": timestamp,
     }
+    if body.overdue is not None:
+        changes["overdue"] = body.overdue
+    if body.operationalAt is not None:
+        if body.status == "queue":
+            changes.update(
+                receivedAt=timestamp,
+                receivedDate=local_date.isoformat(),
+                receivedTime=local_time,
+            )
+        elif body.status == "removed":
+            changes["queueRemovedAt"] = timestamp
+        elif body.status == "production":
+            changes.update(
+                startedAt=timestamp,
+                startedDate=local_date.isoformat(),
+                startedTime=local_time,
+            )
+        else:
+            changes.update(
+                finishedAt=timestamp,
+                finishedDate=local_date.isoformat(),
+                finishedTime=local_time,
+            )
     if body.status == "production" and existing.get("status") != "production":
         changes.update(
             startedAt=timestamp,

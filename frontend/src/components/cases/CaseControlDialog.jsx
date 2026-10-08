@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -8,8 +9,9 @@ import { Field, NativeSelect, Options } from "@/components/common/Field";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { useData } from "@/context/DataContext";
 import { attentionLabel, caseDepartment, scheduledKey, serviceLabel } from "@/lib/cases";
+import { removeReceivedCase, updateReceivedCase } from "@/lib/api";
 import { localInputValue, nice } from "@/lib/format";
-import { notifyError } from "@/lib/notify";
+import { notify, notifyError } from "@/lib/notify";
 
 function DetailBox({ c }) {
   return (
@@ -25,15 +27,50 @@ function DetailBox({ c }) {
 /** Manager correction dialog: status, department, technician and the real operational time. */
 export function CaseControlDialog({ c, onClose, onAttention, onOverdueReason }) {
   const { users, byId } = useData();
+  const queryClient = useQueryClient();
   const techs = users.filter((u) => u.role === "technician" && u.active);
-  const at = c.status === "completed" ? c.finishedAt : c.status === "production" ? c.startedAt : c.receivedAt;
+  const at = c.status === "completed" ? c.finishedAt : c.status === "production" ? c.startedAt : c.status === "removed" ? c.queueRemovedAt || c.receivedAt : c.receivedAt;
   const [form, setForm] = useState({ department: caseDepartment(c), status: c.status, techId: c.technicianId || "", at: localInputValue(at), overdue: Boolean(c.overdue) });
+  const [saving, setSaving] = useState(false);
   const set = (key) => (e) => setForm({ ...form, [key]: e?.target ? e.target.value : e });
 
-  const save = () => {
+  const save = async () => {
     if (!form.at) return notifyError("Choose a valid date and time");
     if (["production", "completed"].includes(form.status) && !byId.users[form.techId]) return notifyError("Select a responsible technician");
-    notifyError("Case management changes are not connected to server storage.");
+    setSaving(true);
+    try {
+      await updateReceivedCase(c.id, {
+        department: form.department,
+        status: form.status,
+        technicianId: form.techId,
+        operationalAt: form.at,
+        overdue: form.overdue,
+      });
+      await queryClient.invalidateQueries({ queryKey: ["data"] });
+      notify(`Case ${c.code} updated`);
+      onClose();
+    } catch (error) {
+      const detail = error.response?.data?.detail;
+      notifyError(typeof detail === "string" ? detail : "Could not update the case");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await removeReceivedCase(c.id);
+      await queryClient.invalidateQueries({ queryKey: ["data"] });
+      notify(`Case ${c.code} removed from the queue`);
+      onClose();
+    } catch (error) {
+      const detail = error.response?.data?.detail;
+      notifyError(typeof detail === "string" ? detail : "Could not remove the case from the queue");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -75,12 +112,12 @@ export function CaseControlDialog({ c, onClose, onAttention, onOverdueReason }) 
         </div>
         <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
           {["queue", "production"].includes(c.status) && (
-            <ConfirmAction title="Remove this case from the active queue?" description="Its history and reports will be preserved." confirmLabel="Remove" onConfirm={() => notifyError("Removing a case is not connected to server storage.")} testId="case-remove">
-              <Button variant="destructive" data-testid="case-remove-button">Remove from Queue</Button>
+            <ConfirmAction title="Remove this case from the active queue?" description="Its history and reports will be preserved." confirmLabel="Remove" onConfirm={remove} testId="case-remove">
+              <Button variant="destructive" disabled={saving} data-testid="case-remove-button">Remove from Queue</Button>
             </ConfirmAction>
           )}
-          <Button variant="outline" onClick={onClose} data-testid="case-control-cancel">Cancel</Button>
-          <Button onClick={save} data-testid="case-control-save">Save Changes</Button>
+          <Button variant="outline" onClick={onClose} disabled={saving} data-testid="case-control-cancel">Cancel</Button>
+          <Button onClick={save} disabled={saving} data-testid="case-control-save">{saving ? "Saving…" : "Save Changes"}</Button>
         </div>
       </DialogContent>
     </Dialog>

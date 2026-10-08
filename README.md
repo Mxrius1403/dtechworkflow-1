@@ -150,6 +150,7 @@ Add `"apiName": "mongo_collection"` to `PUBLIC_COLLECTIONS` in `backend/core/col
 | PATCH | `/api/tooth-orders/{id}/status` | **Owner or manager.** Mark a tooth order as done |
 | DELETE | `/api/tooth-orders/{id}` | **Owner or manager.** Delete a handled tooth order |
 | POST | `/api/receiving/cases` | **Any authenticated staff account.** Create a case or re-enter a completed case |
+| POST | `/api/receiving/cases/{id}/remove` | **Any authenticated staff account.** Remove an active case from the queue while preserving its history |
 | POST | `/api/receiving/cases/{id}/restore` | **Any authenticated staff account.** Restore a removed case to the queue |
 | PATCH | `/api/receiving/cases/{id}` | **Any authenticated staff account.** Update case department, status and responsible technician |
 | PATCH | `/api/receiving/cases/{id}/attention` | **Any authenticated staff account.** Update attention status with a required reason (max. 100 characters) |
@@ -186,4 +187,4 @@ The items below were dropped on purpose because they only make sense with the ol
 
 The backend no longer inserts generated records or refreshes collections on startup. Existing MongoDB records are left untouched; back up the database and review its contents before connecting an existing database to production.
 
-Some workflow controls are not yet connected to persistent server operations, including completion review, several case-management actions, account profile edits, and driver route progress. These controls report an error and do not claim to have saved changes. Do not rely on them for production workflows until their API operations are implemented.
+Some workflow controls are not yet connected to persistent server operations, including completion review, remaining case-management actions, account profile edits, and driver route progress. These controls report an error and do not claim to have saved changes. Do not rely on them for production workflows until their API operations are implemented.
