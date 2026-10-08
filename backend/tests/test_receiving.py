@@ -650,3 +650,50 @@ def test_attention_active_reason_is_optional_but_limited_to_100_characters():
 
     with pytest.raises(ValidationError):
         receiving.UpdateAttention(attentionStatus="active", attentionNote="x" * 101)
+
+
+def test_update_case_overdue_reason_saves_trimmed_reason_and_clears_required_flag(
+    receiving_db,
+):
+    receiving_db.documents["CASE-1"] = {
+        "_id": "CASE-1",
+        "code": "2532",
+        "overdueReasonRequired": True,
+        "history": [],
+    }
+
+    result = asyncio.run(
+        receiving.update_case_overdue_reason(
+            "CASE-1",
+            receiving.UpdateOverdueReason(reason="  Waiting for materials  "),
+            {"_id": "DT005", "role": "technician", "name": "Technician"},
+        )
+    )
+
+    assert result["overdueReason"] == "Waiting for materials"
+    assert result["overdueReasonRequired"] is False
+    assert result["updatedAt"] == "2026-10-06T12:00:00.000Z"
+    assert result["history"][-1] == {
+        "at": "2026-10-06T12:00:00.000Z",
+        "action": "Overdue reason saved",
+        "by": "Technician",
+    }
+
+
+def test_update_case_overdue_reason_rejects_unknown_case(receiving_db):
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(
+            receiving.update_case_overdue_reason(
+                "UNKNOWN",
+                receiving.UpdateOverdueReason(reason="Waiting for materials"),
+                {"_id": "DT005", "role": "technician", "name": "Technician"},
+            )
+        )
+
+    assert error.value.status_code == 404
+
+
+@pytest.mark.parametrize("reason", ["", " " * 4, "x" * 101])
+def test_overdue_reason_must_be_nonempty_and_limited_to_100_characters(reason):
+    with pytest.raises(ValidationError):
+        receiving.UpdateOverdueReason(reason=reason)

@@ -1,13 +1,15 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Field, NativeSelect, Options } from "@/components/common/Field";
 import { NOTE_LIMIT } from "@/config/constants";
 import { useData } from "@/context/DataContext";
-import { notifyError } from "@/lib/notify";
+import { updateCaseOverdueReason } from "@/lib/api";
+import { notify, notifyError } from "@/lib/notify";
 
-function SimpleDialog({ title, description, children, onClose, onSave, saveLabel = "Save", testId }) {
+function SimpleDialog({ title, description, children, onClose, onSave, saveLabel = "Save", saving = false, testId }) {
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-md" data-testid={testId}>
@@ -17,8 +19,8 @@ function SimpleDialog({ title, description, children, onClose, onSave, saveLabel
         </DialogHeader>
         <div className="grid gap-4">{children}</div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} data-testid={`${testId}-cancel`}>Cancel</Button>
-          <Button onClick={onSave} data-testid={`${testId}-save`}>{saveLabel}</Button>
+          <Button variant="outline" onClick={onClose} disabled={saving} data-testid={`${testId}-cancel`}>Cancel</Button>
+          <Button onClick={onSave} disabled={saving} data-testid={`${testId}-save`}>{saveLabel}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -48,13 +50,27 @@ export function AttentionDialog({ c, onClose }) {
 }
 
 export function OverdueReasonDialog({ c, onClose }) {
+  const queryClient = useQueryClient();
   const [reason, setReason] = useState(c.overdueReason || "");
-  const save = () => {
+  const [saving, setSaving] = useState(false);
+  const save = async () => {
+    if (saving) return;
     if (!reason.trim()) return notifyError("Enter a reason");
-    notifyError(`Saving the overdue reason for case ${c.code} is not connected to server storage.`);
+    setSaving(true);
+    try {
+      await updateCaseOverdueReason(c.id, reason.trim());
+      await queryClient.invalidateQueries({ queryKey: ["data"] });
+      notify(`Overdue reason saved for case ${c.code}`);
+      onClose();
+    } catch (error) {
+      const detail = error.response?.data?.detail;
+      notifyError(typeof detail === "string" ? detail : "Could not save the overdue reason");
+    } finally {
+      setSaving(false);
+    }
   };
   return (
-    <SimpleDialog title={`Overdue justification — Case ${c.code}`} description="Required because this case passed its scheduled production date." onClose={onClose} onSave={save} saveLabel="Save Reason" testId="overdue-reason-dialog">
+    <SimpleDialog title={`Overdue justification — Case ${c.code}`} description="Required because this case passed its scheduled production date." onClose={onClose} onSave={save} saveLabel={saving ? "Saving…" : "Save Reason"} saving={saving} testId="overdue-reason-dialog">
       <Field label={`Reason (max ${NOTE_LIMIT} characters)`}>
         <Textarea maxLength={NOTE_LIMIT} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why was this case not completed on time?" data-testid="overdue-reason-input" />
       </Field>

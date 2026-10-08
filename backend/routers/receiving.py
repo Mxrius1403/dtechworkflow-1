@@ -66,6 +66,17 @@ class UpdateAttention(BaseModel):
         return self
 
 
+class UpdateOverdueReason(BaseModel):
+    reason: str = Field(min_length=1, max_length=100)
+
+    @model_validator(mode="after")
+    def validate_reason(self):
+        self.reason = self.reason.strip()
+        if not self.reason:
+            raise ValueError("Enter a reason.")
+        return self
+
+
 def _receiving_day() -> date:
     return datetime.now(ZoneInfo(TIMEZONE)).date()
 
@@ -677,5 +688,48 @@ async def update_case_attention(
         raise HTTPException(
             status_code=409,
             detail="The case changed before its attention status could be updated.",
+        )
+    return BaseDocument.from_mongo(case).to_api()
+
+
+@router.patch("/cases/{case_id}/overdue-reason")
+async def update_case_overdue_reason(
+    case_id: str,
+    body: UpdateOverdueReason,
+    account: dict = Depends(receiving_account),
+) -> dict:
+    existing = await db["cases"].find_one({"_id": case_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Case not found.")
+    if existing.get("completionReviewStatus") == "pending":
+        raise HTTPException(
+            status_code=409,
+            detail="This completion is awaiting Manager confirmation.",
+        )
+
+    timestamp, _, _ = _now()
+    display_name = account.get("name", account.get("email", "Receiving"))
+    case = await db["cases"].find_one_and_update(
+        {"_id": case_id},
+        {
+            "$set": {
+                "overdueReason": body.reason,
+                "overdueReasonRequired": False,
+                "updatedAt": timestamp,
+            },
+            "$push": {
+                "history": {
+                    "at": timestamp,
+                    "action": "Overdue reason saved",
+                    "by": display_name,
+                }
+            },
+        },
+        return_document=ReturnDocument.AFTER,
+    )
+    if not case:
+        raise HTTPException(
+            status_code=409,
+            detail="The case changed before its overdue reason could be saved.",
         )
     return BaseDocument.from_mongo(case).to_api()
