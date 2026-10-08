@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Field, NativeSelect } from "@/components/common/Field";
 import { isEmail } from "@/lib/csv";
 import { createDriver, createManager, createTechnician, updateDriver, updateManager, updateTechnician } from "@/lib/api";
-import { demoSave, notify, notifyError } from "@/lib/notify";
+import { notify, notifyError } from "@/lib/notify";
 
 const LABEL = { technician: "Technician", manager: "Manager", driver: "Driver" };
 
@@ -90,8 +90,7 @@ export function StaffDialog({ kind, person, nextId, onClose }) {
       }
       return;
     }
-    demoSave(`${LABEL[kind]} saved`);
-    onClose();
+    notifyError(`Saving ${kind} accounts is not supported.`);
   };
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>

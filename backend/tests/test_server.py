@@ -1,6 +1,6 @@
 import asyncio
 
-from server import app, ensure_auth_email_index
+from server import app, ensure_auth_email_index, health
 
 
 def test_tooth_order_routes_are_registered():
@@ -13,6 +13,10 @@ def test_tooth_order_routes_are_registered():
     assert ("/api/tooth-orders", "POST") in routes
     assert ("/api/tooth-orders/{order_id}/status", "PATCH") in routes
     assert ("/api/tooth-orders/{order_id}", "DELETE") in routes
+
+
+def test_health_only_reports_service_status():
+    assert asyncio.run(health()) == {"status": "ok"}
 
 
 def test_auth_email_index_migrates_legacy_unique_index(monkeypatch):

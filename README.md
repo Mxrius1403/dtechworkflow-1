@@ -1,14 +1,10 @@
 # Dentaltech Daily Flow — Project Guide
 
-Daily Flow runs the Dentaltech lab day to day. It covers receiving, production boards, completion review, reports, orders, deliveries and collections, a driver app and a public clinic tracking page.
+Daily Flow runs the Dentaltech lab day to day. It covers receiving, production boards, completion review, reports, orders, route management, and public clinic tracking.
 
-It used to be one Firebase + vanilla JS bundle (`app.js`, `logistics.js`, `enhancements.js`, `driver.js`, `track.js`). It is now a **React frontend** and a **FastAPI backend** with **MongoDB**. Each part lives in one clear place.
-
-> **The app uses seeded demonstration records.** Authentication, technician-account creation, and Deliveries & Collections changes are saved in MongoDB. Other workflow write actions remain demo-only. Logistics changes are retained across the daily sample-data refresh.
+It used to be one Firebase + vanilla JS bundle (`app.js`, `logistics.js`, `enhancements.js`, `driver.js`, `track.js`). It is now a **React frontend** and a **FastAPI backend** with **MongoDB**.
 
 Cases that remain **Completed** for 10 days are automatically marked **Removed from Queue**. They no longer appear in Receiving but remain available in **Case Search**.
-
-The demo seed contains exactly 100 cases, including a workflow matrix covering all combinations of department, queue/production/completed/removed status, attention status and overdue state, plus completion-review, prosthesis service/arch, and 10-day expiry examples. Three non-login demo technicians support realistic production and completed records.
 
 ---
 
@@ -18,7 +14,7 @@ The demo seed contains exactly 100 cases, including a workflow matrix covering a
 |----------|------------------------------|-------|
 | Backend  | `backend/` → `server.py` on port 8001 | All routes start with `/api`. |
 | Frontend | `frontend/` (CRA + Tailwind) on port 3000 | Calls `http://localhost:8001` by default; override with `REACT_APP_BACKEND_URL`. |
-| Database | MongoDB from `MONGO_URL` / `DB_NAME` in `backend/.env` | The sample data is filled in automatically. |
+| Database | MongoDB from `MONGO_URL` / `DB_NAME` in `backend/.env` | The backend does not create or populate sample records. |
 
 Add the required settings from `backend/.env.example` to `backend/.env` before starting the backend. The backend refuses to start without a random `AUTH_SECRET_KEY`. On the first visit to the website, create the owner account in the setup form.
 
@@ -42,7 +38,7 @@ For a backend running on a different address, set `REACT_APP_BACKEND_URL` in `fr
 
 On first visit, the website prompts you to create the owner account. The password must contain 12–72 UTF-8 bytes. This one-time setup is stored in MongoDB and is disabled as soon as the owner account exists. Generate `AUTH_SECRET_KEY` with `openssl rand -hex 32`; use a different secret in each environment. In production, set `AUTH_COOKIE_SECURE=true` and configure `CORS_ORIGINS` with the exact frontend origin(s), comma-separated.
 
-Sign-in uses a 30-minute JWT in an HttpOnly cookie. Passwords are bcrypt-hashed; session data is not stored in browser local storage. Sign-in attempts are throttled after five failures per client IP/email pair for 15 minutes. The owner can create manager accounts through **Ownership & Managers** and deactivate or reactivate manager accounts there; deactivation also invalidates existing sessions. Owners and managers can create technician accounts through **Technicians → Add Technician**. Technicians are not assigned to departments and can work with cases from every department; a case's department remains its category. Drivers and clinics are managed separately through the **Drivers** and **Clinics** sidebar pages and selected when building routes in **Deliveries & Collections**. These are separate roles: manager accounts have no technician department and cannot be used as technicians. Accounts receive unique IDs, can sign in immediately and survive the daily demo refresh; credentials are stored in MongoDB's `auth_users` collection. Clinic contact fields and notes are AES-GCM encrypted using a key derived from `AUTH_SECRET_KEY`; keep that secret stable or existing clinic data cannot be decrypted. The owner can transfer ownership to an active manager from **Ownership & Managers**; the former owner becomes a manager, and the new owner's previous sessions are invalidated. Ownership transfer uses a MongoDB multi-document transaction, so the configured MongoDB deployment must support transactions (a replica set or sharded cluster). The old persona picker is removed: demo staff and drivers are not valid login accounts. Driver authentication is not yet included.
+Sign-in uses a 30-minute JWT in an HttpOnly cookie. Passwords are bcrypt-hashed; session data is not stored in browser local storage. Sign-in attempts are throttled after five failures per client IP/email pair for 15 minutes. The owner can create manager accounts through **Ownership & Managers** and deactivate or reactivate manager accounts there; deactivation also invalidates existing sessions. Owners and managers can create technician accounts through **Technicians → Add Technician**. Technicians are not assigned to departments and can work with cases from every department; a case's department remains its category. Drivers and clinics are managed separately through the **Drivers** and **Clinics** sidebar pages and selected when building routes in **Deliveries & Collections**. These are separate roles: manager accounts have no technician department and cannot be used as technicians. Accounts receive unique IDs, can sign in immediately and are stored in MongoDB's `auth_users` collection. Clinic contact fields and notes are AES-GCM encrypted using a key derived from `AUTH_SECRET_KEY`; keep that secret stable or existing clinic data cannot be decrypted. The owner can transfer ownership to an active manager from **Ownership & Managers**; the former owner becomes a manager, and the new owner's previous sessions are invalidated. Ownership transfer uses a MongoDB multi-document transaction, so the configured MongoDB deployment must support transactions (a replica set or sharded cluster). Staff sign-in is available; driver authentication is not.
 
 The clinic tracking page is public: `/track?token=<48-hex token>`. Managers can open it from **Deliveries & Collections → Routes → Open → "Clinic page"**.
 
@@ -52,19 +48,19 @@ The clinic tracking page is public: `/track?token=<48-hex token>`. Managers can 
 
 ```
 backend/
-├── server.py              FastAPI app: registers routers, seeds data on start-up
+├── server.py              FastAPI app: registers routers and validates startup configuration
 ├── core/
 │   ├── config.py          Environment (MONGO_URL, DB_NAME, CORS_ORIGINS) and constants
 │   ├── database.py        Mongo client (Motor)
 │   ├── models.py          BaseDocument: Mongo `_id` <-> API `id`
 │   ├── collections.py     API name -> Mongo collection (one place to expose data)
+│   ├── production_calendar.py  Irish public holidays and production-day rules
 │   └── security.py        Password hashing, signed sessions and auth dependencies
 ├── routers/
 │   ├── auth.py            Login/logout/current user + manager and technician account administration
 │   ├── data.py            GET /api/data (everything) and /api/data/{name}
 │   ├── catalog.py         GET /api/catalog (TDS materials + tooth groups)
 │   └── logistics.py       Public clinic tracking + authenticated logistics/clinic/driver writes
-├── seed/                  Sample data builders (see section 4)
 └── data/                  Static JSON: materials.json, tooth_groups.json
 
 frontend/src/
@@ -85,7 +81,7 @@ frontend/src/
 │   ├── print.js           Printable PDFs (report, tooth order, material order)
 │   ├── csv.js             Clinic CSV/JSON import + template
 │   ├── api.js             Axios calls to the backend
-│   └── notify.js          Toasts + demoSave() for workflow actions not yet wired to the backend
+│   └── notify.js          Success and error toasts
 ├── components/
 │   ├── ui/                shadcn/ui primitives (button, dialog, tabs…)
 │   ├── common/            Shared pieces: Panel, StatCard, DataTable, StatusBadge, Field, ScanBar, MonthCalendar, ConfirmAction
@@ -103,7 +99,6 @@ frontend/src/
     ├── logistics/         Deliveries & Collections: ready cases, create route and routes
     ├── clinics/           Clinic directory, editing and CSV/JSON import
     ├── drivers/           Driver directory and account management
-    ├── driver/            Driver app: work week + mission stages
     └── tracking/          Public clinic tracking page
 ```
 
@@ -128,17 +123,6 @@ Edit `frontend/src/config/statuses.js`. Every `<StatusBadge kind="…" value="�
 ### Change the look
 Design tokens (colours, radius, fonts) are CSS variables in `frontend/src/index.css`. Brand files are in `frontend/public/brand/`.
 
-### Change sample data
-- People, clinics, vocabularies → `backend/seed/reference.py`
-- Production cases (today's scenarios + history) → `backend/seed/production.py` (helpers in `seed/cases.py`)
-- Routes, stops, driver plans, tracking links → `backend/seed/logistics.py`
-- Leave, orders, saved reports, settings → `backend/seed/workflow.py`
-- TDS products / tooth groups → `backend/data/*.json`
-
-Dates in the sample data are relative to today, so the demo always looks current. The data is rebuilt once a day. To apply your edits right away, raise `SEED_VERSION` in `backend/seed/loader.py` and restart the backend.
-
-Demo technician accounts and technician-linked example records are not seeded. Technician accounts created through the app remain available.
-
 ### Expose a new collection
 Add `"apiName": "mongo_collection"` to `PUBLIC_COLLECTIONS` in `backend/core/collections.py`. It then appears in `GET /api/data` and in `useData()` on the frontend.
 
@@ -148,7 +132,7 @@ Add `"apiName": "mongo_collection"` to `PUBLIC_COLLECTIONS` in `backend/core/col
 
 | Method | Path | Returns |
 |---|---|---|
-| GET | `/api/health` | `{status, mode}` |
+| GET | `/api/health` | `{status}` |
 | GET | `/api/auth/setup` | Whether the initial owner account still needs to be created |
 | POST | `/api/auth/setup` | Create the one-time owner account; sets an HttpOnly session cookie |
 | POST | `/api/auth/login` | Sign in with `{email, password}`; sets an HttpOnly session cookie |
@@ -191,7 +175,6 @@ Existing `denture` department values are migrated to `prosthesis` at backend sta
 | `orderMaterials` | `/materials` | `pages/materials/*` |
 | `reports` | `/reports` | `pages/reports/*` |
 | `logistics` (logistics.js) | `/logistics?tab=routes\|create\|clinics\|drivers` | `pages/logistics/*` |
-| `driver.html` | `/driver` | `pages/driver/*` |
 | `track.html?token=` | `/track?token=` | `pages/tracking/*` |
 | TV Mode, Account | Top bar buttons (managers) | `components/layout/*` |
 
@@ -199,32 +182,8 @@ The items below were dropped on purpose because they only make sense with the ol
 
 ---
 
-## 6. Changelog — Phase 1 (rebuild)
+## 6. Production readiness
 
-**Structure**
-- Split into a FastAPI backend (`core/`, `routers/`, `seed/`) and a React frontend (`config/`, `context/`, `lib/`, `components/`, `pages/`).
-- The old code had duplicate definitions that silently overrode each other: `title`, `layout`, `receiving` and `render` in `app.js` + `enhancements.js`, and `transferLogStop`, `saveLogAddStop` and `deleteLogRoute` defined twice in `logistics.js`. These are now single definitions.
-- One shared set of building blocks (Panel, StatCard, DataTable, StatusBadge, dialogs) replaces the repeated HTML strings.
-- The whole interface is in English, with one visual design across every screen and mobile-friendly layouts.
+The backend no longer inserts generated records or refreshes collections on startup. Existing MongoDB records are left untouched; back up the database and review its contents before connecting an existing database to production.
 
-**Bug fixes**
-- **Saved reports** only appeared after you generated a new preview. They are now always listed on the Reports page.
-- **Add Stop** was greyed out on *published* routes even though the action supports them. It is now available for published, started and on-break routes.
-- **Tooth order quantity** used a browser prompt, so empty or text input could be saved as an invalid quantity. A dialog now checks shade and quantity.
-- **Tooth and material order requests** are saved to the backend when sent and appear in their manager request lists; managers can download a PDF, mark handled requests as done, and delete orders.
-- **Blocking browser pop-ups** (`alert`, `confirm`, `prompt`) are replaced with in-app dialogs and toasts. This affects orders, route deletion and the driver's route confirmation.
-- **Dropdown options** are rendered so React shows no "invalid child" console warnings.
-
-**Demo-only behaviour**
-- At weekends, the driver app and logistics totals open on the next working day so the sample routes stay explorable. On weekdays this matches the original "today" behaviour.
-- Tracking email delivery is not configured; route dialogs provide public clinic tracking links instead.
-- Logistics UI changes are persisted through the backend. The seed loader retains logistics collections across daily refreshes while refreshing time-relative production samples.
-
----
-
-## Remaining backend work
-
-Workflow write actions outside Deliveries & Collections and Receiving still end in `demoSave()` in `frontend/src/lib/notify.js`. To make one real:
-1. Add a `POST`/`PATCH` endpoint in a backend router (validate with a Pydantic model and store with `BaseDocument.to_mongo()`).
-2. Add the call to `frontend/src/lib/api.js`.
-3. Replace the `demoSave(…)` call with the API call, then refresh with `queryClient.invalidateQueries({ queryKey: ["data"] })`.
+Some workflow controls are not yet connected to persistent server operations, including completion review, several case-management actions, account profile edits, and driver route progress. These controls report an error and do not claim to have saved changes. Do not rely on them for production workflows until their API operations are implemented.

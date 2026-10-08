@@ -1,4 +1,5 @@
-"""Irish public holidays and production-day rules (mirrors frontend/src/lib/holidays.js)."""
+"""Irish public holidays and production-day rules."""
+
 from datetime import date, timedelta
 from functools import lru_cache
 
@@ -23,7 +24,9 @@ def first_monday(year: int, month: int) -> date:
 
 
 def last_monday(year: int, month: int) -> date:
-    d = (date(year, month + 1, 1) if month < 12 else date(year + 1, 1, 1)) - timedelta(days=1)
+    d = (
+        date(year, month + 1, 1) if month < 12 else date(year + 1, 1, 1)
+    ) - timedelta(days=1)
     return d - timedelta(days=d.weekday())
 
 
@@ -70,4 +73,8 @@ def production_days_back(d: date, count: int) -> list[date]:
 
 
 def working_days_between(start: date, end: date) -> int:
-    return sum(1 for n in range((end - start).days + 1) if is_production_day(start + timedelta(days=n)))
+    return sum(
+        1
+        for n in range((end - start).days + 1)
+        if is_production_day(start + timedelta(days=n))
+    )

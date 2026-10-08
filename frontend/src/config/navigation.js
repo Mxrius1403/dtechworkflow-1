@@ -20,7 +20,7 @@ export const PAGES = [
   { path: "/drivers", label: "Drivers", icon: Car, access: manager, nav: manager },
   { path: "/clinics", label: "Clinics", icon: Building2, access: manager, nav: manager },
   { path: "/suppliers", label: "Suppliers", icon: Store, access: manager, nav: manager },
-  { path: "/case-search", label: "Case Search", icon: Search, access: manager, nav: manager },
+  { path: "/case-search", label: "Case Search", icon: Search, access: always, nav: always },
   { path: "/tooth-management", label: "Tooth Management", icon: ClipboardList, access: manager, nav: manager },
   { path: "/tooth-order", label: "Order Tooth", icon: ClipboardList, access: always, nav: technician },
   { path: "/tooth-orders", label: "Tooth Order Requests", icon: ClipboardList, access: manager },

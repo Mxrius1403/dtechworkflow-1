@@ -19,7 +19,6 @@ from routers import (
     suppliers,
     tooth_orders,
 )
-from seed.loader import ensure_demo_data
 from starlette.middleware.cors import CORSMiddleware
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -45,7 +44,6 @@ async def ensure_auth_email_index() -> None:
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     validate_security_config()
-    await ensure_demo_data()
     for collection_name in ("auth_users", "users", "cases"):
         await db[collection_name].update_many(
             {"department": "denture"},
@@ -92,7 +90,7 @@ for module in (
 
 @app.get("/api/health")
 async def health() -> dict:
-    return {"status": "ok", "mode": "authenticated demo data with persistent logistics writes"}
+    return {"status": "ok"}
 
 
 app.add_middleware(

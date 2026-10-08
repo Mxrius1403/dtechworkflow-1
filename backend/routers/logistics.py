@@ -16,11 +16,8 @@ from core.models import BaseDocument
 from core.security import current_account, require_roles
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
-from seed.loader import ensure_demo_data
 
-router = APIRouter(
-    prefix="/api", tags=["logistics"], dependencies=[Depends(ensure_demo_data)]
-)
+router = APIRouter(prefix="/api", tags=["logistics"])
 TOKEN_PATTERN = re.compile(r"^[a-f0-9]{48}$")
 MANAGERS = Depends(require_roles("owner", "manager"))
 
@@ -283,10 +280,6 @@ async def public_tracking(token: str) -> dict:
             status_code=404, detail="This tracking link is unavailable or has expired."
         )
     data = BaseDocument.from_mongo(doc).to_api()
-    if "driverLat" in data:
-        data["locationUpdatedAt"] = (
-            now_ms  # demo: simulate a fresh GPS ping from the driver's phone
-        )
     return data
 
 
@@ -295,7 +288,7 @@ async def public_tracking(token: str) -> dict:
     dependencies=[Depends(require_roles("owner", "manager"))],
 )
 async def clinic_contact(clinic_id: str) -> dict:
-    """Return encrypted contact fields only to managers, migrating older plaintext seed records."""
+    """Return encrypted contact fields only to managers, migrating legacy plaintext records."""
     doc = await db[CLINIC_CONTACTS].find_one({"_id": clinic_id})
     if not doc:
         raise HTTPException(status_code=404, detail="Clinic not found")

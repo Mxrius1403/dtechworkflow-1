@@ -6,7 +6,7 @@ test("builds a report from confirmed production in the selected period", () => {
   const report = buildReport({
     users: [
       { id: "DT001", name: "Aisling Byrne", role: "technician", loginEnabled: true },
-      { id: "DT002", name: "Demo Technician", role: "technician", loginEnabled: false },
+      { id: "TEST-TECH-002", name: "Technician Without Login", role: "technician", loginEnabled: false },
       { id: "DT003", name: "Technician Without Cases", role: "technician", loginEnabled: true },
     ],
     cases: [
@@ -23,13 +23,13 @@ test("builds a report from confirmed production in the selected period", () => {
         }],
       },
       {
-        id: "demo-case",
-        code: "DEMO-1",
+        id: "case-unassigned",
+        code: "4104",
         department: "prosthesis",
         workSessions: [{
           startedAt: "2026-10-06T09:00:00Z",
           finishedAt: "2026-10-06T09:45:00Z",
-          technicianId: "DT002",
+          technicianId: "TEST-TECH-002",
           completionReviewRequired: true,
           managerConfirmed: true,
         }],

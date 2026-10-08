@@ -5,12 +5,10 @@ from core.database import db
 from core.security import current_account, require_roles
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, model_validator
-from seed.loader import ensure_demo_data
 
 router = APIRouter(
     prefix="/api/reports",
     tags=["reports"],
-    dependencies=[Depends(ensure_demo_data)],
 )
 MANAGERS = Depends(require_roles("owner", "manager"))
 

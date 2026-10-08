@@ -15,7 +15,7 @@ function shape(data, catalog) {
   return { ...data, byId, emails, techName, catalog: catalog || { materials: [], toothGroups: [] } };
 }
 
-/** Loads every read-only collection once from /api/data and exposes lists + lookups by id. */
+/** Loads authenticated collections from /api/data and exposes lists + lookups by id. */
 export function DataProvider({ children }) {
   const { signOut } = useSession();
   const data = useQuery({ queryKey: ["data"], queryFn: fetchAllData, refetchOnMount: "always" });

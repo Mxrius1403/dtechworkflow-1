@@ -2,7 +2,7 @@ import { Coffee, Navigation, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useData } from "@/context/DataContext";
-import { demoSave, notifyError } from "@/lib/notify";
+import { notifyError } from "@/lib/notify";
 import { Card, MissionHero, RouteTimeline } from "./DriverParts";
 import { openMaps } from "./PlanningList";
 
@@ -11,11 +11,11 @@ function CurrentStop({ route, stops, current }) {
   if (!current) return <Card className="py-8 text-center" testId="driver-all-done"><h2 className="text-xl font-bold text-primary">All stops completed</h2></Card>;
   const clinic = byId.clinics[current.clinicId] || {};
   const started = route.status === "started";
-  const arrive = () => (started ? demoSave("Arrival recorded • clinic tracking updated") : notifyError("Resume the route before marking arrival"));
+  const arrive = () => (started ? notifyError("Arrival tracking is not connected to server storage.") : notifyError("Resume the route before marking arrival"));
   const confirm = (type) => {
     if (!current.arrived) return notifyError("Mark Arrived before confirming the visit");
     if (!started) return notifyError("Resume the route before confirming the visit");
-    demoSave(`${type === "delivery" ? "Delivery" : "Collection"} recorded • clinic tracking updated`);
+    notifyError(`${type === "delivery" ? "Delivery" : "Collection"} tracking is not connected to server storage.`);
   };
   return (
     <Card testId="driver-current-stop">
@@ -52,8 +52,8 @@ export function ActiveMission({ route, flow, stops, current, completed, alerts }
       </Tabs>
       {flow.view === "current" ? <CurrentStop route={route} stops={stops} current={current} /> : <Card><RouteTimeline stops={stops} current={current} /></Card>}
       {started
-        ? <Button variant="outline" className="h-12 w-full" onClick={() => demoSave("Break started • tracking updated")} data-testid="driver-break"><Coffee /> Start Break</Button>
-        : <Button className="h-12 w-full" onClick={() => demoSave("Route resumed • tracking updated")} data-testid="driver-resume"><Play /> Resume Route</Button>}
+        ? <Button variant="outline" className="h-12 w-full" onClick={() => notifyError("Route status is not connected to server storage.")} data-testid="driver-break"><Coffee /> Start Break</Button>
+        : <Button className="h-12 w-full" onClick={() => notifyError("Route status is not connected to server storage.")} data-testid="driver-resume"><Play /> Resume Route</Button>}
     </>
   );
 }

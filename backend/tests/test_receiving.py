@@ -7,8 +7,6 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 from routers import receiving
 from routers.receiving import ReceiveCase
-from seed.production import build_cases
-from seed.reference import STAFF
 
 
 class FakeCases:
@@ -320,19 +318,11 @@ def test_legacy_department_value_is_no_longer_accepted():
         receive_payload(department="denture")
 
 
-def test_seeded_staff_and_cases_use_prosthesis_department():
-    cases = build_cases(date(2026, 10, 6)).items
-
-    assert any(case["department"] == "prosthesis" for case in cases)
-    assert all(person[3] != "denture" for person in STAFF)
-    assert all(case["department"] != "denture" for case in cases)
-
-
 def test_technician_can_receive_cases_for_any_department(receiving_db):
     result = asyncio.run(
         receiving.create_received_case(
             receive_payload(department="prosthesis"),
-            {"_id": "DT005", "role": "technician"},
+            {"_id": "TEST-TECH-005", "role": "technician"},
         )
     )
 

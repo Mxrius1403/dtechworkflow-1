@@ -7,7 +7,7 @@ import { StatCard, StatGrid } from "@/components/common/StatCard";
 import { useData } from "@/context/DataContext";
 import { useSession } from "@/context/SessionContext";
 import { scanOutcome, todayCases } from "@/lib/cases";
-import { demoSave, notifyError } from "@/lib/notify";
+import { notifyError } from "@/lib/notify";
 import { cn } from "@/lib/utils";
 
 export function TechnicianDashboard() {
@@ -21,8 +21,8 @@ export function TechnicianDashboard() {
     const result = scanOutcome(cases, value, user, techName);
     if (!result) return;
     if (result.kind === "manage") return openCase(result.caseItem.id);
-    if (result.kind === "overdueReason") return openOverdueReason(result.caseItem.id, true);
-    if (result.kind === "save") return demoSave(result.message);
+    if (result.kind === "overdueReason") return openOverdueReason(result.caseItem.id);
+    if (result.kind === "save") return notifyError("Case workflow actions are not connected to server storage.");
     notifyError(result.message);
   };
 

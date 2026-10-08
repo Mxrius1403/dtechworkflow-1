@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Field, NativeSelect, Options } from "@/components/common/Field";
 import { NOTE_LIMIT } from "@/config/constants";
 import { useData } from "@/context/DataContext";
-import { demoSave, notifyError } from "@/lib/notify";
+import { notifyError } from "@/lib/notify";
 
 function SimpleDialog({ title, description, children, onClose, onSave, saveLabel = "Save", testId }) {
   return (
@@ -29,8 +29,7 @@ export function AttentionDialog({ c, onClose }) {
   const [status, setStatus] = useState(c.attentionStatus || "active");
   const [note, setNote] = useState(c.attentionNote || "");
   const save = () => {
-    demoSave(`Case ${c.code} attention status → ${status.replace("_", " ")}`);
-    onClose();
+    notifyError(`Changing the attention status for case ${c.code} is not connected to server storage.`);
   };
   return (
     <SimpleDialog title={`Case ${c.code} — Attention Status`} onClose={onClose} onSave={save} testId="attention-dialog">
@@ -48,12 +47,11 @@ export function AttentionDialog({ c, onClose }) {
   );
 }
 
-export function OverdueReasonDialog({ c, afterComplete, onClose }) {
+export function OverdueReasonDialog({ c, onClose }) {
   const [reason, setReason] = useState(c.overdueReason || "");
   const save = () => {
     if (!reason.trim()) return notifyError("Enter a reason");
-    demoSave(afterComplete ? `Overdue reason saved • Case ${c.code} submitted for Manager confirmation` : "Overdue reason saved");
-    onClose();
+    notifyError(`Saving the overdue reason for case ${c.code} is not connected to server storage.`);
   };
   return (
     <SimpleDialog title={`Overdue justification — Case ${c.code}`} description="Required because this case passed its scheduled production date." onClose={onClose} onSave={save} saveLabel="Save Reason" testId="overdue-reason-dialog">
@@ -71,8 +69,7 @@ export function AssignTechnicianDialog({ c, onClose }) {
   const save = () => {
     const tech = techs.find((t) => t.id === techId);
     if (!tech) return notifyError("Select a technician");
-    demoSave(`Case ${c.code} assigned to ${tech.name}`);
-    onClose();
+    notifyError(`Assigning case ${c.code} to ${tech.name} is not connected to server storage.`);
   };
   return (
     <SimpleDialog title="Assign Technician" description={`Case ${c.code}`} onClose={onClose} onSave={save} saveLabel="Assign and move to Production" testId="assign-tech-dialog">

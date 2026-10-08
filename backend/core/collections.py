@@ -19,5 +19,4 @@ PUBLIC_COLLECTIONS = {
 SETTINGS = "settings"
 PUBLIC_TRACKING = "public_tracking"
 CLINIC_CONTACTS = "clinic_contacts"
-SEED_META = "seed_meta"
 AUTH_USERS = "auth_users"

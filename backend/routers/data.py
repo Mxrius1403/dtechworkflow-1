@@ -5,12 +5,11 @@ from core.database import db
 from core.models import BaseDocument
 from core.security import current_account
 from fastapi import APIRouter, Depends, HTTPException
-from seed.loader import ensure_demo_data
 
 router = APIRouter(
     prefix="/api/data",
     tags=["data"],
-    dependencies=[Depends(ensure_demo_data), Depends(current_account)],
+    dependencies=[Depends(current_account)],
 )
 
 

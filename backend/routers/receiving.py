@@ -9,23 +9,18 @@ from core.collections import AUTH_USERS
 from core.config import TIMEZONE
 from core.database import db
 from core.models import BaseDocument
+from core.production_calendar import is_production_day
+from core.workflow_constants import ARCH_OPTIONS, SERVICE_TYPES
 from core.security import current_account
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, model_validator
 from pymongo import ReturnDocument
-from seed.calendar import is_production_day
-from seed.loader import ensure_demo_data
-from seed.reference import ARCH_OPTIONS, SERVICE_TYPES
 
 logger = logging.getLogger(__name__)
 
 COMPLETED_CASE_RETENTION = timedelta(days=10)
 
-router = APIRouter(
-    prefix="/api/receiving",
-    tags=["receiving"],
-    dependencies=[Depends(ensure_demo_data)],
-)
+router = APIRouter(prefix="/api/receiving", tags=["receiving"])
 
 
 class ReceiveCase(BaseModel):

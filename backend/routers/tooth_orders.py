@@ -8,12 +8,10 @@ from core.database import db
 from core.security import current_account, require_roles
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
-from seed.loader import ensure_demo_data
 
 router = APIRouter(
     prefix="/api/tooth-orders",
     tags=["tooth orders"],
-    dependencies=[Depends(ensure_demo_data)],
 )
 
 

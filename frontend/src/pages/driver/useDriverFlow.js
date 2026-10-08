@@ -1,14 +1,13 @@
 import { useState } from "react";
 import { driverPlanNeedsUpdate, planStopIds, routeOrderIds, validDriverPlan } from "@/lib/logistics";
-import { demoSave, notifyError } from "@/lib/notify";
+import { notifyError } from "@/lib/notify";
 
 const coversRoute = (planned, assigned) =>
   planned.length === assigned.length && new Set(planned).size === assigned.length && planned.every((id) => assigned.includes(id));
 
 /**
- * Driver mission state machine (same stages as the original driver app):
- * home -> checklist -> planning -> preview -> (route started) active <-> replanning (urgent stops).
- * Stage changes are local; anything the original saved to the database ends in demoSave().
+ * Local driver mission stages; route mutations require server-side endpoints.
+ * Mission mutations require server-side driver endpoints, which are not yet available.
  */
 export function useDriverFlow(route, plan, stopsById) {
   const [stage, setStage] = useState("home");
@@ -16,7 +15,6 @@ export function useDriverFlow(route, plan, stopsById) {
   const [order, setOrder] = useState([]);
   const [locked, setLocked] = useState(0);
   const [checked, setChecked] = useState(() => new Set());
-  const [confirmedLocally, setConfirmedLocally] = useState(false);
 
   const move = (index, target) => {
     if (index < locked || index >= order.length) return;
@@ -52,13 +50,11 @@ export function useDriverFlow(route, plan, stopsById) {
     confirmRoute() {
       if (route.status !== "published") return notifyError("This route can no longer be planned");
       if (!coversRoute(order, route.stopIds)) return notifyError("The route plan is incomplete. Reload and try again.");
-      setConfirmedLocally(true);
-      setStage("preview");
-      demoSave("Your route order has been confirmed");
+      notifyError("Route planning is not connected to server storage.");
     },
     startMission() {
-      if (!validDriverPlan(route, plan) && !confirmedLocally) return notifyError("Confirm your clinic order before starting the route");
-      demoSave("Mission started • clinic tracking updated");
+      if (!validDriverPlan(route, plan)) return notifyError("Confirm your clinic order before starting the route");
+      notifyError("Starting a mission is not connected to server storage.");
     },
     startUpdatePlanning() {
       if (!driverPlanNeedsUpdate(route, plan)) return notifyError("There is no route update awaiting placement");
@@ -72,9 +68,7 @@ export function useDriverFlow(route, plan, stopsById) {
       if (!coversRoute(order, route.stopIds)) return notifyError("The updated route is incomplete");
       const before = routeOrderIds(route, plan).slice(0, locked);
       if (before.some((id, i) => order[i] !== id)) return notifyError("Current and completed stops cannot be moved");
-      setStage("active");
-      setLocked(0);
-      demoSave("Updated route confirmed • existing links refreshed");
+      notifyError("Updating a route is not connected to server storage.");
     },
   };
 }

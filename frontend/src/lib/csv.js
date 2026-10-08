@@ -5,7 +5,7 @@ const CLINIC_ALIASES = {
 const INACTIVE = /^(false|no|0|inactive)$/i;
 
 export const CLINIC_TEMPLATE_CSV =
-  'name,address,eircode,email,phone,contact,notes,active\nExample Dental Clinic,"1 Main Street, Dublin",D01 AB12,clinic@example.ie,012345678,Practice Manager,Routing notes only,true\n';
+  "name,address,eircode,email,phone,contact,notes,active\n";
 
 function splitCsv(text) {
   const rows = [];

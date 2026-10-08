@@ -9,9 +9,7 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { useData } from "@/context/DataContext";
 import { attentionLabel, caseDepartment, scheduledKey, serviceLabel } from "@/lib/cases";
 import { localInputValue, nice } from "@/lib/format";
-import { demoSave, notifyError } from "@/lib/notify";
-
-const SAVED = { completed: "Case completed by manager", production: "Case moved to production", queue: "Case moved to queue" };
+import { notifyError } from "@/lib/notify";
 
 function DetailBox({ c }) {
   return (
@@ -35,8 +33,7 @@ export function CaseControlDialog({ c, onClose, onAttention, onOverdueReason }) 
   const save = () => {
     if (!form.at) return notifyError("Choose a valid date and time");
     if (["production", "completed"].includes(form.status) && !byId.users[form.techId]) return notifyError("Select a responsible technician");
-    demoSave(SAVED[form.status] || "Case updated");
-    onClose();
+    notifyError("Case management changes are not connected to server storage.");
   };
 
   return (
@@ -78,7 +75,7 @@ export function CaseControlDialog({ c, onClose, onAttention, onOverdueReason }) 
         </div>
         <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
           {["queue", "production"].includes(c.status) && (
-            <ConfirmAction title="Remove this case from the active queue?" description="Its history and reports will be preserved." confirmLabel="Remove" onConfirm={() => { demoSave("Case removed from queue; history preserved"); onClose(); }} testId="case-remove">
+            <ConfirmAction title="Remove this case from the active queue?" description="Its history and reports will be preserved." confirmLabel="Remove" onConfirm={() => notifyError("Removing a case is not connected to server storage.")} testId="case-remove">
               <Button variant="destructive" data-testid="case-remove-button">Remove from Queue</Button>
             </ConfirmAction>
           )}

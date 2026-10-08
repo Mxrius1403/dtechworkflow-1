@@ -12,11 +12,11 @@ The interface is translated to English, gets a refreshed visual design, and obvi
 - **Feature parity:** every screen, route, and feature in the uploaded project is carried over. Nothing is removed and no new features are added.
 - **Clean structure:** the code is split into clearly named, single-purpose parts: pages, reusable interface pieces, data, and backend endpoints. Each part has one obvious place to live.
 - **Shared building blocks:** repeated interface elements (cards, tables, buttons, status badges, headers) become reusable pieces, so a change made once shows up everywhere.
-- **Demo data in one place:** the sample data the app shows today (cases, routes, and similar) moves to the backend and is served from a single source. The data stays read-only, the same as today.
+- **Production data only:** the backend reads and writes operational data without generating sample records at startup.
 - **English interface:** all labels, messages, and menus are translated to English.
 - **Refreshed visual design:** a new, consistent look across all screens, with clean spacing and type, clear status colors, and layouts that work on mobile.
 - **Bug fixes:** obvious problems found while rebuilding (broken links, layout breaks, console errors, logic slips) are fixed. Each fix is listed in a short changelog.
-- **Documentation:** a project guide explains the folder layout, what each part does, how to add a page, how to change sample data, and how to run the project.
+- **Documentation:** a project guide explains the folder layout, what each part does, how to add a page, and how to run the project.
 
 ## User flow
 1. The user opens the app and lands on the same starting screen as before, now in English with the new design.
@@ -39,14 +39,14 @@ The interface is translated to English, gets a refreshed visual design, and obvi
 - Write the project guide.
 
 **Phase 2 — Saved data**
-- Let users create, edit, and update cases and routes, with changes kept in the database instead of fixed sample data.
+- Let users create, edit, and update cases and routes through persistent backend APIs.
 
 **Phase 3 — Team use & extras**
 - Sign-in and roles, search and filters, and printable or exportable route and case sheets.
 
 ## Assumptions
 - The project's real content (screens, sections, features) comes from the uploaded zip. The feature list above is inferred from the project name ("rotas" = routes, "casos prontos" = finished cases) and is confirmed during the review.
-- "No saved data" means the app currently uses fixed sample data. That data is kept as-is and served read-only, and real saving is left for Phase 2.
+- Persistent workflows must save through authenticated backend APIs; unfinished actions must report an error rather than imply success.
 - Both "fix obvious bugs" and "refreshed visual design" are included, since both options were selected.
 - "Easier changes" means clean, well-documented code. There is no admin screen and no central settings panel beyond what a clean structure naturally provides.
 - The interface is English only, with no language switcher.
