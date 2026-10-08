@@ -25,7 +25,6 @@ const managerPages = [
 ];
 
 const managerNavPages = [
-  "/logistics",
   "/drivers",
   "/clinics",
   "/suppliers",
@@ -37,10 +36,11 @@ const managerNavPages = [
 test.each([
   ["manager", { isManager: true, isOwner: false }],
   ["owner", { isManager: false, isOwner: true }],
-])("%s can open and see manager areas", (_role, user) => {
+])("%s can open manager areas while logistics stays hidden from navigation", (_role, user) => {
   for (const path of managerPages) {
     expect(canOpen(pageForPath(path), user)).toBe(true);
   }
+  expect(navItemsFor(user).some(({ path }) => path === "/logistics")).toBe(false);
   for (const path of managerNavPages) {
     expect(navItemsFor(user).some(({ path: navPath }) => navPath === path)).toBe(true);
   }
