@@ -11,7 +11,6 @@ test.each([
 });
 
 const managerPages = [
-  "/logistics",
   "/drivers",
   "/clinics",
   "/suppliers",
@@ -35,11 +34,12 @@ const managerNavPages = [
 test.each([
   ["manager", { isManager: true, isOwner: false }],
   ["owner", { isManager: false, isOwner: true }],
-])("%s can open manager areas while logistics stays hidden from navigation", (_role, user) => {
+])("%s can open manager areas and see Deliveries & Collections", (_role, user) => {
   for (const path of managerPages) {
     expect(canOpen(pageForPath(path), user)).toBe(true);
   }
-  expect(navItemsFor(user).some(({ path }) => path === "/logistics")).toBe(false);
+  expect(canOpen(pageForPath("/logistics"), user)).toBe(true);
+  expect(navItemsFor(user).some(({ path }) => path === "/logistics")).toBe(true);
   for (const path of managerNavPages) {
     expect(navItemsFor(user).some(({ path: navPath }) => navPath === path)).toBe(true);
   }
@@ -52,10 +52,10 @@ test.each([
   expect(navItemsFor(user).some(({ path }) => path === "/owner-control")).toBe(user.isOwner);
 });
 
-test("technician navigation and manager-only access remain unchanged", () => {
+test("technicians can see and open Deliveries & Collections", () => {
   const technician = { isManager: false, isOwner: false };
-  expect(canOpen(pageForPath("/logistics"), technician)).toBe(false);
-  expect(navItemsFor(technician).some(({ path }) => path === "/logistics")).toBe(false);
+  expect(canOpen(pageForPath("/logistics"), technician)).toBe(true);
+  expect(navItemsFor(technician).some(({ path, icon }) => path === "/logistics" && icon)).toBe(true);
   expect(navItemsFor(technician).some(({ path }) => path === "/tooth-order")).toBe(true);
   expect(navItemsFor(technician).some(({ path }) => path === "/owner-control")).toBe(false);
 });
