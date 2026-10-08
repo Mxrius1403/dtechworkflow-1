@@ -34,7 +34,9 @@ export function makeFiveInsights(label, rows, previousRows, dayCount) {
 export function buildReport({ cases, users }, from, to) {
   const dayCount = Math.max(1, calendarDaysBetween(from, to) + 1);
   const prevTo = addDays(from, -1), prevFrom = addDays(from, -dayCount);
-  const technicians = users.filter((user) => user.role === "technician" && user.loginEnabled === true);
+  const technicians = users.filter((user) =>
+    user.role === "technician" && user.loginEnabled === true && !user.deleted
+  );
   const technicianIds = new Set(technicians.map((user) => user.id));
   const current = [], previous = [];
   cases.filter((c) => !c.deleted).forEach((c) => sessionValues(c).forEach((s, index) => {
