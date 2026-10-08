@@ -12,11 +12,13 @@ Cases that remain **Completed** for 10 days are automatically marked **Removed f
 
 | Service  | Where                        | Notes |
 |----------|------------------------------|-------|
-| Backend  | `backend/` → `server.py` on port 8001 | All routes start with `/api`. |
-| Frontend | `frontend/` (CRA + Tailwind) on port 3000 | Calls `http://localhost:8001` by default; override with `REACT_APP_BACKEND_URL`. |
+| Backend  | `backend/` → `server.py` | Bind address and port come from `HOST` / `PORT` in `backend/.env`; all routes start with `/api`. |
+| Frontend | `frontend/` (CRA + Tailwind) | Production defaults to same-origin `/api`; local development defaults to `http://localhost:8001`. Optionally set `REACT_APP_BACKEND_URL` in `frontend/.env` before building. |
 | Database | MongoDB from `MONGO_URL` / `DB_NAME` in `backend/.env` | The backend does not create or populate sample records. |
 
-Add the required settings from `backend/.env.example` to `backend/.env` before starting the backend. The backend refuses to start without a random `AUTH_SECRET_KEY`. On the first visit to the website, create the owner account in the setup form.
+Copy `backend/.env.example` to `backend/.env` and `frontend/.env.example` to `frontend/.env`, then set the deployment-specific values. The backend refuses to start without a random `AUTH_SECRET_KEY`. On the first visit to the website, create the owner account in the setup form.
+
+For production, serve the frontend and backend under the same public origin where possible, and configure the reverse proxy to forward `/api` to the backend. This lets the same frontend build run on different hosts without embedding a server-specific address. If they use separate origins, set `REACT_APP_BACKEND_URL` to the public backend URL before `yarn build`; CRA embeds this value in the build, so changing the file afterward requires a new build. Set `CORS_ORIGINS` to the exact frontend origin(s). Set `HOST` to `0.0.0.0` when the backend must be reachable outside its host/container.
 
 On the platform, both services run under supervisor with hot reload:
 
@@ -28,11 +30,11 @@ sudo supervisorctl restart frontend
 To run them locally yourself:
 
 ```bash
-cd backend  && pip install -r requirements.txt && uvicorn server:app --port 8001 --reload
+cd backend  && pip install -r requirements.txt && uvicorn server:app --host 127.0.0.1 --port 8001 --reload
 cd frontend && yarn install && yarn start
 ```
 
-For a backend running on a different address, set `REACT_APP_BACKEND_URL` in `frontend/.env` (for example, `REACT_APP_BACKEND_URL=http://localhost:8001`) and restart the frontend.
+For deployment, run `cd backend && python server.py`; it loads `backend/.env` and listens on `HOST` / `PORT`. `TIMEZONE` in `backend/.env` controls backend date handling; set `REACT_APP_TIMEZONE` to the same IANA timezone in `frontend/.env` before building the frontend. The production calendar's public holidays remain specific to Ireland.
 
 ### Staff sign-in
 
@@ -77,7 +79,7 @@ frontend/src/
 │   ├── logistics.js       Ready-for-delivery, route plans, driver week, maps links
 │   ├── reports.js         Production report + "5 insights"
 │   ├── holidays.js        Irish public holidays, production-day rules
-│   ├── format.js          Dates/times (Europe/Dublin), durations
+│   ├── format.js          Dates/times (configured timezone), durations
 │   ├── print.js           Printable PDFs (report, tooth order, material order)
 │   ├── csv.js             Clinic CSV/JSON import + template
 │   ├── api.js             Axios calls to the backend

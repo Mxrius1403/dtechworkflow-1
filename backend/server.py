@@ -3,7 +3,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from core.collections import AUTH_USERS
-from core.config import CORS_ORIGINS
+from core.config import CORS_ORIGINS, HOST, PORT
 from core.database import client, db
 from core.security import validate_security_config
 from fastapi import FastAPI
@@ -100,3 +100,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(app, host=HOST, port=PORT)
