@@ -29,9 +29,9 @@ export default function LogisticsPage() {
           ))}
         </TabsList>
       </Tabs>
-      {(tab === "routes" || tab === "create") && <ReadyCasesPanel draft={draft} onAdded={() => setTab("create")} />}
+      {tab === "routes" && <ReadyCasesPanel draft={draft} onAdded={() => setTab("create")} />}
       {tab === "routes" && <RoutesTab date={routesDate} onDateChange={setRoutesDate} />}
-      {tab === "create" && <CreateRouteTab draft={draft} onPublished={(date) => { setRoutesDate(date); setTab("routes"); }} />}
+      {tab === "create" && <CreateRouteTab draft={draft} readyCases={<ReadyCasesPanel draft={draft} onAdded={() => setTab("create")} />} onPublished={(date) => { setRoutesDate(date); setTab("routes"); }} />}
     </>
   );
 }
