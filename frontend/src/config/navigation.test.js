@@ -27,7 +27,6 @@ const managerPages = [
 const managerNavPages = [
   "/drivers",
   "/clinics",
-  "/suppliers",
   "/tooth-management",
   "/technicians",
   "/reports",
@@ -44,6 +43,8 @@ test.each([
   for (const path of managerNavPages) {
     expect(navItemsFor(user).some(({ path: navPath }) => navPath === path)).toBe(true);
   }
+  expect(navItemsFor(user).some(({ path }) => path === "/suppliers")).toBe(false);
+  expect(navItemsFor(user).some(({ path, label }) => path === "/materials" && label === "Material Management")).toBe(true);
 
   expect(canOpen(pageForPath("/tooth-order"), user)).toBe(true);
   expect(navItemsFor(user).some(({ path }) => path === "/tooth-order")).toBe(false);

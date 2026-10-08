@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Pencil, Plus, Trash2 } from "lucide-react";
+import { BackLink } from "@/components/common/Bits";
 import { ConfirmAction } from "@/components/common/ConfirmAction";
 import { DataTable } from "@/components/common/DataTable";
 import { Panel } from "@/components/common/Panel";
@@ -70,48 +71,51 @@ export default function SuppliersPage() {
   };
 
   return (
-    <Panel
-      title="Suppliers"
-      description="Manage the supplier names used by the lab."
-      actions={<Button onClick={() => setAdding(true)} data-testid="supplier-add-button"><Plus /> Add Supplier</Button>}
-    >
-      <DataTable
-        testId="suppliers-table"
-        rows={rows}
-        rowTestId={(supplier) => `supplier-row-${supplier.id}`}
-        empty="No suppliers yet."
-        columns={[
-          { key: "name", header: "Name" },
-          {
-            key: "edit",
-            header: "",
-            render: (supplier) => (
-              <Button size="sm" variant="outline" onClick={() => setEditing(supplier)} data-testid={`supplier-edit-${supplier.id}`}>
-                <Pencil /> Edit
-              </Button>
-            ),
-          },
-          {
-            key: "delete",
-            header: "",
-            render: (supplier) => (
-              <ConfirmAction
-                title={`Delete ${supplier.name}?`}
-                description="This action cannot be undone."
-                confirmLabel="Delete Supplier"
-                onConfirm={() => remove(supplier.id)}
-                testId={`supplier-delete-${supplier.id}`}
-              >
-                <Button size="sm" variant="destructive" disabled={deletingId === supplier.id} data-testid={`supplier-delete-button-${supplier.id}`}>
-                  <Trash2 /> Delete
+    <>
+      <BackLink to="/materials">Material Management</BackLink>
+      <Panel
+        title="Suppliers"
+        description="Manage the supplier names used by the lab."
+        actions={<Button onClick={() => setAdding(true)} data-testid="supplier-add-button"><Plus /> Add Supplier</Button>}
+      >
+        <DataTable
+          testId="suppliers-table"
+          rows={rows}
+          rowTestId={(supplier) => `supplier-row-${supplier.id}`}
+          empty="No suppliers yet."
+          columns={[
+            { key: "name", header: "Name" },
+            {
+              key: "edit",
+              header: "",
+              render: (supplier) => (
+                <Button size="sm" variant="outline" onClick={() => setEditing(supplier)} data-testid={`supplier-edit-${supplier.id}`}>
+                  <Pencil /> Edit
                 </Button>
-              </ConfirmAction>
-            ),
-          },
-        ]}
-      />
-      {adding && <SupplierDialog onClose={() => setAdding(false)} />}
-      {editing && <SupplierDialog supplier={editing} onClose={() => setEditing(null)} />}
-    </Panel>
+              ),
+            },
+            {
+              key: "delete",
+              header: "",
+              render: (supplier) => (
+                <ConfirmAction
+                  title={`Delete ${supplier.name}?`}
+                  description="This action cannot be undone."
+                  confirmLabel="Delete Supplier"
+                  onConfirm={() => remove(supplier.id)}
+                  testId={`supplier-delete-${supplier.id}`}
+                >
+                  <Button size="sm" variant="destructive" disabled={deletingId === supplier.id} data-testid={`supplier-delete-button-${supplier.id}`}>
+                    <Trash2 /> Delete
+                  </Button>
+                </ConfirmAction>
+              ),
+            },
+          ]}
+        />
+        {adding && <SupplierDialog onClose={() => setAdding(false)} />}
+        {editing && <SupplierDialog supplier={editing} onClose={() => setEditing(null)} />}
+      </Panel>
+    </>
   );
 }

@@ -1,4 +1,4 @@
-import { ArrowRight, ClipboardList, Package, ShoppingCart } from "lucide-react";
+import { ArrowRight, ClipboardList, Package, ShoppingCart, Store } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -23,6 +23,13 @@ const sections = [
     path: "/materials/order",
     icon: ShoppingCart,
     testId: "material-management-order",
+  },
+  {
+    title: "Suppliers",
+    description: "Manage the supplier names used by the lab.",
+    path: "/suppliers",
+    icon: Store,
+    testId: "material-management-suppliers",
   },
 ];
 
