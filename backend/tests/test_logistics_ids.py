@@ -1,6 +1,12 @@
 import asyncio
 
-from routers.logistics import allocate_entity_id
+from routers.logistics import DeliveryInput, allocate_entity_id
+
+
+def test_route_delivery_accepts_case_codes_used_by_receiving():
+    delivery = DeliveryInput(clinicId="C0001", caseNumber="RCV-1001")
+
+    assert delivery.caseNumber == "RCV-1001"
 
 
 class FakeCursor:

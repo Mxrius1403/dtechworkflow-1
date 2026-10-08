@@ -26,7 +26,7 @@ MANAGERS = Depends(require_roles("owner", "manager"))
 
 class DeliveryInput(BaseModel):
     clinicId: str = Field(min_length=1, max_length=100)
-    caseNumber: str = Field(min_length=4, max_length=4, pattern=r"^\d{4}$")
+    caseNumber: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9._/-]+$")
     productionCaseId: str | None = None
     productionConfirmedAt: str | None = None
 
@@ -351,30 +351,43 @@ async def create_route(
     for delivery in body.deliveries:
         await require_clinic(delivery.clinicId)
         if delivery.productionCaseId:
-            production_case = await db["cases"].find_one(
-                {
-                    "_id": delivery.productionCaseId,
-                    "status": "completed",
-                    "completionReviewStatus": "confirmed",
-                    "managerConfirmedAt": delivery.productionConfirmedAt,
-                    "code": delivery.caseNumber,
-                }
-            )
+            production_case_query = {
+                "_id": delivery.productionCaseId,
+                "status": {"$in": ["queue", "production", "completed"]},
+                "deleted": {"$ne": True},
+                "removedFromQueue": {"$ne": True},
+                "code": delivery.caseNumber,
+            }
+            if delivery.productionConfirmedAt is not None:
+                production_case_query["managerConfirmedAt"] = (
+                    delivery.productionConfirmedAt
+                    if delivery.productionConfirmedAt
+                    else {"$in": [None, ""]}
+                )
+            production_case = await db["cases"].find_one(production_case_query)
             if not production_case:
                 raise HTTPException(
                     status_code=422,
-                    detail="A selected ready case is no longer available.",
+                    detail="A selected case is no longer available.",
                 )
             already_assigned = await db["stops"].find_one(
                 {
-                    "deliveries.productionCaseId": delivery.productionCaseId,
-                    "deliveries.productionConfirmedAt": delivery.productionConfirmedAt,
+                    "deliveries": {
+                        "$elemMatch": {
+                            "productionCaseId": delivery.productionCaseId,
+                            "productionConfirmedAt": (
+                                delivery.productionConfirmedAt
+                                if delivery.productionConfirmedAt is not None
+                                else {"$in": [None, ""]}
+                            ),
+                        }
+                    },
                 }
             )
             if already_assigned:
                 raise HTTPException(
                     status_code=409,
-                    detail="A selected ready case is already assigned to a route.",
+                    detail="A selected case is already assigned to a route.",
                 )
         grouped[delivery.clinicId]["deliveries"].append(
             {

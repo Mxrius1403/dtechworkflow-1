@@ -16,7 +16,7 @@ export const PAGES = [
   { path: "/owner-control", label: "Ownership & Managers", icon: KeyRound, access: (u) => u.isOwner, nav: (u) => u.isOwner },
   { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard, nav: always },
   { path: "/receiving", label: "Receiving", title: "Receiving Station", icon: Inbox, access: always, nav: always },
-  { path: "/logistics", label: "Deliveries & Collections", icon: MapPin, access: always, nav: always },
+  { path: "/logistics", label: "Create Route", icon: MapPin, access: always, nav: always },
   { path: "/drivers", label: "Drivers", icon: Car, access: manager, nav: manager },
   { path: "/clinics", label: "Clinics", icon: Building2, access: manager, nav: manager },
   { path: "/suppliers", label: "Suppliers", icon: Store, access: manager },
