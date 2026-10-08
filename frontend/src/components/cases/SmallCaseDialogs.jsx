@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Field, NativeSelect, Options } from "@/components/common/Field";
 import { NOTE_LIMIT } from "@/config/constants";
 import { useData } from "@/context/DataContext";
-import { updateCaseOverdueReason } from "@/lib/api";
+import { updateCaseAttention, updateCaseOverdueReason } from "@/lib/api";
 import { notify, notifyError } from "@/lib/notify";
 
 function SimpleDialog({ title, description, children, onClose, onSave, saveLabel = "Save", saving = false, testId }) {
@@ -28,22 +28,44 @@ function SimpleDialog({ title, description, children, onClose, onSave, saveLabel
 }
 
 export function AttentionDialog({ c, onClose }) {
+  const queryClient = useQueryClient();
   const [status, setStatus] = useState(c.attentionStatus || "active");
   const [note, setNote] = useState(c.attentionNote || "");
-  const save = () => {
-    notifyError(`Changing the attention status for case ${c.code} is not connected to server storage.`);
+  const [saving, setSaving] = useState(false);
+  const save = async () => {
+    if (saving) return;
+    if (status !== "active" && !note.trim()) return notifyError("Enter a short reason");
+    setSaving(true);
+    try {
+      await updateCaseAttention(c.id, {
+        attentionStatus: status,
+        attentionNote: note.trim(),
+      });
+      await queryClient.invalidateQueries({ queryKey: ["data"] });
+      notify(`Case ${c.code} updated`);
+      onClose();
+    } catch (error) {
+      const detail = error.response?.data?.detail;
+      notifyError(typeof detail === "string" ? detail : "Could not update the case");
+    } finally {
+      setSaving(false);
+    }
   };
   return (
-    <SimpleDialog title={`Case ${c.code} — Attention Status`} onClose={onClose} onSave={save} testId="attention-dialog">
-      <Field label="Status">
-        <NativeSelect value={status} onChange={(e) => setStatus(e.target.value)} data-testid="attention-status-select">
+    <SimpleDialog title={`Case ${c.code} — Attention Status`} onClose={onClose} onSave={save} saveLabel={saving ? "Saving…" : "Save Attention Status"} saving={saving} testId="attention-dialog">
+      <Field label="Attention status">
+        <NativeSelect value={status} onChange={(event) => {
+          const nextStatus = event.target.value;
+          setStatus(nextStatus);
+          if (nextStatus === "active") setNote("");
+        }} data-testid="attention-status-select">
           <option value="active">Active</option>
           <option value="on_hold">On Hold</option>
           <option value="need_information">Need Information</option>
         </NativeSelect>
       </Field>
-      <Field label="Note" hint={`${note.length}/${NOTE_LIMIT} characters`}>
-        <Textarea maxLength={NOTE_LIMIT} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Short reason" data-testid="attention-note-input" />
+      <Field label={`Short reason (${status === "active" ? "optional" : "required"})`} hint={`${note.length}/${NOTE_LIMIT} characters`}>
+        <Textarea required={status !== "active"} maxLength={NOTE_LIMIT} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Enter a short reason (optional for Active)" data-testid="attention-note-input" />
       </Field>
     </SimpleDialog>
   );
