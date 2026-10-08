@@ -9,7 +9,7 @@ import { Panel } from "@/components/common/Panel";
 import { useData } from "@/context/DataContext";
 import { createLogisticsRoute } from "@/lib/api";
 import { plural } from "@/lib/format";
-import { ACTIVE_ROUTE_STATUSES, draftStopCount, isFourDigitCase } from "@/lib/logistics";
+import { ACTIVE_ROUTE_STATUSES, draftStopCount } from "@/lib/logistics";
 import { notify, notifyError } from "@/lib/notify";
 
 export const ClinicOptions = ({ clinics }) => <Options items={clinics.filter((c) => c.active !== false).map((c) => [c.id, `${c.name} — ${c.eircode}`])} />;
@@ -45,22 +45,11 @@ function CollectionsPanel({ draft }) {
 }
 
 function DeliveriesPanel({ draft }) {
-  const { clinics, byId } = useData();
-  const [form, setForm] = useState({ clinicId: "", caseNumber: "" });
-  const add = () => {
-    const caseNumber = form.caseNumber.trim();
-    if (!form.clinicId) return notifyError("Select a clinic");
-    if (!isFourDigitCase(caseNumber)) return notifyError("Delivery case must contain exactly 4 digits");
-    if (draft.deliveries.some((d) => d.caseNumber === caseNumber)) return notifyError("This case is already in the route draft");
-    draft.addDeliveries([{ clinicId: form.clinicId, caseNumber }]);
-    setForm({ ...form, caseNumber: "" });
-  };
+  const { byId } = useData();
   return (
-    <Panel title="Deliveries">
+    <Panel title="Deliveries in Route">
       <div className="grid gap-3">
-        <Field label="Clinic"><NativeSelect value={form.clinicId} onChange={(e) => setForm({ ...form, clinicId: e.target.value })} data-testid="delivery-clinic"><option value="">Select clinic</option><ClinicOptions clinics={clinics} /></NativeSelect></Field>
-        <Field label="Case number"><Input value={form.caseNumber} maxLength={4} inputMode="numeric" placeholder="6423" onChange={(e) => setForm({ ...form, caseNumber: e.target.value })} onKeyDown={(e) => e.key === "Enter" && add()} data-testid="delivery-case" /></Field>
-        <Button onClick={add} data-testid="delivery-add"><Plus /> Add Delivery</Button>
+        {!draft.deliveries.length && <Muted>Add cases from Ready for Delivery.</Muted>}
         {draft.deliveries.map((x, i) => <DraftLine key={`${x.caseNumber}-${i}`} title={byId.clinics[x.clinicId]?.name} text={`Delivery ${x.caseNumber}${x.productionCaseId ? " • ready case" : ""}`} onRemove={() => draft.removeDelivery(i)} testId={`draft-delivery-${x.caseNumber}`} />)}
       </div>
     </Panel>
@@ -110,7 +99,7 @@ export function CreateRouteTab({ draft, onPublished }) {
           </Field>
         </div>
       </Panel>
-      <div className="grid items-start gap-5 xl:grid-cols-3">
+      <div className="grid items-start gap-5 xl:grid-cols-2">
         <CollectionsPanel draft={draft} />
         <DeliveriesPanel draft={draft} />
         <Panel title="Mission Summary" className="xl:sticky xl:top-24" data-testid="mission-summary">
