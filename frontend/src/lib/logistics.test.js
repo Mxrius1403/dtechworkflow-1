@@ -24,3 +24,13 @@ test("lists every active case not already assigned to a route", () => {
     "completed",
   ]);
 });
+
+test("can limit unrouted cases to completed status", () => {
+  const cases = [
+    { id: "queued", code: "A-1001", status: "queue", createdAt: "2026-01-01" },
+    { id: "working", code: "1002", status: "production", createdAt: "2026-01-02" },
+    { id: "completed", code: "1003", status: "completed", createdAt: "2026-01-03" },
+  ];
+
+  expect(unroutedCases(cases, [], {}, ["completed"]).map((c) => c.id)).toEqual(["completed"]);
+});

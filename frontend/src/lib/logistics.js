@@ -47,9 +47,9 @@ function readyAssignment(c, stops, routesById) {
 }
 
 /** Active cases that have not already been added to a route. */
-export function unroutedCases(cases, stops, routesById) {
+export function unroutedCases(cases, stops, routesById, statuses = ["queue", "production", "completed"]) {
   return cases
-    .filter((c) => !c.deleted && !c.removedFromQueue && ["queue", "production", "completed"].includes(c.status))
+    .filter((c) => !c.deleted && !c.removedFromQueue && statuses.includes(c.status))
     .map((c) => ({ ...c, assignment: readyAssignment(c, stops, routesById) }))
     .filter((c) => !c.assignment)
     .sort((a, b) => String(a.createdAt || a.receivedAt || "").localeCompare(String(b.createdAt || b.receivedAt || "")));

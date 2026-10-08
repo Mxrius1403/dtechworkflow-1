@@ -15,12 +15,15 @@ import { notify, notifyError } from "@/lib/notify";
 import { cn } from "@/lib/utils";
 import { ClinicOptions } from "./CreateRouteTab";
 
-export function ReadyCasesPanel({ draft, onAdded }) {
+export function ReadyCasesPanel({ draft, onAdded, completedOnly = false }) {
   const { cases, stops, clinics, byId } = useData();
   const [search, setSearch] = useState("");
   const [clinicId, setClinicId] = useState("");
   const [selected, setSelected] = useState(() => new Set());
-  const all = useMemo(() => unroutedCases(cases, stops, byId.routes), [cases, stops, byId.routes]);
+  const all = useMemo(
+    () => unroutedCases(cases, stops, byId.routes, completedOnly ? ["completed"] : undefined),
+    [cases, stops, byId.routes, completedOnly],
+  );
   const available = (c) => readyAvailable(c, draft.deliveries);
   const rows = all.filter((c) => !search || String(c.code).toLowerCase().includes(search.toLowerCase()));
   const selectable = rows.filter(available);

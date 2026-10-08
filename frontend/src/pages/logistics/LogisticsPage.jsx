@@ -31,7 +31,7 @@ export default function LogisticsPage() {
       </Tabs>
       {tab === "routes" && <ReadyCasesPanel draft={draft} onAdded={() => setTab("create")} />}
       {tab === "routes" && <RoutesTab date={routesDate} onDateChange={setRoutesDate} />}
-      {tab === "create" && <CreateRouteTab draft={draft} readyCases={<ReadyCasesPanel draft={draft} onAdded={() => setTab("create")} />} onPublished={(date) => { setRoutesDate(date); setTab("routes"); }} />}
+      {tab === "create" && <CreateRouteTab draft={draft} readyCases={<ReadyCasesPanel draft={draft} onAdded={() => setTab("create")} completedOnly />} onPublished={(date) => { setRoutesDate(date); setTab("routes"); }} />}
     </>
   );
 }
