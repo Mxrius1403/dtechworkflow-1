@@ -144,7 +144,7 @@ export function ReceivingCaseDialog({ c, onClose, onSave, onAttentionSave, onRem
           <Button variant="outline" onClick={() => setAttentionOpen(true)} data-testid="receiving-change-attention">Change Attention Status</Button>
         </div>
         <DialogFooter>
-          {["queue", "production"].includes(c.status) && (
+          {["queue", "production", "completed"].includes(c.status) && c.completionReviewStatus !== "pending" && (
             <ConfirmAction
               title={`Remove case ${c.code} from the queue?`}
               description="The case will no longer appear in Receiving, but its history and reports will be preserved."

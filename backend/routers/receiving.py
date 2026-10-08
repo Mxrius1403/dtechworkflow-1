@@ -404,15 +404,15 @@ async def remove_received_case(
     existing = await db["cases"].find_one({"_id": case_id})
     if not existing:
         raise HTTPException(status_code=404, detail="Case not found.")
-    if existing.get("status") not in ("queue", "production"):
-        if existing.get("completionReviewStatus") == "pending":
-            raise HTTPException(
-                status_code=409,
-                detail="This completion is awaiting Manager confirmation.",
-            )
+    if existing.get("completionReviewStatus") == "pending":
         raise HTTPException(
             status_code=409,
-            detail="Only active queue or production cases can be removed.",
+            detail="This completion is awaiting Manager confirmation.",
+        )
+    if existing.get("status") not in ("queue", "production", "completed"):
+        raise HTTPException(
+            status_code=409,
+            detail="Only queue, production or completed cases can be removed.",
         )
 
     timestamp, _, _ = _now()
@@ -432,7 +432,7 @@ async def remove_received_case(
                 "queueRemovedAt": timestamp,
                 "queueRemovedById": str(account["_id"]),
                 "queueRemovedBy": display_name,
-                "previousQueueStatus": "queue",
+                "previousQueueStatus": existing["status"],
                 "updatedAt": timestamp,
             },
             "$push": {
