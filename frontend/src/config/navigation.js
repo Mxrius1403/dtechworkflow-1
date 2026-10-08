@@ -2,10 +2,10 @@ import {
   BarChart3, Boxes, Building2, Car, ClipboardList, Inbox, KeyRound, LayoutDashboard, Package, Search, ShoppingCart, Store, Truck, Users,
 } from "lucide-react";
 
-const manager = (u) => u.isManager;
-const technician = (u) => !u.isManager;
+const manager = (u) => u.isManager || u.isOwner;
+const technician = (u) => !manager(u);
 const always = () => true;
-const materialsLabel = (u) => (u.isManager ? "Material Management" : "Order Materials");
+const materialsLabel = (u) => (manager(u) ? "Material Management" : "Order Materials");
 
 /**
  * Every staff screen in one list (order = sidebar order).
