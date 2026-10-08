@@ -458,39 +458,14 @@ async def delete_received_case(
     case_id: str,
     account: dict = Depends(receiving_account),
 ) -> dict:
-    existing = await db["cases"].find_one({"_id": case_id})
-    if not existing:
-        raise HTTPException(status_code=404, detail="Case not found.")
-    if existing.get("deleted"):
-        raise HTTPException(status_code=409, detail="Case is already deleted.")
-
-    timestamp, _, _ = _now()
-    display_name = account.get("name", account.get("email", "Receiving"))
-    case = await db["cases"].find_one_and_update(
-        {"_id": case_id, "deleted": {"$ne": True}},
-        {
-            "$set": {
-                "deleted": True,
-                "deletedAt": timestamp,
-                "deletedById": str(account["_id"]),
-                "deletedBy": display_name,
-                "updatedAt": timestamp,
-            },
-            "$push": {
-                "history": {
-                    "at": timestamp,
-                    "action": "Case deleted",
-                    "by": display_name,
-                }
-            },
-        },
-        return_document=ReturnDocument.AFTER,
-    )
-    if not case:
+    if account.get("role") not in ("owner", "manager"):
         raise HTTPException(
-            status_code=409,
-            detail="The case changed before it could be deleted. Refresh and try again.",
+            status_code=403,
+            detail="Only managers can delete cases.",
         )
+    result = await db["cases"].delete_one({"_id": case_id})
+    if not result.deleted_count:
+        raise HTTPException(status_code=404, detail="Case not found.")
     return {"id": case_id, "deleted": True}
 
 

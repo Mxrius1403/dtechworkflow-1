@@ -9,7 +9,7 @@ import { Field, NativeSelect, Options } from "@/components/common/Field";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { useData } from "@/context/DataContext";
 import { attentionLabel, caseDepartment, scheduledKey, serviceLabel } from "@/lib/cases";
-import { removeReceivedCase, updateReceivedCase } from "@/lib/api";
+import { deleteReceivedCase, updateReceivedCase } from "@/lib/api";
 import { localInputValue, nice } from "@/lib/format";
 import { notify, notifyError } from "@/lib/notify";
 
@@ -25,7 +25,7 @@ function DetailBox({ c }) {
 }
 
 /** Manager correction dialog: status, department, technician and the real operational time. */
-export function CaseControlDialog({ c, onClose, onAttention, onOverdueReason }) {
+export function CaseControlDialog({ c, canDelete, onClose, onAttention, onOverdueReason }) {
   const { users, byId } = useData();
   const queryClient = useQueryClient();
   const techs = users.filter((u) => u.role === "technician" && u.active);
@@ -57,17 +57,17 @@ export function CaseControlDialog({ c, onClose, onAttention, onOverdueReason }) 
     }
   };
 
-  const remove = async () => {
+  const deleteCase = async () => {
     if (saving) return;
     setSaving(true);
     try {
-      await removeReceivedCase(c.id);
+      await deleteReceivedCase(c.id);
       await queryClient.invalidateQueries({ queryKey: ["data"] });
-      notify(`Case ${c.code} removed from the queue`);
+      notify(`Case ${c.code} deleted`);
       onClose();
     } catch (error) {
       const detail = error.response?.data?.detail;
-      notifyError(typeof detail === "string" ? detail : "Could not remove the case from the queue");
+      notifyError(typeof detail === "string" ? detail : "Could not delete the case");
     } finally {
       setSaving(false);
     }
@@ -111,9 +111,15 @@ export function CaseControlDialog({ c, onClose, onAttention, onOverdueReason }) 
           {c.overdue && c.technicianId && <Button variant="outline" size="sm" onClick={onOverdueReason} data-testid="case-overdue-reason-button">Overdue Reason</Button>}
         </div>
         <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
-          {["queue", "production"].includes(c.status) && (
-            <ConfirmAction title="Remove this case from the active queue?" description="Its history and reports will be preserved." confirmLabel="Remove" onConfirm={remove} testId="case-remove">
-              <Button variant="destructive" disabled={saving} data-testid="case-remove-button">Remove from Queue</Button>
+          {canDelete && (
+            <ConfirmAction
+              title={`Delete case ${c.code}?`}
+              description="This permanently deletes the case and its history. This action cannot be undone."
+              confirmLabel="Delete Case"
+              onConfirm={deleteCase}
+              testId="case-delete"
+            >
+              <Button variant="destructive" disabled={saving} data-testid="case-delete-button">Delete Case</Button>
             </ConfirmAction>
           )}
           <Button variant="outline" onClick={onClose} disabled={saving} data-testid="case-control-cancel">Cancel</Button>

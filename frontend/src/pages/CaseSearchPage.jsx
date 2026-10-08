@@ -13,6 +13,7 @@ import { Panel } from "@/components/common/Panel";
 import { CountPill, StatusBadge } from "@/components/common/StatusBadge";
 import { NOTE_LIMIT } from "@/config/constants";
 import { useData } from "@/context/DataContext";
+import { useSession } from "@/context/SessionContext";
 import { updateCaseAttention } from "@/lib/api";
 import { caseDepartment, caseSearchRows, departmentName } from "@/lib/cases";
 import { notify, notifyError } from "@/lib/notify";
@@ -91,6 +92,7 @@ function CaseSearchAttentionDialog({ c, onClose, onSave }) {
 
 export default function CaseSearchPage() {
   const { cases, techName } = useData();
+  const { user } = useSession();
   const { openOverdueReason } = useCaseDialogs();
   const queryClient = useQueryClient();
   const [query, setQuery] = useState("");
@@ -142,6 +144,7 @@ export default function CaseSearchPage() {
       {selectedCase && !attentionOpen && (
         <CaseControlDialog
           c={selectedCase}
+          canDelete={user?.isManager || user?.isOwner}
           onClose={() => setSelectedCaseId(null)}
           onAttention={() => setAttentionOpen(true)}
           onOverdueReason={() => openOverdueReason(selectedCase.id)}

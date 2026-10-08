@@ -10,9 +10,8 @@ import { Panel } from "@/components/common/Panel";
 import { ScanBar } from "@/components/common/ScanBar";
 import { DEPARTMENT_STYLE } from "@/config/statuses";
 import { useData } from "@/context/DataContext";
-import { useSession } from "@/context/SessionContext";
 import { DEPARTMENTS, caseDepartment, casePlace, departmentName, receivingOutcome, scheduledKey } from "@/lib/cases";
-import { createReceivedCase, deleteReceivedCase, restoreReceivedCase, updateCaseAttention, updateReceivedCase } from "@/lib/api";
+import { createReceivedCase, removeReceivedCase, restoreReceivedCase, updateCaseAttention, updateReceivedCase } from "@/lib/api";
 import { nice } from "@/lib/format";
 import { notify, notifyError } from "@/lib/notify";
 import { cn } from "@/lib/utils";
@@ -41,7 +40,6 @@ function ReceivingPrompt({ prompt, onClose, onConfirm, saving }) {
 
 export default function ReceivingPage() {
   const { cases } = useData();
-  const { user } = useSession();
   const queryClient = useQueryClient();
   const [prompt, setPrompt] = useState(null);
   const [draft, setDraft] = useState(null);
@@ -107,17 +105,17 @@ export default function ReceivingPage() {
       return false;
     }
   };
-  const removeCase = async (caseId) => {
+  const removeCaseFromQueue = async (caseId) => {
     try {
       const code = cases.find((caseItem) => caseItem.id === caseId)?.code || "";
-      await deleteReceivedCase(caseId);
+      await removeReceivedCase(caseId);
       await queryClient.invalidateQueries({ queryKey: ["data"] });
-      notify(`Case ${code} deleted`);
+      notify(`Case ${code} removed from the queue`);
       setSelectedCaseId(null);
       return true;
     } catch (error) {
       const detail = error.response?.data?.detail;
-      notifyError(typeof detail === "string" ? detail : "Could not delete the case");
+      notifyError(typeof detail === "string" ? detail : "Could not remove the case from the queue");
       return false;
     }
   };
@@ -155,11 +153,10 @@ export default function ReceivingPage() {
       {selectedCase && <ReceivingCaseDialog
         key={selectedCase.id}
         c={selectedCase}
-        canDelete={user.isManager || user.role === "technician"}
         onClose={() => setSelectedCaseId(null)}
         onSave={(changes) => updateCase(selectedCase.id, changes, updateReceivedCase)}
         onAttentionSave={(attention) => updateCase(selectedCase.id, attention, updateCaseAttention)}
-        onDelete={() => removeCase(selectedCase.id)}
+        onRemoveFromQueue={() => removeCaseFromQueue(selectedCase.id)}
       />}
     </div>
   );

@@ -16,7 +16,7 @@ const ATTENTION_LABELS = {
   need_information: "Need Information",
 };
 
-export function ReceivingCaseDialog({ c, canDelete, onClose, onSave, onAttentionSave, onDelete }) {
+export function ReceivingCaseDialog({ c, onClose, onSave, onAttentionSave, onRemoveFromQueue }) {
   const { users } = useData();
   const technicians = users.filter((user) => user.role === "technician" && !user.deleted);
   const [department, setDepartment] = useState(caseDepartment(c));
@@ -55,10 +55,10 @@ export function ReceivingCaseDialog({ c, canDelete, onClose, onSave, onAttention
     }
   };
 
-  const deleteCase = async () => {
+  const removeCaseFromQueue = async () => {
     setSaving(true);
     try {
-      await onDelete();
+      await onRemoveFromQueue();
     } finally {
       setSaving(false);
     }
@@ -144,16 +144,16 @@ export function ReceivingCaseDialog({ c, canDelete, onClose, onSave, onAttention
           <Button variant="outline" onClick={() => setAttentionOpen(true)} data-testid="receiving-change-attention">Change Attention Status</Button>
         </div>
         <DialogFooter>
-          {canDelete && (
+          {["queue", "production"].includes(c.status) && (
             <ConfirmAction
-              title={`Delete case ${c.code}?`}
-              description="The case will be hidden from active views. Its history will be retained."
-              confirmLabel="Delete Case"
-              onConfirm={deleteCase}
-              testId="receiving-case-delete"
+              title={`Remove case ${c.code} from the queue?`}
+              description="The case will no longer appear in Receiving, but its history and reports will be preserved."
+              confirmLabel="Remove from Queue"
+              onConfirm={removeCaseFromQueue}
+              testId="receiving-case-remove"
             >
-              <Button variant="destructive" disabled={saving} data-testid="receiving-case-delete-button">
-                <Trash2 /> Delete Case
+              <Button variant="destructive" disabled={saving} data-testid="receiving-case-remove-button">
+                <Trash2 /> Remove from Queue
               </Button>
             </ConfirmAction>
           )}

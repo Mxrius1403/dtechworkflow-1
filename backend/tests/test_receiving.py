@@ -35,6 +35,10 @@ class FakeCases:
     async def insert_one(self, document):
         self.documents[document["_id"]] = document
 
+    async def delete_one(self, query):
+        deleted = self.documents.pop(query["_id"], None)
+        return SimpleNamespace(deleted_count=1 if deleted else 0)
+
     async def update_many(self, query, update):
         modified_count = 0
         for document in self.documents.values():
@@ -274,7 +278,7 @@ def test_auto_removed_case_cannot_be_restored_from_receiving(receiving_db):
     assert receiving_db.documents["CASE-1"]["status"] == "removed"
 
 
-def test_delete_received_case_preserves_history_and_records_actor(receiving_db):
+def test_delete_received_case_permanently_removes_case(receiving_db):
     receiving_db.documents["CASE-1"] = {
         "_id": "CASE-1",
         "code": "RCV-1001",
@@ -290,15 +294,22 @@ def test_delete_received_case_preserves_history_and_records_actor(receiving_db):
     )
 
     assert result == {"id": "CASE-1", "deleted": True}
-    deleted = receiving_db.documents["CASE-1"]
-    assert deleted["deleted"] is True
-    assert deleted["deletedAt"] == "2026-10-06T12:00:00.000Z"
-    assert deleted["deletedById"] == "MGR0001"
-    assert deleted["history"][-1]["action"] == "Case deleted"
-    assert deleted["history"][-1]["by"] == "Manager"
+    assert "CASE-1" not in receiving_db.documents
 
 
-def test_technician_can_delete_received_case(receiving_db):
+def test_delete_received_case_returns_not_found_when_case_is_missing(receiving_db):
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(
+            receiving.delete_received_case(
+                "CASE-1",
+                {"_id": "MGR0001", "role": "manager", "name": "Manager"},
+            )
+        )
+
+    assert error.value.status_code == 404
+
+
+def test_technician_cannot_delete_received_case(receiving_db):
     receiving_db.documents["CASE-1"] = {
         "_id": "CASE-1",
         "code": "RCV-1001",
@@ -306,18 +317,17 @@ def test_technician_can_delete_received_case(receiving_db):
         "history": [],
     }
 
-    result = asyncio.run(
-        receiving.delete_received_case(
-            "CASE-1",
-            {"_id": "DT005", "role": "technician", "name": "Technician"},
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(
+            receiving.delete_received_case(
+                "CASE-1",
+                {"_id": "DT005", "role": "technician", "name": "Technician"},
+            )
         )
-    )
 
-    assert result == {"id": "CASE-1", "deleted": True}
-    deleted = receiving_db.documents["CASE-1"]
-    assert deleted["deleted"] is True
-    assert deleted["deletedById"] == "DT005"
-    assert deleted["history"][-1]["by"] == "Technician"
+    assert error.value.status_code == 403
+    assert receiving_db.documents["CASE-1"].get("deleted") is not True
+    assert receiving_db.documents["CASE-1"]["history"] == []
 
 
 def test_deleted_case_number_can_be_received_again(receiving_db):
