@@ -1,7 +1,6 @@
 import { addDays, today, weekdayOf } from "./format";
 
 export const ACTIVE_ROUTE_STATUSES = ["published", "started", "break"];
-export const isFourDigitCase = (code) => /^\d{4}$/.test(String(code).trim());
 export const isRouteCaseCode = (code) => /^[A-Za-z0-9._/-]{1,64}$/.test(String(code ?? "").trim());
 export const routeStops = (route, stopsById) => (route?.stopIds || []).map((id) => stopsById[id]).filter(Boolean);
 
