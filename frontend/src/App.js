@@ -12,7 +12,6 @@ import ClinicsPage from "@/pages/clinics/ClinicsPage";
 import CompletionReviewPage from "@/pages/CompletionReviewPage";
 import DashboardPage from "@/pages/dashboard/DashboardPage";
 import DriversPage from "@/pages/drivers/DriversPage";
-import LogisticsPage from "@/pages/logistics/LogisticsPage";
 import MaterialsPage from "@/pages/materials/MaterialsPage";
 import OrderMaterialsPage from "@/pages/materials/OrderMaterialsPage";
 import ProductManagementPage from "@/pages/materials/ProductManagementPage";
@@ -28,12 +27,14 @@ import ToothOrderPage from "@/pages/tooth/ToothOrderPage";
 import ToothManagementPage from "@/pages/tooth/ToothManagementPage";
 import ToothOrdersPage from "@/pages/tooth/ToothOrdersPage";
 import TrackingPage from "@/pages/tracking/TrackingPage";
+import { LogisticsLayout } from "@/pages/logistics/LogisticsLayout";
+import LogisticsPage from "@/pages/logistics/LogisticsPage";
+import RoutesPage from "@/pages/logistics/RoutesPage";
 
 // URL -> page component. Who may open each URL is defined in config/navigation.js.
 const SCREENS = [
   ["/dashboard", DashboardPage],
   ["/receiving", ReceivingPage],
-  ["/logistics", LogisticsPage],
   ["/drivers", DriversPage],
   ["/clinics", ClinicsPage],
   ["/suppliers", SuppliersPage],
@@ -87,6 +88,10 @@ export default function App() {
           <Route element={<ProtectedDataLayout />}>
             <Route path="/driver" element={<DriverArea />} />
             <Route element={<StaffArea />}>
+              <Route element={<LogisticsLayout />}>
+                <Route path="/logistics" element={<LogisticsPage />} />
+                <Route path="/routes" element={<RoutesPage />} />
+              </Route>
               {SCREENS.map(([path, Page]) => <Route key={path} path={path} element={<Guarded path={path} Page={Page} />} />)}
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />

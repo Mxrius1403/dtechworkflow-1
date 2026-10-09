@@ -40,6 +40,8 @@ test.each([
   }
   expect(canOpen(pageForPath("/logistics"), user)).toBe(true);
   expect(navItemsFor(user).some(({ path, label }) => path === "/logistics" && label === "Create Route")).toBe(true);
+  expect(canOpen(pageForPath("/routes"), user)).toBe(true);
+  expect(navItemsFor(user).some(({ path, label }) => path === "/routes" && label === "Routes")).toBe(true);
   for (const path of managerNavPages) {
     expect(navItemsFor(user).some(({ path: navPath }) => navPath === path)).toBe(true);
   }
@@ -56,6 +58,8 @@ test("technicians can see and open Create Route", () => {
   const technician = { isManager: false, isOwner: false };
   expect(canOpen(pageForPath("/logistics"), technician)).toBe(true);
   expect(navItemsFor(technician).some(({ path, label, icon }) => path === "/logistics" && label === "Create Route" && icon)).toBe(true);
+  expect(canOpen(pageForPath("/routes"), technician)).toBe(true);
+  expect(navItemsFor(technician).some(({ path, label }) => path === "/routes" && label === "Routes")).toBe(true);
   expect(navItemsFor(technician).some(({ path }) => path === "/tooth-order")).toBe(true);
   expect(navItemsFor(technician).some(({ path }) => path === "/owner-control")).toBe(false);
 });
