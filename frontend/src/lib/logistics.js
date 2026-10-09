@@ -34,7 +34,10 @@ export function groupStopsByClinic(stops) {
     if (!groups.has(stop.clinicId)) groups.set(stop.clinicId, []);
     groups.get(stop.clinicId).push(stop);
   }
-  return [...groups].map(([clinicId, clinicStops]) => ({ clinicId, stops: clinicStops }));
+  return [...groups].map(([clinicId, clinicStops]) => ({
+    clinicId,
+    stops: clinicStops.sort((a, b) => Number(Boolean(b.deliveries?.length)) - Number(Boolean(a.deliveries?.length))),
+  }));
 }
 
 export const readyKey = (c) => `${c.id}|${c.managerConfirmedAt}`;

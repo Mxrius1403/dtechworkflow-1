@@ -42,12 +42,12 @@ test("counts deliveries and collections at the same clinic as separate stops", (
   )).toBe(3);
 });
 
-test("groups every clinic's stops together while preserving stop order within each clinic", () => {
-  const delivery = { id: "S1", clinicId: "C1", deliveries: [{ caseNumber: "6366" }] };
+test("groups every clinic's stops together with deliveries before collections", () => {
+  const collection = { id: "S1", clinicId: "C1", collections: [{}] };
   const otherClinic = { id: "S2", clinicId: "C2", collections: [{}] };
-  const collection = { id: "S3", clinicId: "C1", collections: [{}] };
+  const delivery = { id: "S3", clinicId: "C1", deliveries: [{ caseNumber: "6366" }] };
 
-  expect(groupStopsByClinic([delivery, otherClinic, collection])).toEqual([
+  expect(groupStopsByClinic([collection, otherClinic, delivery])).toEqual([
     { clinicId: "C1", stops: [delivery, collection] },
     { clinicId: "C2", stops: [otherClinic] },
   ]);
