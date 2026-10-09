@@ -15,7 +15,7 @@ import { NOTE_LIMIT } from "@/config/constants";
 import { useData } from "@/context/DataContext";
 import { useSession } from "@/context/SessionContext";
 import { updateCaseAttention } from "@/lib/api";
-import { caseDepartment, caseSearchRows, departmentName } from "@/lib/cases";
+import { caseDepartment, caseSearchRows, deliveryStatusLabel, departmentName } from "@/lib/cases";
 import { notify, notifyError } from "@/lib/notify";
 
 const PAGE_SIZE = 25;
@@ -133,6 +133,7 @@ export default function CaseSearchPage() {
           { key: "code", header: "Case", render: (c) => <span className="font-mono font-bold">{c.code}</span> },
           { key: "department", header: "Department", render: (c) => departmentName(caseDepartment(c)) },
           { key: "status", header: "Status", render: (c) => <StatusBadge kind="case" value={c.deleted ? "deleted" : c.status} /> },
+          { key: "deliveryStatus", header: "Delivery Status", render: (c) => deliveryStatusLabel(c) },
           { key: "tech", header: "Technician", render: (c) => who(c.technicianId || c.finishedById, c.technician || c.finishedBy) },
           { key: "received", header: "Received", render: (c) => `${c.receivedDate || "-"} ${c.receivedTime || ""}` },
           { key: "started", header: "Started", render: (c) => c.startedTime || "-" },
