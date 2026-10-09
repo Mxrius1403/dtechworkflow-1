@@ -616,6 +616,12 @@ async def delete_route(route_id: str) -> dict:
         raise HTTPException(
             status_code=409, detail="A route that has started cannot be deleted."
         )
+    await remove_route(route)
+    return {"id": route_id, "deleted": True}
+
+
+async def remove_route(route: dict) -> None:
+    route_id = route["_id"]
     tokens = list(route.get("trackingTokens", {}).values())
     if tokens:
         await db[PUBLIC_TRACKING].update_many(
@@ -626,7 +632,6 @@ async def delete_route(route_id: str) -> dict:
     await db["tracking_emails"].delete_many({"routeId": route_id})
     await db["notifications"].delete_many({"routeId": route_id})
     await db["routes"].delete_one({"_id": route_id})
-    return {"id": route_id, "deleted": True}
 
 
 async def save_clinic(clinic_id: str | None, body: ClinicSave) -> dict:
@@ -786,6 +791,38 @@ async def create_driver(
             status_code=409, detail="Could not allocate a unique driver ID."
         )
     return BaseDocument.from_mongo(driver).to_api()
+
+
+@router.delete("/drivers/{driver_id}", dependencies=[MANAGERS])
+async def delete_driver(driver_id: str, force: bool = False) -> dict:
+    driver = await db["drivers"].find_one({"_id": driver_id})
+    if not driver:
+        raise HTTPException(status_code=404, detail="Driver not found.")
+    if driver.get("active") is not False:
+        raise HTTPException(
+            status_code=409, detail="Deactivate the driver before deleting."
+        )
+    open_routes = await db["routes"].find(
+        {"driverId": driver_id, "status": {"$nin": ["completed", "cancelled"]}}
+    ).to_list(length=None)
+    if open_routes and not force:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "driver_has_routes",
+                "routes": [
+                    {"id": r["_id"], "date": r.get("date"), "status": r.get("status")}
+                    for r in open_routes
+                ],
+            },
+        )
+    for route in open_routes:
+        await remove_route(route)
+    account = await db[AUTH_USERS].find_one({"_id": driver_id})
+    if account and account.get("role") == "driver":
+        await db[AUTH_USERS].delete_one({"_id": driver_id})
+    await db["drivers"].delete_one({"_id": driver_id})
+    return {"id": driver_id, "deleted": True, "deletedRoutes": len(open_routes)}
 
 
 @router.patch("/drivers/{driver_id}", dependencies=[MANAGERS])

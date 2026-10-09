@@ -51,6 +51,7 @@ export const createClinic = (clinic) => api.post("/clinics", clinic).then((r) =>
 export const updateClinic = (clinicId, clinic) => api.put(`/clinics/${clinicId}`, clinic).then((r) => r.data);
 export const importClinics = (clinics) => api.post("/clinics/import", { clinics }).then((r) => r.data);
 export const createDriver = (driver) => api.post("/drivers", driver).then((r) => r.data);
+export const deleteDriver = (driverId, force = false) => api.delete(`/drivers/${driverId}`, { params: { force } }).then((r) => r.data);
 export const updateDriver = (driverId, driver) => api.patch(`/drivers/${driverId}`, driver).then((r) => r.data);
 export const createSupplier = (supplier) => api.post("/suppliers", supplier).then((r) => r.data);
 export const updateSupplier = (supplierId, supplier) => api.patch(`/suppliers/${encodeURIComponent(supplierId)}`, supplier).then((r) => r.data);
