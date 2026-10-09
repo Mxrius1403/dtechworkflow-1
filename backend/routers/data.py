@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime, timedelta, timezone
 
 from core.collections import AUTH_USERS, PUBLIC_COLLECTIONS, SETTINGS
 from core.database import db
@@ -85,9 +86,26 @@ def driver_payload(payload: dict, account: dict) -> dict:
     return {name: scoped.get(name, []) for name in payload}
 
 
+ROUTE_ARCHIVE_AFTER = timedelta(days=10)
+
+
+async def archive_stale_routes() -> None:
+    now = datetime.now(timezone.utc)
+    cutoff = (now - ROUTE_ARCHIVE_AFTER).isoformat()
+    await db["routes"].update_many(
+        {
+            "status": "completed",
+            "archived": {"$ne": True},
+            "completedAt": {"$lte": cutoff},
+        },
+        {"$set": {"archived": True, "archivedAt": now.isoformat()}},
+    )
+
+
 @router.get("")
 async def all_data(account: dict = Depends(current_account)) -> dict:
     """Everything the authenticated app screens need."""
+    await archive_stale_routes()
     names = list(PUBLIC_COLLECTIONS.items())
     include_login_email = account.get("role") in ("owner", "manager")
     rows = await asyncio.gather(

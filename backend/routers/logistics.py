@@ -708,6 +708,23 @@ async def finish_route(
     return {"id": route_id, "status": "completed"}
 
 
+@router.post("/routes/{route_id}/archive", dependencies=[MANAGERS])
+async def archive_route(route_id: str) -> dict:
+    route = await db["routes"].find_one({"_id": route_id})
+    if not route:
+        raise HTTPException(status_code=404, detail="Route not found.")
+    if route.get("status") != "completed":
+        raise HTTPException(
+            status_code=409, detail="Only a completed route can be archived."
+        )
+    timestamp = now_iso()
+    await db["routes"].update_one(
+        {"_id": route_id},
+        {"$set": {"archived": True, "archivedAt": timestamp, "updatedAt": timestamp}},
+    )
+    return {"id": route_id, "archived": True}
+
+
 @router.post("/routes/{route_id}/reassign-unfinished", dependencies=[MANAGERS])
 async def reassign_unfinished_stops(
     route_id: str,

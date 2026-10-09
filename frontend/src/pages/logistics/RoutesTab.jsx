@@ -11,7 +11,11 @@ import { RouteDialog } from "./RouteDialog";
 export function RoutesTab() {
   const { routes, byId } = useData();
   const [openId, setOpenId] = useState(null);
-  const routesByDate = routes.reduce((groups, route) => {
+  const activeRoutes = routes.filter((r) => !r.archived);
+  const archivedRoutes = routes
+    .filter((r) => r.archived)
+    .sort((a, b) => String(b.archivedAt).localeCompare(String(a.archivedAt)));
+  const routesByDate = activeRoutes.reduce((groups, route) => {
     (groups[route.date] ||= []).push(route);
     return groups;
   }, {});
@@ -41,6 +45,12 @@ export function RoutesTab() {
             <DataTable rows={routesByDate[date].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))} rowTestId={(r) => `route-row-${r.id}`} columns={columns} />
           </section>
         ))}
+      </div>
+      <div className="mt-8 grid gap-3" data-testid="routes-archive">
+        <h3 className="text-sm font-semibold text-primary">Archive</h3>
+        <p className="text-xs text-muted-foreground">Completed routes archived by a manager, or automatically 10 days after completion.</p>
+        {!archivedRoutes.length && <p className="py-4 text-center text-sm text-muted-foreground">No archived routes.</p>}
+        {!!archivedRoutes.length && <DataTable rows={archivedRoutes} rowTestId={(r) => `archived-route-row-${r.id}`} columns={[{ key: "date", header: "Date", render: (r) => nice(r.date) }, ...columns]} />}
       </div>
       {openId && byId.routes[openId] && <RouteDialog route={byId.routes[openId]} onClose={() => setOpenId(null)} />}
     </Panel>
