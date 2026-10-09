@@ -503,7 +503,7 @@ async def transfer_route_stop(
     stop = await db["stops"].find_one({"_id": stop_id, "routeId": route_id})
     if not source or not stop:
         raise HTTPException(status_code=404, detail="Route stop not found.")
-    if stop.get("status") == "completed" or stop.get("arrived"):
+    if stop.get("status") in ("arrived", "completed") or stop.get("arrived"):
         raise HTTPException(
             status_code=409,
             detail="An arrived or completed stop cannot be transferred.",
@@ -605,6 +605,60 @@ async def transfer_route_stop(
     return BaseDocument.from_mongo(
         await db["routes"].find_one({"_id": target["_id"]})
     ).to_api()
+
+
+@router.delete(
+    "/routes/{route_id}/stops/{stop_id}", dependencies=[MANAGERS]
+)
+async def delete_route_stop(route_id: str, stop_id: str) -> dict:
+    route = await db["routes"].find_one({"_id": route_id})
+    stop = await db["stops"].find_one({"_id": stop_id, "routeId": route_id})
+    if not route or not stop:
+        raise HTTPException(status_code=404, detail="Route stop not found.")
+    if route.get("status") not in ("published", "started", "break"):
+        raise HTTPException(
+            status_code=409, detail="This route can no longer be changed."
+        )
+    if stop.get("status") in ("arrived", "completed") or stop.get("arrived"):
+        raise HTTPException(
+            status_code=409,
+            detail="An arrived or completed stop cannot be deleted.",
+        )
+
+    route["stopIds"] = [
+        assigned_id for assigned_id in route["stopIds"] if assigned_id != stop_id
+    ]
+    route["totalStops"] = len(route["stopIds"])
+    route["updatedAt"] = now_iso()
+    token = route.get("trackingTokens", {}).pop(stop_id, None)
+    await db["routes"].update_one(
+        {"_id": route_id},
+        {
+            "$set": {
+                "stopIds": route["stopIds"],
+                "totalStops": route["totalStops"],
+                "updatedAt": route["updatedAt"],
+            },
+            "$unset": {f"trackingTokens.{stop_id}": ""},
+        },
+    )
+    await db["stops"].delete_one({"_id": stop_id, "routeId": route_id})
+    if token:
+        await db[PUBLIC_TRACKING].update_one(
+            {"_id": token}, {"$set": {"active": False}}
+        )
+    remaining_tokens = list(route.get("trackingTokens", {}).values())
+    if remaining_tokens:
+        await db[PUBLIC_TRACKING].update_many(
+            {"_id": {"$in": remaining_tokens}},
+            {"$set": {"totalStops": route["totalStops"]}},
+        )
+    await db["tracking_emails"].delete_many(
+        {"routeId": route_id, "stopId": stop_id}
+    )
+    await db["notifications"].delete_many({"routeId": route_id, "stopId": stop_id})
+    await db["route_plans"].delete_many({"_id": route_id})
+    return {"id": stop_id, "routeId": route_id, "deleted": True}
 
 
 @router.delete("/routes/{route_id}", dependencies=[MANAGERS])

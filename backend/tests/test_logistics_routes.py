@@ -164,6 +164,81 @@ def test_transfer_route_stop_uses_requested_date_for_same_driver(monkeypatch):
         raise AssertionError("Expected the route lookup to stop the test")
 
 
+def test_delete_route_stop_removes_stop_and_disables_tracking(monkeypatch):
+    stop_id = "R20261008-001-S001"
+    token = "a" * 48
+    route = {
+        "_id": "R20261008-001",
+        "status": "published",
+        "stopIds": [stop_id, "R20261008-001-S002"],
+        "trackingTokens": {stop_id: token, "R20261008-001-S002": "b" * 48},
+    }
+    stop = {"_id": stop_id, "routeId": route["_id"], "status": "pending"}
+    calls = []
+
+    class FakeCollection:
+        def __init__(self, name):
+            self.name = name
+
+        async def find_one(self, query):
+            if self.name == "routes":
+                return route
+            if self.name == "stops":
+                assert query == {"_id": stop_id, "routeId": route["_id"]}
+                return stop
+            raise AssertionError(f"Unexpected find_one on {self.name}")
+
+        async def update_one(self, query, update):
+            calls.append((self.name, "update_one", query, update))
+
+        async def update_many(self, query, update):
+            calls.append((self.name, "update_many", query, update))
+
+        async def delete_one(self, query):
+            calls.append((self.name, "delete_one", query))
+
+        async def delete_many(self, query):
+            calls.append((self.name, "delete_many", query))
+
+    class FakeDatabase:
+        def __getitem__(self, name):
+            return FakeCollection(name)
+
+    monkeypatch.setattr(logistics, "db", FakeDatabase())
+    monkeypatch.setattr(logistics, "now_iso", lambda: "2026-10-08T12:00:00+00:00")
+
+    result = asyncio.run(logistics.delete_route_stop(route["_id"], stop_id))
+
+    assert result == {"id": stop_id, "routeId": route["_id"], "deleted": True}
+    assert route["stopIds"] == ["R20261008-001-S002"]
+    assert route["totalStops"] == 1
+    assert route["trackingTokens"] == {"R20261008-001-S002": "b" * 48}
+    assert ("stops", "delete_one", {"_id": stop_id, "routeId": route["_id"]}) in calls
+    assert (
+        "public_tracking",
+        "update_one",
+        {"_id": token},
+        {"$set": {"active": False}},
+    ) in calls
+    assert (
+        "public_tracking",
+        "update_many",
+        {"_id": {"$in": ["b" * 48]}},
+        {"$set": {"totalStops": 1}},
+    ) in calls
+    assert (
+        "tracking_emails",
+        "delete_many",
+        {"routeId": route["_id"], "stopId": stop_id},
+    ) in calls
+    assert (
+        "notifications",
+        "delete_many",
+        {"routeId": route["_id"], "stopId": stop_id},
+    ) in calls
+    assert ("route_plans", "delete_many", {"_id": route["_id"]}) in calls
+
+
 def test_get_or_create_route_creates_route_for_requested_driver_and_date(monkeypatch):
     requested_date = "2026-10-12"
     created = {"_id": "R20261012-001"}
