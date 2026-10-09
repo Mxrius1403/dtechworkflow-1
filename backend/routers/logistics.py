@@ -54,6 +54,7 @@ class StopCreate(BaseModel):
 
 class StopTransfer(BaseModel):
     driverId: str = Field(min_length=1, max_length=100)
+    routeDate: date | None = None
 
 
 class ClinicSave(BaseModel):
@@ -514,9 +515,12 @@ async def transfer_route_stop(
             detail="This stop has no active tracking link and cannot be transferred.",
         )
     driver = await active_driver(body.driverId)
-    if body.driverId == source["driverId"]:
-        raise HTTPException(status_code=422, detail="Choose a different driver.")
-    target = await get_or_create_route(source["date"], driver, creator)
+    route_date = (body.routeDate or date.fromisoformat(source["date"])).isoformat()
+    if body.driverId == source["driverId"] and route_date == source["date"]:
+        raise HTTPException(
+            status_code=422, detail="Choose a different driver or route date."
+        )
+    target = await get_or_create_route(route_date, driver, creator)
     source["stopIds"] = [sid for sid in source["stopIds"] if sid != stop_id]
     source["totalStops"] = len(source["stopIds"])
     source["updatedAt"] = now_iso()

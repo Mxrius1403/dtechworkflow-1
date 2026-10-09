@@ -3,7 +3,7 @@ from datetime import date
 from types import SimpleNamespace
 
 from routers import logistics
-from routers.logistics import DeliveryInput, RouteCreate
+from routers.logistics import DeliveryInput, RouteCreate, StopTransfer
 
 
 class FakeCollection:
@@ -107,3 +107,91 @@ def test_tracking_record_uses_mongo_document_ids():
     assert record["routeId"] == route["_id"]
     assert record["stopId"] == stop["_id"]
     assert record["stopsRemaining"] == 0
+
+
+def test_transfer_route_stop_uses_requested_date_for_same_driver(monkeypatch):
+    route_date = "2026-10-12"
+    source = {
+        "_id": "R20261008-001",
+        "date": "2026-10-08",
+        "driverId": "D1",
+        "trackingTokens": {"R20261008-001-S001": "a" * 48},
+    }
+    stop = {
+        "_id": "R20261008-001-S001",
+        "routeId": source["_id"],
+        "status": "pending",
+    }
+
+    class FakeCollection:
+        def __init__(self, name):
+            self.name = name
+
+        async def find_one(self, query):
+            if self.name == "routes":
+                return source
+            if self.name == "stops":
+                return stop
+            raise AssertionError(f"Unexpected collection: {self.name}")
+
+    class FakeDatabase:
+        def __getitem__(self, name):
+            return FakeCollection(name)
+
+    async def active_driver(_driver_id):
+        return {"_id": "D1"}
+
+    async def get_or_create_route(requested_date, _driver, _creator):
+        assert requested_date == route_date
+        raise RuntimeError("Stop after verifying the selected destination date")
+
+    monkeypatch.setattr(logistics, "db", FakeDatabase())
+    monkeypatch.setattr(logistics, "active_driver", active_driver)
+    monkeypatch.setattr(logistics, "get_or_create_route", get_or_create_route)
+
+    try:
+        asyncio.run(
+            logistics.transfer_route_stop(
+                source["_id"],
+                stop["_id"],
+                StopTransfer(driverId="D1", routeDate=date.fromisoformat(route_date)),
+                {"_id": "manager-1"},
+            )
+        )
+    except RuntimeError as error:
+        assert str(error) == "Stop after verifying the selected destination date"
+    else:
+        raise AssertionError("Expected the route lookup to stop the test")
+
+
+def test_get_or_create_route_creates_route_for_requested_driver_and_date(monkeypatch):
+    requested_date = "2026-10-12"
+    created = {"_id": "R20261012-001"}
+    requested = {}
+
+    class FakeRoutes:
+        async def find_one(self, _query):
+            return None
+
+    class FakeDatabase:
+        def __getitem__(self, name):
+            assert name == "routes"
+            return FakeRoutes()
+
+    async def new_route(route_date, driver, creator):
+        requested.update(date=route_date, driver=driver, creator=creator)
+        return created
+
+    driver = {"_id": "D1"}
+    creator = {"_id": "manager-1"}
+    monkeypatch.setattr(logistics, "db", FakeDatabase())
+    monkeypatch.setattr(logistics, "new_route", new_route)
+
+    result = asyncio.run(logistics.get_or_create_route(requested_date, driver, creator))
+
+    assert result is created
+    assert requested == {
+        "date": requested_date,
+        "driver": driver,
+        "creator": creator,
+    }

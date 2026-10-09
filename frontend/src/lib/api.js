@@ -45,7 +45,7 @@ export const updateMaterialOrderStatus = (orderId, status) => api.patch(`/materi
 export const deleteMaterialOrder = (orderId) => api.delete(`/material-orders/${encodeURIComponent(orderId)}`).then((r) => r.data);
 export const createLogisticsRoute = (route) => api.post("/routes", route).then((r) => r.data);
 export const addRouteStop = (routeId, stop) => api.post(`/routes/${routeId}/stops`, stop).then((r) => r.data);
-export const transferRouteStop = (routeId, stopId, driverId) => api.patch(`/routes/${routeId}/stops/${stopId}/transfer`, { driverId }).then((r) => r.data);
+export const transferRouteStop = (routeId, stopId, driverId, routeDate) => api.patch(`/routes/${routeId}/stops/${stopId}/transfer`, { driverId, routeDate }).then((r) => r.data);
 export const deleteLogisticsRoute = (routeId) => api.delete(`/routes/${routeId}`).then((r) => r.data);
 export const createClinic = (clinic) => api.post("/clinics", clinic).then((r) => r.data);
 export const updateClinic = (clinicId, clinic) => api.put(`/clinics/${clinicId}`, clinic).then((r) => r.data);
