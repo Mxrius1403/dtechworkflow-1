@@ -94,6 +94,7 @@ def public_account(account: dict[str, Any]) -> dict[str, Any]:
         "active": account["active"],
         "isOwner": account["role"] == "owner",
         "isManager": account["role"] in ("owner", "manager"),
+        "isDriver": account["role"] == "driver",
     }
 
 

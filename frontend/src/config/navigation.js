@@ -3,8 +3,9 @@ import {
 } from "lucide-react";
 
 const manager = (u) => u.isManager || u.isOwner;
-const technician = (u) => !manager(u);
-const always = () => true;
+const driver = (u) => Boolean(u.isDriver);
+const technician = (u) => !manager(u) && !driver(u);
+const always = (u) => !driver(u);
 const materialsLabel = (u) => (manager(u) ? "Material Management" : "Order Materials");
 
 /**
@@ -14,9 +15,9 @@ const materialsLabel = (u) => (manager(u) ? "Material Management" : "Order Mater
  */
 export const PAGES = [
   { path: "/owner-control", label: "Ownership & Managers", icon: KeyRound, access: (u) => u.isOwner, nav: (u) => u.isOwner },
-  { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard, nav: always },
+  { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard, access: always, nav: always },
   { path: "/receiving", label: "Receiving", title: "Receiving Station", icon: Inbox, access: always, nav: always },
-  { path: "/routes", label: "Routes", icon: MapPin, access: always },
+  { path: "/routes", label: "Routes", icon: MapPin, access: () => true, nav: driver },
   { path: "/logistics", label: "Create Route", icon: Route, access: manager },
   { path: "/drivers", label: "Drivers", icon: Car, access: manager },
   { path: "/clinics", label: "Clinics", icon: Building2, access: manager },
@@ -29,13 +30,15 @@ export const PAGES = [
   { path: "/materials/requests", label: "Material Order Requests", icon: ClipboardList, access: manager },
   { path: "/materials/products", label: "Product Management", icon: Boxes, access: manager },
   { path: "/materials/order", label: "Order Materials", icon: ShoppingCart, access: manager },
-  { path: "/materials", label: materialsLabel, icon: Package, nav: always, activePaths: ["/suppliers"] },
+  { path: "/materials", label: materialsLabel, icon: Package, access: always, nav: always, activePaths: ["/suppliers"] },
   { path: "/technicians", label: "Technicians", icon: Users, access: manager, nav: manager },
   { path: "/reports", label: "Reports", icon: BarChart3, access: manager, nav: manager },
   { path: "/completion-review", label: "Completion Review", access: manager },
   { path: "/attention", label: "Cases Needing Attention", access: manager },
   { path: "/calendar", label: "Production Calendar", access: manager },
 ];
+
+export const homePath = (user) => (user?.isDriver ? "/routes" : "/dashboard");
 
 const resolve = (value, user) => (typeof value === "function" ? value(user) : value);
 

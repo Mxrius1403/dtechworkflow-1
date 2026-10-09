@@ -61,6 +61,20 @@ def visible_material_orders(rows: list[dict], account: dict) -> list[dict]:
     return [order for order in rows if order.get("requestedById") == account_id]
 
 
+def driver_payload(payload: dict, account: dict) -> dict:
+    account_id = str(account["_id"])
+    routes = [r for r in payload["routes"] if r.get("driverId") == account_id]
+    route_ids = {r["id"] for r in routes}
+    scoped = {
+        "drivers": [d for d in payload["drivers"] if d["id"] == account_id],
+        "clinics": payload["clinics"],
+        "routes": routes,
+        "stops": [s for s in payload["stops"] if s.get("routeId") in route_ids],
+        "routePlans": [p for p in payload["routePlans"] if p.get("routeId") in route_ids],
+    }
+    return {name: scoped.get(name, []) for name in payload}
+
+
 @router.get("")
 async def all_data(account: dict = Depends(current_account)) -> dict:
     """Everything the authenticated app screens need."""
@@ -73,6 +87,8 @@ async def all_data(account: dict = Depends(current_account)) -> dict:
         )
     )
     payload = {api_name: items for (api_name, _), items in zip(names, rows)}
+    if account.get("role") == "driver":
+        payload = driver_payload(payload, account)
     payload["materialOrders"] = visible_material_orders(
         payload["materialOrders"], account
     )
@@ -90,6 +106,8 @@ async def one_collection(name: str, account: dict = Depends(current_account)):
         PUBLIC_COLLECTIONS[name],
         include_login_email=account.get("role") in ("owner", "manager"),
     )
+    if account.get("role") == "driver":
+        return (await all_data(account))[name]
     if name == "materialOrders":
         return visible_material_orders(rows, account)
     return rows

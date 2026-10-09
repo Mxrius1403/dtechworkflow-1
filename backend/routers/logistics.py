@@ -6,6 +6,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Literal
 
 from core.collections import (
+    AUTH_USERS,
     CLINIC_CONTACTS,
     PUBLIC_TRACKING,
     SETTINGS,
@@ -13,9 +14,10 @@ from core.collections import (
 from core.clinic_contacts import decrypt_contact_fields, encrypt_contact_fields
 from core.database import db
 from core.models import BaseDocument
-from core.security import current_account, require_roles
+from core.security import current_account, hash_password, require_roles
+from email_validator import EmailNotValidError, validate_email
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 from pymongo import ReturnDocument
 from pymongo.errors import DuplicateKeyError
 
@@ -77,9 +79,39 @@ class ClinicImport(BaseModel):
     clinics: list[ClinicSave] = Field(min_length=1, max_length=1000)
 
 
-class DriverSave(BaseModel):
+class DriverCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     name: str = Field(min_length=1, max_length=100)
+    email: EmailStr
+    password: str = Field(min_length=12, max_length=72)
     active: bool = True
+
+
+class DriverSave(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=100)
+    email: EmailStr | None = None
+    password: str | None = Field(default=None, min_length=12, max_length=72)
+    active: bool = True
+
+
+def normalized_email(value: str) -> str:
+    try:
+        return validate_email(value, check_deliverability=False).normalized.lower()
+    except EmailNotValidError as error:
+        raise HTTPException(
+            status_code=422, detail="Enter a valid email address."
+        ) from error
+
+
+def check_password_bytes(password: str) -> None:
+    if len(password.encode("utf-8")) > 72:
+        raise HTTPException(
+            status_code=422,
+            detail="Password must be no longer than 72 UTF-8 bytes.",
+        )
 
 
 def now_iso() -> str:
@@ -694,24 +726,57 @@ async def import_clinics(body: ClinicImport) -> dict:
     return {"clinics": imported}
 
 
-@router.post("/drivers", status_code=status.HTTP_201_CREATED, dependencies=[MANAGERS])
-async def create_driver(body: DriverSave) -> dict:
+@router.post("/drivers", status_code=status.HTTP_201_CREATED)
+async def create_driver(
+    body: DriverCreate,
+    creator: dict = Depends(require_roles("owner", "manager")),
+) -> dict:
     name = body.name.strip()
     if not name:
         raise HTTPException(status_code=422, detail="Enter a driver name.")
+    check_password_bytes(body.password)
+    email = normalized_email(str(body.email))
+    if await db[AUTH_USERS].find_one({"email": email}):
+        raise HTTPException(
+            status_code=409, detail="An account with this email already exists."
+        )
+    password_hash = hash_password(body.password)
     for _ in range(3):
         driver_id = await allocate_entity_id("drivers", "nextDriverNumber", "D")
+        if await db[AUTH_USERS].find_one({"_id": driver_id}):
+            continue
         driver = {
             "_id": driver_id,
             "uid": f"u-{driver_id.lower()}",
             "name": name,
             "active": body.active,
         }
+        account = {
+            "_id": driver_id,
+            "name": name,
+            "email": email,
+            "passwordHash": password_hash,
+            "role": "driver",
+            "active": body.active,
+            "authVersion": 0,
+            "createdAt": now_iso(),
+            "createdBy": str(creator["_id"]),
+        }
+        try:
+            await db[AUTH_USERS].insert_one(account)
+        except DuplicateKeyError:
+            if await db[AUTH_USERS].find_one({"email": email}):
+                raise HTTPException(
+                    status_code=409,
+                    detail="An account with this email already exists.",
+                )
+            continue
         try:
             await db["drivers"].insert_one(driver)
-            break
         except DuplicateKeyError:
+            await db[AUTH_USERS].delete_one({"_id": driver_id})
             continue
+        break
     else:
         raise HTTPException(
             status_code=409, detail="Could not allocate a unique driver ID."
@@ -724,11 +789,58 @@ async def update_driver(driver_id: str, body: DriverSave) -> dict:
     name = body.name.strip()
     if not name:
         raise HTTPException(status_code=422, detail="Enter a driver name.")
-    result = await db["drivers"].update_one(
+    if body.password:
+        check_password_bytes(body.password)
+    driver = await db["drivers"].find_one({"_id": driver_id})
+    if not driver:
+        raise HTTPException(status_code=404, detail="Driver not found.")
+    account = await db[AUTH_USERS].find_one({"_id": driver_id})
+    if account and account.get("role") != "driver":
+        raise HTTPException(status_code=409, detail="Driver account is invalid.")
+
+    email = normalized_email(str(body.email)) if body.email else None
+    if email:
+        other = await db[AUTH_USERS].find_one({"email": email})
+        if other and other["_id"] != driver_id:
+            raise HTTPException(
+                status_code=409, detail="An account with this email already exists."
+            )
+    if account:
+        changes = {"name": name, "active": body.active}
+        if email:
+            changes["email"] = email
+        if body.password:
+            changes["passwordHash"] = hash_password(body.password)
+        update = {"$set": changes}
+        if body.password or not body.active or (email and email != account.get("email")):
+            update["$inc"] = {"authVersion": 1}
+        try:
+            await db[AUTH_USERS].update_one({"_id": driver_id}, update)
+        except DuplicateKeyError as error:
+            raise HTTPException(
+                status_code=409, detail="An account with this email already exists."
+            ) from error
+    elif email and body.password:
+        try:
+            await db[AUTH_USERS].insert_one(
+                {
+                    "_id": driver_id,
+                    "name": name,
+                    "email": email,
+                    "passwordHash": hash_password(body.password),
+                    "role": "driver",
+                    "active": body.active,
+                    "authVersion": 0,
+                    "createdAt": now_iso(),
+                }
+            )
+        except DuplicateKeyError as error:
+            raise HTTPException(
+                status_code=409, detail="An account with this email already exists."
+            ) from error
+    await db["drivers"].update_one(
         {"_id": driver_id}, {"$set": {"name": name, "active": body.active}}
     )
-    if result.matched_count != 1:
-        raise HTTPException(status_code=404, detail="Driver not found.")
     return BaseDocument.from_mongo(
         await db["drivers"].find_one({"_id": driver_id})
     ).to_api()

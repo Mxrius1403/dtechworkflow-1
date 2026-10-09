@@ -3,7 +3,7 @@ import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom
 import { Toaster } from "@/components/ui/sonner";
 import { AppShell } from "@/components/layout/AppShell";
 import { FullScreenMessage } from "@/components/common/FullScreenMessage";
-import { canOpen, pageForPath } from "@/config/navigation";
+import { canOpen, homePath, pageForPath } from "@/config/navigation";
 import { DataProvider } from "@/context/DataContext";
 import { SessionProvider, useSession } from "@/context/SessionContext";
 import AttentionPage from "@/pages/AttentionPage";
@@ -64,7 +64,8 @@ function StaffArea() {
 }
 
 function DriverArea() {
-  return <Navigate to="/dashboard" replace />;
+  const { user } = useSession();
+  return <Navigate to={homePath(user)} replace />;
 }
 
 function ProtectedDataLayout() {
@@ -77,7 +78,7 @@ function ProtectedDataLayout() {
 
 function Guarded({ path, Page }) {
   const { user } = useSession();
-  return canOpen(pageForPath(path), user) ? <Page /> : <Navigate to="/dashboard" replace />;
+  return canOpen(pageForPath(path), user) ? <Page /> : <Navigate to={homePath(user)} replace />;
 }
 
 export default function App() {
@@ -91,8 +92,8 @@ export default function App() {
             <Route path="/driver" element={<DriverArea />} />
             <Route element={<StaffArea />}>
               <Route element={<LogisticsLayout />}>
-                <Route path="/logistics" element={<LogisticsPage />} />
-                <Route path="/routes" element={<RoutesPage />} />
+                <Route path="/logistics" element={<Guarded path="/logistics" Page={LogisticsPage} />} />
+                <Route path="/routes" element={<Guarded path="/routes" Page={RoutesPage} />} />
               </Route>
               {SCREENS.map(([path, Page]) => <Route key={path} path={path} element={<Guarded path={path} Page={Page} />} />)}
             </Route>

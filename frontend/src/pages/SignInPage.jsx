@@ -6,6 +6,7 @@ import { FullScreenMessage } from "@/components/common/FullScreenMessage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { APP_NAME, LOGO } from "@/config/constants";
+import { homePath } from "@/config/navigation";
 import { useSession } from "@/context/SessionContext";
 
 export default function SignInPage() {
@@ -20,7 +21,7 @@ export default function SignInPage() {
 
   if (loading) return <FullScreenMessage title="Dental Tech Daily" text="Checking your sign-in…" loading />;
   if (sessionError) return <FullScreenMessage title="Sign-in unavailable" text="The authentication service could not be reached. Check the connection and retry." action={{ label: "Retry", onClick: () => window.location.reload() }} />;
-  if (user) return <Navigate to="/dashboard" replace />;
+  if (user) return <Navigate to={homePath(user)} replace />;
 
   const submit = async (event) => {
     event.preventDefault();

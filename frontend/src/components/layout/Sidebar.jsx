@@ -5,7 +5,7 @@ import { isNavItemActive, navItemsFor } from "@/config/navigation";
 import { useSession } from "@/context/SessionContext";
 import { cn } from "@/lib/utils";
 
-const roleName = (u) => (u.isOwner ? "Owner" : u.isManager ? "Manager" : "Technician");
+const roleName = (u) => (u.isOwner ? "Owner" : u.isManager ? "Manager" : u.isDriver ? "Driver" : "Technician");
 
 export function Sidebar({ onNavigate }) {
   const { user, signOut } = useSession();

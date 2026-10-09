@@ -15,27 +15,32 @@ export function StaffDialog({ kind, person, nextId, onClose }) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState({ name: person?.name || "", email: person?.email || "", password: "", active: person ? String(person.active) : "true" });
   const [saving, setSaving] = useState(false);
-  const needsLogin = kind !== "driver";
+  const needsLogin = true;
   const set = (key) => (e) => setForm((current) => ({ ...current, [key]: e.target.value }));
   const save = async () => {
     if (!form.name.trim()) return notifyError("Enter a name");
-    if (needsLogin && !isEmail(form.email.trim())) {
+    if (needsLogin && !(kind === "driver" && person && !form.email.trim()) && !isEmail(form.email.trim())) {
       return notifyError("Enter a valid email address");
     }
     if (needsLogin && !person && form.password.length < 12) {
       return notifyError("Enter a valid email and a temporary password of at least 12 characters");
     }
-    if ((kind === "technician" || kind === "manager") && person && form.password && form.password.length < 12) {
+    if (person && form.password && form.password.length < 12) {
       return notifyError("New password must be at least 12 characters");
     }
     if (kind === "driver") {
       setSaving(true);
       try {
-        const details = { name: form.name.trim(), active: form.active === "true" };
+        const details = {
+          name: form.name.trim(),
+          ...(form.email.trim() ? { email: form.email.trim() } : {}),
+          active: form.active === "true",
+          ...(form.password ? { password: form.password } : {}),
+        };
         if (person) await updateDriver(person.id, details);
         else await createDriver(details);
         await queryClient.invalidateQueries({ queryKey: ["data"] });
-        notify(`Driver ${person ? "saved" : "added"}`);
+        notify(`Driver ${person ? "saved" : "account created"}`);
         onClose();
       } catch (error) {
         const detail = error.response?.data?.detail;

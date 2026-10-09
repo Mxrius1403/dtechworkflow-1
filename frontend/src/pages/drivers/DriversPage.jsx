@@ -17,7 +17,7 @@ export default function DriversPage() {
       <BackLink to="/delivery-management">Delivery Management</BackLink>
       <Panel
         title="Drivers"
-        description="Driver passwords and emails are handled by the sign-in provider; they are never stored in plain text in the database."
+        description="Drivers sign in with their own account and only see the routes assigned to them."
         actions={<Button onClick={() => setEditing({})} data-testid="driver-add-button"><Plus /> Add Driver</Button>}
       >
         <DataTable testId="drivers-table" rows={rows} rowTestId={(d) => `driver-row-${d.id}`} empty="No drivers yet." columns={[
