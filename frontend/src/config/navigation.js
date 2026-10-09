@@ -17,7 +17,7 @@ export const PAGES = [
   { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard, nav: always },
   { path: "/receiving", label: "Receiving", title: "Receiving Station", icon: Inbox, access: always, nav: always },
   { path: "/routes", label: "Routes", icon: MapPin, access: always, nav: always },
-  { path: "/logistics", label: "Create Route", icon: Route, access: always, nav: always },
+  { path: "/logistics", label: "Create Route", icon: Route, access: manager, nav: manager },
   { path: "/drivers", label: "Drivers", icon: Car, access: manager, nav: manager },
   { path: "/clinics", label: "Clinics", icon: Building2, access: manager, nav: manager },
   { path: "/suppliers", label: "Suppliers", icon: Store, access: manager },
