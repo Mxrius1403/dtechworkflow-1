@@ -5,7 +5,7 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { useData } from "@/context/DataContext";
 import { ACTIVE_ROUTE_STATUSES, stopJobs } from "@/lib/logistics";
 
-export function RouteStopRow({ index, route, stop, deleting, onTransfer, onDelete }) {
+export function RouteStopRow({ index, route, stop, deleting, onTransfer, onDelete, readOnly = false }) {
   const { byId } = useData();
   const clinic = byId.clinics[stop.clinicId] || {};
   const transferable = !["arrived", "completed"].includes(stop.status) && !stop.arrived;
@@ -22,7 +22,7 @@ export function RouteStopRow({ index, route, stop, deleting, onTransfer, onDelet
             {clinic.eircode} <StatusBadge kind="stop" value={stop.status} testId={`stop-status-${stop.id}`} />
           </p>
         </div>
-        <div className="ml-auto flex flex-wrap justify-end gap-2">
+        {!readOnly && <div className="ml-auto flex flex-wrap justify-end gap-2">
           <Button size="sm" variant="outline" disabled={!transferable} onClick={onTransfer} data-testid={`stop-transfer-${stop.id}`}><ArrowRightLeft /> Transfer Stop</Button>
           <ConfirmAction
             title="Delete this stop?"
@@ -37,7 +37,7 @@ export function RouteStopRow({ index, route, stop, deleting, onTransfer, onDelet
               <Trash2 /> {deleting ? "Deleting…" : "Delete Stop"}
             </Button>
           </ConfirmAction>
-        </div>
+        </div>}
       </div>
     </div>
   );
