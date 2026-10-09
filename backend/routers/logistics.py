@@ -1,14 +1,12 @@
 import re
 import secrets
-import time
 from collections import defaultdict
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 from typing import Literal
 
 from core.collections import (
     AUTH_USERS,
     CLINIC_CONTACTS,
-    PUBLIC_TRACKING,
     SETTINGS,
 )
 from core.clinic_contacts import decrypt_contact_fields, encrypt_contact_fields
@@ -22,7 +20,6 @@ from pymongo import ReturnDocument
 from pymongo.errors import DuplicateKeyError
 
 router = APIRouter(prefix="/api", tags=["logistics"])
-TOKEN_PATTERN = re.compile(r"^[a-f0-9]{48}$")
 MANAGERS = Depends(require_roles("owner", "manager"))
 
 
@@ -145,41 +142,6 @@ async def allocate_entity_id(
     return f"{prefix}{settings[counter_field]:04d}"
 
 
-def tracking_record(route: dict, stop: dict, clinic: dict) -> dict:
-    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
-    route_status = route.get("status")
-    status = (
-        "break"
-        if route_status == "break"
-        else "started" if route_status == "started" else "scheduled"
-    )
-    route_id = route["_id"]
-    stop_id = stop["_id"]
-    return {
-        "_id": route["trackingTokens"][stop_id],
-        "active": True,
-        "routeId": route_id,
-        "stopId": stop_id,
-        "clinicName": clinic["name"],
-        "companyName": route.get("companyName", "Dentaltech Group"),
-        "routeDate": route["date"],
-        "status": status,
-        "deliveryCases": [item["caseNumber"] for item in stop["deliveries"]],
-        "hasCollection": bool(stop["collections"]),
-        "totalStops": len(route["stopIds"]),
-        "completedStops": 0,
-        "stopsRemaining": max(0, route["stopIds"].index(stop_id)),
-        "etaText": (
-            "Available when route starts"
-            if status == "scheduled"
-            else "Updating with route progress"
-        ),
-        "expiresAtMs": int(expires_at.timestamp() * 1000),
-        "expiresAt": expires_at.isoformat(),
-        "updatedAt": route["updatedAt"],
-    }
-
-
 async def require_clinic(clinic_id: str) -> dict:
     clinic = await db["clinics"].find_one({"_id": clinic_id})
     if not clinic or clinic.get("active") is False:
@@ -217,12 +179,10 @@ async def new_route(route_date: str, driver: dict, creator: dict) -> dict:
         "date": route_date,
         "driverId": driver["_id"],
         "driverUid": driver.get("uid", f"u-{str(driver['_id']).lower()}"),
-        "companyName": settings.get("labName", "Dentaltech Group"),
         "status": "published",
         "startEircode": settings.get("startEircode", ""),
         "stopIds": [],
         "totalStops": 0,
-        "trackingTokens": {},
         "createdAt": created_at,
         "createdByUid": str(creator["_id"]),
         "updatedAt": created_at,
@@ -268,7 +228,6 @@ async def add_stop(
     )
     stop_id = f"{route['_id']}-S{sequence:03d}"
     created_at = now_iso()
-    token = secrets.token_hex(24)
     stop = {
         "_id": stop_id,
         "routeId": route["_id"],
@@ -289,7 +248,6 @@ async def add_stop(
         "createdAt": created_at,
     }
     route["stopIds"].append(stop_id)
-    route["trackingTokens"][stop_id] = token
     route["totalStops"] = len(route["stopIds"])
     route["updatedAt"] = created_at
     await db["stops"].insert_one(stop)
@@ -298,13 +256,11 @@ async def add_stop(
         {
             "$set": {
                 "stopIds": route["stopIds"],
-                "trackingTokens": route["trackingTokens"],
                 "totalStops": route["totalStops"],
                 "updatedAt": created_at,
             }
         },
     )
-    await db[PUBLIC_TRACKING].insert_one(tracking_record(route, stop, clinic))
     return stop
 
 
@@ -329,21 +285,6 @@ async def notify_driver_of_stop(route: dict, stop: dict, clinic: dict) -> None:
             "type": "urgent_stop",
         }
     )
-
-
-@router.get("/tracking/{token}")
-async def public_tracking(token: str) -> dict:
-    """Public clinic tracking page data. Only visit-level operational fields are stored here."""
-    if not TOKEN_PATTERN.match(token):
-        raise HTTPException(status_code=400, detail="The tracking link is invalid.")
-    doc = await db[PUBLIC_TRACKING].find_one({"_id": token})
-    now_ms = int(time.time() * 1000)
-    if not doc or doc.get("active") is False or doc.get("expiresAtMs", 0) <= now_ms:
-        raise HTTPException(
-            status_code=404, detail="This tracking link is unavailable or has expired."
-        )
-    data = BaseDocument.from_mongo(doc).to_api()
-    return data
 
 
 @router.get(
@@ -514,12 +455,6 @@ async def transfer_route_stop(
             status_code=409,
             detail="An arrived or completed stop cannot be transferred.",
         )
-    tracking_token = source.get("trackingTokens", {}).get(stop_id)
-    if not tracking_token:
-        raise HTTPException(
-            status_code=409,
-            detail="This stop has no active tracking link and cannot be transferred.",
-        )
     driver = await active_driver(body.driverId)
     route_date = (body.routeDate or date.fromisoformat(source["date"])).isoformat()
     if body.driverId == source["driverId"] and route_date == source["date"]:
@@ -550,7 +485,6 @@ async def transfer_route_stop(
         max((int(item.get("order", 0)) for item in target_stops), default=0) + 1
     )
     target["stopIds"].append(stop_id)
-    target["trackingTokens"][stop_id] = tracking_token
     target["totalStops"] = len(target["stopIds"])
     target["updatedAt"] = now_iso()
     await db["stops"].update_one(
@@ -561,51 +495,15 @@ async def transfer_route_stop(
         {
             "$set": {
                 "stopIds": target["stopIds"],
-                "trackingTokens": target["trackingTokens"],
                 "totalStops": target["totalStops"],
                 "updatedAt": target["updatedAt"],
             }
         },
-    )
-    await db["routes"].update_one(
-        {"_id": source["_id"]}, {"$unset": {f"trackingTokens.{stop_id}": ""}}
     )
     await db["route_plans"].delete_many(
         {"_id": {"$in": [source["_id"], target["_id"]]}}
     )
     clinic = await db["clinics"].find_one({"_id": stop["clinicId"]})
-    await db[PUBLIC_TRACKING].update_one(
-        {"_id": tracking_token},
-        {
-            "$set": {
-                "routeId": target["_id"],
-                "routeDate": target["date"],
-                "clinicName": clinic["name"],
-                "status": (
-                    "break"
-                    if target.get("status") == "break"
-                    else "started" if target.get("status") == "started" else "scheduled"
-                ),
-                "totalStops": target["totalStops"],
-                "stopsRemaining": stop["order"] - 1,
-                "etaText": (
-                    "Available when route starts"
-                    if target.get("status") == "published"
-                    else "Updating with route progress"
-                ),
-                "updatedAt": target["updatedAt"],
-            }
-        },
-    )
-    old_email_id = f"{route_id}:{stop_id}"
-    email = await db["tracking_emails"].find_one({"_id": old_email_id})
-    if email:
-        email["_id"] = f"{target['_id']}:{stop_id}"
-        email["routeId"] = target["_id"]
-        await db["tracking_emails"].delete_one({"_id": old_email_id})
-        await db["tracking_emails"].replace_one(
-            {"_id": email["_id"]}, email, upsert=True
-        )
     await db["notifications"].delete_many({"routeId": route_id, "stopId": stop_id})
     await notify_driver_of_stop(target, stop, clinic)
     return BaseDocument.from_mongo(
@@ -636,7 +534,6 @@ async def delete_route_stop(route_id: str, stop_id: str) -> dict:
     ]
     route["totalStops"] = len(route["stopIds"])
     route["updatedAt"] = now_iso()
-    token = route.get("trackingTokens", {}).pop(stop_id, None)
     await db["routes"].update_one(
         {"_id": route_id},
         {
@@ -644,24 +541,10 @@ async def delete_route_stop(route_id: str, stop_id: str) -> dict:
                 "stopIds": route["stopIds"],
                 "totalStops": route["totalStops"],
                 "updatedAt": route["updatedAt"],
-            },
-            "$unset": {f"trackingTokens.{stop_id}": ""},
+            }
         },
     )
     await db["stops"].delete_one({"_id": stop_id, "routeId": route_id})
-    if token:
-        await db[PUBLIC_TRACKING].update_one(
-            {"_id": token}, {"$set": {"active": False}}
-        )
-    remaining_tokens = list(route.get("trackingTokens", {}).values())
-    if remaining_tokens:
-        await db[PUBLIC_TRACKING].update_many(
-            {"_id": {"$in": remaining_tokens}},
-            {"$set": {"totalStops": route["totalStops"]}},
-        )
-    await db["tracking_emails"].delete_many(
-        {"routeId": route_id, "stopId": stop_id}
-    )
     await db["notifications"].delete_many({"routeId": route_id, "stopId": stop_id})
     await db["route_plans"].delete_many({"_id": route_id})
     return {"id": stop_id, "routeId": route_id, "deleted": True}
@@ -682,14 +565,8 @@ async def delete_route(route_id: str) -> dict:
 
 async def remove_route(route: dict) -> None:
     route_id = route["_id"]
-    tokens = list(route.get("trackingTokens", {}).values())
-    if tokens:
-        await db[PUBLIC_TRACKING].update_many(
-            {"_id": {"$in": tokens}}, {"$set": {"active": False}}
-        )
     await db["stops"].delete_many({"routeId": route_id})
     await db["route_plans"].delete_many({"_id": route_id})
-    await db["tracking_emails"].delete_many({"routeId": route_id})
     await db["notifications"].delete_many({"routeId": route_id})
     await db["routes"].delete_one({"_id": route_id})
 
@@ -706,7 +583,6 @@ async def save_clinic(clinic_id: str | None, body: ClinicSave) -> dict:
         existing = await db["clinics"].find_one({"_id": clinic_id})
         if not existing:
             raise HTTPException(status_code=404, detail="Clinic not found.")
-        previous_name = existing.get("name")
         clinic = {
             **existing,
             "name": name,
@@ -716,17 +592,6 @@ async def save_clinic(clinic_id: str | None, body: ClinicSave) -> dict:
             "hasEmail": bool(body.email.strip()),
         }
         await db["clinics"].replace_one({"_id": clinic_id}, clinic)
-        if previous_name != name:
-            stops = (
-                await db["stops"]
-                .find({"clinicId": clinic_id}, {"_id": 1})
-                .to_list(10_000)
-            )
-            stop_ids = [stop["_id"] for stop in stops]
-            if stop_ids:
-                await db[PUBLIC_TRACKING].update_many(
-                    {"stopId": {"$in": stop_ids}}, {"$set": {"clinicName": name}}
-                )
     else:
         for _ in range(3):
             clinic_id = await allocate_entity_id("clinics", "nextClinicNumber", "C")

@@ -1,6 +1,6 @@
 # Dentaltech Daily Flow — Project Guide
 
-Daily Flow runs the Dentaltech lab day to day. It covers receiving, production boards, completion review, reports, orders, route management, and public clinic tracking.
+Daily Flow runs the Dentaltech lab day to day. It covers receiving, production boards, completion review, reports, orders, and route management.
 
 It used to be one Firebase + vanilla JS bundle (`app.js`, `logistics.js`, `enhancements.js`, `driver.js`, `track.js`). It is now a **React frontend** and a **FastAPI backend** with **MongoDB**.
 
@@ -42,8 +42,6 @@ On first visit, the website prompts you to create the owner account. The passwor
 
 Sign-in uses a 30-minute JWT in an HttpOnly cookie. Passwords are bcrypt-hashed; session data is not stored in browser local storage. Sign-in attempts are throttled after five failures per client IP/email pair for 15 minutes. The owner can create manager accounts through **Ownership & Managers** and deactivate or reactivate manager accounts there; deactivation also invalidates existing sessions. Owners and managers can create technician accounts through **Technicians → Add Technician**. Technicians are not assigned to departments and can work with cases from every department; a case's department remains its category. Drivers and clinics are managed separately through the **Drivers** and **Clinics** sidebar pages and selected when building routes in **Deliveries & Collections**. These are separate roles: manager accounts have no technician department and cannot be used as technicians. Accounts receive unique IDs, can sign in immediately and are stored in MongoDB's `auth_users` collection. Clinic contact fields and notes are AES-GCM encrypted using a key derived from `AUTH_SECRET_KEY`; keep that secret stable or existing clinic data cannot be decrypted. The owner can transfer ownership to an active manager from **Ownership & Managers**; the former owner becomes a manager, and the new owner's previous sessions are invalidated. Ownership transfer uses a MongoDB multi-document transaction, so the configured MongoDB deployment must support transactions (a replica set or sharded cluster). Staff sign-in is available; driver authentication is not.
 
-The clinic tracking page is public: `/track?token=<48-hex token>`. Managers can open it from **Deliveries & Collections → Routes → Open → "Clinic page"**.
-
 ---
 
 ## 2. Folder layout
@@ -62,7 +60,7 @@ backend/
 │   ├── auth.py            Login/logout/current user + manager and technician account administration
 │   ├── data.py            GET /api/data (everything) and /api/data/{name}
 │   ├── catalog.py         GET /api/catalog (TDS materials + tooth groups)
-│   └── logistics.py       Public clinic tracking + authenticated logistics/clinic/driver writes
+│   └── logistics.py       Authenticated logistics/clinic/driver writes
 └── data/                  Static JSON: materials.json, tooth_groups.json
 
 frontend/src/
@@ -100,8 +98,7 @@ frontend/src/
     ├── reports/           Report builder, preview, saved reports
     ├── logistics/         Deliveries & Collections: ready cases, create route and routes
     ├── clinics/           Clinic directory, editing and CSV/JSON import
-    ├── drivers/           Driver directory and account management
-    └── tracking/          Public clinic tracking page
+    └── drivers/           Driver directory and account management
 ```
 
 **Rule of thumb:** business rules go in `lib/`, shared visuals in `components/common/`, and each screen in `pages/`. Colours, labels and access rules go in `config/`.
@@ -146,7 +143,6 @@ Add `"apiName": "mongo_collection"` to `PUBLIC_COLLECTIONS` in `backend/core/col
 | GET | `/api/data` | **Authenticated.** All collections in one response + `settings` |
 | GET | `/api/data/{name}` | **Authenticated.** One collection (e.g. `routes`, `cases`) or `settings` |
 | GET | `/api/catalog` | **Authenticated.** `{materials, toothGroups}` |
-| GET | `/api/tracking/{token}` | Public tracking record (400 invalid, 404 unknown/expired) |
 | GET | `/api/clinics/{id}/contact` | **Authenticated.** Clinic contact fields |
 | POST | `/api/tooth-orders` | **Any staff account.** Submit a tooth order for manager review |
 | PATCH | `/api/tooth-orders/{id}/status` | **Owner or manager.** Mark a tooth order as done |
@@ -178,7 +174,6 @@ Existing `denture` department values are migrated to `prosthesis` at backend sta
 | `orderMaterials` | `/materials` | `pages/materials/*` |
 | `reports` | `/reports` | `pages/reports/*` |
 | `logistics` (logistics.js) | `/logistics?tab=routes\|create\|clinics\|drivers` | `pages/logistics/*` |
-| `track.html?token=` | `/track?token=` | `pages/tracking/*` |
 | TV Mode, Account | Top bar buttons (managers) | `components/layout/*` |
 
 The items below were dropped on purpose because they only make sense with the old Firebase/Netlify setup: Firebase bootstrap and security-migration screens, the service worker, and the old "Dentaltech Routes" admin screens inside `driver.js`. Those admin screens could never be reached, because non-drivers were always redirected back to `index.html`.

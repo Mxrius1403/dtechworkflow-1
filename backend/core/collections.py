@@ -12,11 +12,9 @@ PUBLIC_COLLECTIONS = {
     "stops": "stops",
     "routePlans": "route_plans",
     "notifications": "notifications",
-    "trackingEmails": "tracking_emails",
 }
 
 # Stored but only reachable through dedicated endpoints.
 SETTINGS = "settings"
-PUBLIC_TRACKING = "public_tracking"
 CLINIC_CONTACTS = "clinic_contacts"
 AUTH_USERS = "auth_users"

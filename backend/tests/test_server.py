@@ -15,6 +15,16 @@ def test_tooth_order_routes_are_registered():
     assert ("/api/tooth-orders/{order_id}", "DELETE") in routes
 
 
+def test_public_tracking_route_is_not_registered():
+    routes = {
+        (route.path, method)
+        for route in app.routes
+        for method in getattr(route, "methods", set())
+    }
+
+    assert not any(path.startswith("/api/tracking/") for path, _ in routes)
+
+
 def test_health_only_reports_service_status():
     assert asyncio.run(health()) == {"status": "ok"}
 

@@ -31,7 +31,7 @@ export function RoutesTab() {
   return (
     <Panel
       title="Existing Routes"
-      description="All routes, grouped by delivery date. Open a route to add a stop, transfer a pending destination to another driver, manage tracking email, or delete a route that has not started."
+      description="All routes, grouped by delivery date. Open a route to add a stop, transfer a pending destination to another driver, or delete a route that has not started."
     >
       <div className="grid gap-6" data-testid="routes-table">
         {!dates.length && <p className="py-8 text-center text-sm text-muted-foreground">No routes found.</p>}

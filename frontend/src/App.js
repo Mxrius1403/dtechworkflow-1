@@ -27,7 +27,6 @@ import TechniciansPage from "@/pages/technicians/TechniciansPage";
 import ToothOrderPage from "@/pages/tooth/ToothOrderPage";
 import ToothManagementPage from "@/pages/tooth/ToothManagementPage";
 import ToothOrdersPage from "@/pages/tooth/ToothOrdersPage";
-import TrackingPage from "@/pages/tracking/TrackingPage";
 import { LogisticsLayout } from "@/pages/logistics/LogisticsLayout";
 import LogisticsPage from "@/pages/logistics/LogisticsPage";
 import RoutesPage from "@/pages/logistics/RoutesPage";
@@ -86,7 +85,6 @@ export default function App() {
     <BrowserRouter>
       <SessionProvider>
         <Routes>
-          <Route path="/track" element={<TrackingPage />} />
           <Route path="/" element={<SignInPage />} />
           <Route element={<ProtectedDataLayout />}>
             <Route path="/driver" element={<DriverArea />} />

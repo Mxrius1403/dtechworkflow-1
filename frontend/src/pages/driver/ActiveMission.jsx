@@ -43,7 +43,7 @@ export function ActiveMission({ route, flow, stops, current, completed, alerts }
     <>
       {alerts}
       <MissionHero title="Today's Mission" text={`${route.totalStops} stops • ${completed} completed • ${started ? "started" : "on break"}`}
-        note={started ? "Live location shared with clinic tracking pages" : "Route paused — clinics see “temporarily paused”"} />
+        note={started ? "Route in progress" : "Route paused"} />
       <Tabs value={flow.view} onValueChange={flow.setView}>
         <TabsList className="grid w-full grid-cols-2" data-testid="driver-view-tabs">
           <TabsTrigger value="current" data-testid="driver-tab-current">Current Stop</TabsTrigger>

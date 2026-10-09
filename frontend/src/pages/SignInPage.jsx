@@ -54,7 +54,7 @@ export default function SignInPage() {
         <div className="relative">
           <p className="eyebrow !text-teal-200">Dentaltech Group</p>
           <h1 className="mt-4 max-w-md text-4xl font-extrabold leading-tight sm:text-5xl lg:text-6xl">Production, quality and logistics in one flow.</h1>
-          <p className="mt-5 max-w-md text-base text-white/70">Receiving, production boards, completion review, reports, orders, routes and clinic tracking — for the whole lab team.</p>
+          <p className="mt-5 max-w-md text-base text-white/70">Receiving, production boards, completion review, reports, orders and routes — for the whole lab team.</p>
         </div>
         <p className="relative text-xs text-white/50">{APP_NAME} • secure staff access</p>
       </aside>

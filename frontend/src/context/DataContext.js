@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchAllData, fetchCases, fetchCatalog } from "@/lib/api";
-import { emailKey } from "@/lib/logistics";
 import { FullScreenMessage } from "@/components/common/FullScreenMessage";
 import { useSession } from "@/context/SessionContext";
 
@@ -10,9 +9,8 @@ const indexById = (rows) => Object.fromEntries(rows.map((r) => [r.id, r]));
 
 function shape(data, catalog) {
   const byId = Object.fromEntries(Object.entries(data).filter(([, v]) => Array.isArray(v)).map(([k, v]) => [k, indexById(v)]));
-  const emails = Object.fromEntries(data.trackingEmails.map((e) => [emailKey(e.routeId, e.stopId), e]));
   const techName = (id, fallback = "") => byId.users[id]?.name || fallback;
-  return { ...data, byId, emails, techName, catalog: catalog || { materials: [], toothGroups: [] } };
+  return { ...data, byId, techName, catalog: catalog || { materials: [], toothGroups: [] } };
 }
 
 /** Loads authenticated collections from /api/data and exposes lists + lookups by id. */

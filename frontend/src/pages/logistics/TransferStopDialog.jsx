@@ -3,7 +3,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Notice } from "@/components/common/Bits";
 import { Field, NativeSelect } from "@/components/common/Field";
 import { useData } from "@/context/DataContext";
 import { transferRouteStop } from "@/lib/api";
@@ -52,7 +51,6 @@ export function TransferStopDialog({ route, stop, onClose }) {
         <Field label="Route date">
           <Input type="date" value={routeDate} onChange={(e) => setRouteDate(e.target.value)} data-testid="transfer-date" />
         </Field>
-        <Notice tone="secure">The original tracking link is preserved. If the clinic already received its link, that same link continues to work.</Notice>
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={onClose} disabled={saving} data-testid="transfer-cancel">Cancel</Button>
           <Button onClick={transfer} disabled={saving} data-testid="transfer-confirm">{saving ? "Moving…" : "Move Stop"}</Button>

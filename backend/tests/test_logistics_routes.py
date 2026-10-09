@@ -148,36 +148,12 @@ def test_route_creates_separate_stops_for_delivery_and_collection_at_same_clinic
     ]
 
 
-def test_tracking_record_uses_mongo_document_ids():
-    route = {
-        "_id": "R20261008-001",
-        "date": "2026-10-08",
-        "status": "published",
-        "stopIds": ["R20261008-001-S001"],
-        "trackingTokens": {"R20261008-001-S001": "a" * 48},
-        "updatedAt": "2026-10-08T12:00:00+00:00",
-    }
-    stop = {
-        "_id": "R20261008-001-S001",
-        "deliveries": [{"caseNumber": "1001"}],
-        "collections": [],
-    }
-
-    record = logistics.tracking_record(route, stop, {"name": "Clinic"})
-
-    assert record["_id"] == "a" * 48
-    assert record["routeId"] == route["_id"]
-    assert record["stopId"] == stop["_id"]
-    assert record["stopsRemaining"] == 0
-
-
 def test_transfer_route_stop_uses_requested_date_for_same_driver(monkeypatch):
     route_date = "2026-10-12"
     source = {
         "_id": "R20261008-001",
         "date": "2026-10-08",
         "driverId": "D1",
-        "trackingTokens": {"R20261008-001-S001": "a" * 48},
     }
     stop = {
         "_id": "R20261008-001-S001",
@@ -226,14 +202,12 @@ def test_transfer_route_stop_uses_requested_date_for_same_driver(monkeypatch):
         raise AssertionError("Expected the route lookup to stop the test")
 
 
-def test_delete_route_stop_removes_stop_and_disables_tracking(monkeypatch):
+def test_delete_route_stop_removes_stop_and_related_notifications(monkeypatch):
     stop_id = "R20261008-001-S001"
-    token = "a" * 48
     route = {
         "_id": "R20261008-001",
         "status": "published",
         "stopIds": [stop_id, "R20261008-001-S002"],
-        "trackingTokens": {stop_id: token, "R20261008-001-S002": "b" * 48},
     }
     stop = {"_id": stop_id, "routeId": route["_id"], "status": "pending"}
     calls = []
@@ -274,25 +248,8 @@ def test_delete_route_stop_removes_stop_and_disables_tracking(monkeypatch):
     assert result == {"id": stop_id, "routeId": route["_id"], "deleted": True}
     assert route["stopIds"] == ["R20261008-001-S002"]
     assert route["totalStops"] == 1
-    assert route["trackingTokens"] == {"R20261008-001-S002": "b" * 48}
     assert ("stops", "delete_one", {"_id": stop_id, "routeId": route["_id"]}) in calls
-    assert (
-        "public_tracking",
-        "update_one",
-        {"_id": token},
-        {"$set": {"active": False}},
-    ) in calls
-    assert (
-        "public_tracking",
-        "update_many",
-        {"_id": {"$in": ["b" * 48]}},
-        {"$set": {"totalStops": 1}},
-    ) in calls
-    assert (
-        "tracking_emails",
-        "delete_many",
-        {"routeId": route["_id"], "stopId": stop_id},
-    ) in calls
+    assert not any(name in ("public_tracking", "tracking_emails") for name, *_ in calls)
     assert (
         "notifications",
         "delete_many",

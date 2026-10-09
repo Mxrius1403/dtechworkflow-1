@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { MailCheck, Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Muted, Notice } from "@/components/common/Bits";
+import { Muted } from "@/components/common/Bits";
 import { ConfirmAction } from "@/components/common/ConfirmAction";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { useData } from "@/context/DataContext";
@@ -75,7 +75,6 @@ export function RouteDialog({ route, onClose }) {
             {route.date} • {route.driverId} — {byId.drivers[route.driverId]?.name} <StatusBadge kind="route" value={route.status} />
           </DialogDescription>
         </DialogHeader>
-        <Notice tone="warn">Tracking email delivery is not configured on this server. Share a clinic page link to provide live updates.</Notice>
         <div className="grid gap-2">
           {numberedStopGroups.map((group) => (
             <section key={group.clinicId} className="grid gap-2" data-testid={`route-clinic-group-${group.clinicId}`}>
@@ -97,9 +96,8 @@ export function RouteDialog({ route, onClose }) {
         </div>
         <p className="text-xs text-muted-foreground">Completed or arrived stops cannot be transferred or deleted. Started routes cannot be deleted.</p>
         <DialogFooter className="flex-wrap gap-2 sm:justify-start">
-          <Button variant="outline" disabled title="Tracking email delivery is not configured. Share the clinic page link instead." data-testid="route-send-all-emails"><MailCheck /> Tracking Emails Unavailable</Button>
           <Button onClick={() => setSub({ type: "add" })} disabled={!canAdd} data-testid="route-add-stop"><Plus /> Add Stop</Button>
-          <ConfirmAction title="Delete this route?" description="The route is removed and its clinic tracking links are disabled." confirmLabel="Delete Route" onConfirm={removeRoute} testId="route-delete">
+          <ConfirmAction title="Delete this route?" description="The route and its stops are removed." confirmLabel="Delete Route" onConfirm={removeRoute} testId="route-delete">
             <Button variant="destructive" disabled={!canDelete || deleting} data-testid="route-delete-button"><Trash2 /> {deleting ? "Deleting…" : "Delete Route"}</Button>
           </ConfirmAction>
         </DialogFooter>

@@ -26,7 +26,6 @@ export const transferOwnership = (managerId) => api.post("/auth/ownership/transf
 export const fetchAllData = () => api.get("/data").then((r) => r.data);
 export const fetchCases = () => api.get("/data/cases").then((r) => r.data);
 export const fetchCatalog = () => api.get("/catalog").then((r) => r.data);
-export const fetchTracking = (token) => api.get(`/tracking/${token}`).then((r) => r.data);
 export const fetchClinicContact = (clinicId) => api.get(`/clinics/${clinicId}/contact`).then((r) => r.data);
 export const createReceivedCase = (receivedCase) => api.post("/receiving/cases", receivedCase).then((r) => r.data);
 export const removeReceivedCase = (caseId) => api.post(`/receiving/cases/${encodeURIComponent(caseId)}/remove`).then((r) => r.data);

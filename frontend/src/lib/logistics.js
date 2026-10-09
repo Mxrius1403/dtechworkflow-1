@@ -4,7 +4,6 @@ export const ACTIVE_ROUTE_STATUSES = ["published", "started", "break"];
 export const isFourDigitCase = (code) => /^\d{4}$/.test(String(code).trim());
 export const isRouteCaseCode = (code) => /^[A-Za-z0-9._/-]{1,64}$/.test(String(code ?? "").trim());
 export const routeStops = (route, stopsById) => (route?.stopIds || []).map((id) => stopsById[id]).filter(Boolean);
-export const emailKey = (routeId, stopId) => `${routeId}:${stopId}`;
 
 export const planStopIds = (plan) =>
   Object.entries(plan?.stopOrder || {}).sort((a, b) => Number(a[1]) - Number(b[1])).map(([id]) => id);
@@ -78,8 +77,6 @@ export function workWeekDates(base) {
   const monday = addDays(base, -((weekdayOf(base) + 6) % 7));
   return [0, 1, 2, 3, 4].map((n) => addDays(monday, n));
 }
-
-export const trackingUrl = (token) => `${window.location.origin}/track?token=${token}`;
 
 export const stopJobs = (stop) => [
   ...(stop.deliveries || []).map((d) => `Delivery ${d.caseNumber}`),
