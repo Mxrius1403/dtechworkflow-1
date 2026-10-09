@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -9,8 +9,8 @@ import { Field, NativeSelect, Options } from "@/components/common/Field";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { useData } from "@/context/DataContext";
 import { attentionLabel, caseDepartment, DELIVERY_STATUSES, deliveryStatusLabel, scheduledKey, serviceLabel } from "@/lib/cases";
-import { deleteReceivedCase, updateReceivedCase } from "@/lib/api";
-import { localInputValue, nice } from "@/lib/format";
+import { deleteReceivedCase, fetchCaseHistory, updateReceivedCase } from "@/lib/api";
+import { dateTimeOf, localInputValue, nice } from "@/lib/format";
 import { notify, notifyError } from "@/lib/notify";
 
 function DetailBox({ c }) {
@@ -25,6 +25,33 @@ function DetailBox({ c }) {
   );
 }
 
+function CaseHistoryDialog({ c, onClose }) {
+  const { data, isLoading, isError } = useQuery({ queryKey: ["case-history", c.id], queryFn: () => fetchCaseHistory(c.id), staleTime: 0 });
+  const rows = [...(data?.history || [])].reverse();
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[92vh] max-w-2xl overflow-y-auto" data-testid="case-history-dialog">
+        <DialogHeader>
+          <DialogTitle className="font-mono">History of Case {c.code}</DialogTitle>
+          <DialogDescription>Every action on this case, newest first.</DialogDescription>
+        </DialogHeader>
+        {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
+        {isError && <p className="text-sm text-destructive">Could not load the history.</p>}
+        {data && !rows.length && <p className="text-sm text-muted-foreground">No history recorded.</p>}
+        <ul className="divide-y rounded-lg border">
+          {rows.map((h, i) => (
+            <li key={`${h.at}-${i}`} className="grid gap-1 p-3 text-sm sm:grid-cols-[11rem_1fr]" data-testid="case-history-row">
+              <span className="text-muted-foreground">{dateTimeOf(h.at)}</span>
+              <span><b>{h.action}</b><br /><span className="text-muted-foreground">by {h.by || "Unknown"}</span></span>
+            </li>
+          ))}
+        </ul>
+        <div className="flex justify-end"><Button variant="outline" onClick={onClose}>Close</Button></div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 /** Manager correction dialog: status, department, technician and the real operational time. */
 export function CaseControlDialog({ c, canDelete, onClose, onAttention, onOverdueReason }) {
   const { users, byId } = useData();
@@ -33,6 +60,7 @@ export function CaseControlDialog({ c, canDelete, onClose, onAttention, onOverdu
   const at = c.status === "completed" ? c.finishedAt : c.status === "production" ? c.startedAt : c.status === "removed" ? c.queueRemovedAt || c.receivedAt : c.receivedAt;
   const [form, setForm] = useState({ department: caseDepartment(c), status: c.status, techId: c.technicianId || "", at: localInputValue(at), overdue: Boolean(c.overdue), deliveryStatus: c.deliveryStatus || "not_delivered" });
   const [saving, setSaving] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const set = (key) => (e) => setForm({ ...form, [key]: e?.target ? e.target.value : e });
 
   const save = async () => {
@@ -76,6 +104,7 @@ export function CaseControlDialog({ c, canDelete, onClose, onAttention, onOverdu
   };
 
   return (
+    <>
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[92vh] max-w-lg overflow-y-auto" data-testid="case-control-dialog">
         <DialogHeader>
@@ -115,6 +144,7 @@ export function CaseControlDialog({ c, canDelete, onClose, onAttention, onOverdu
         <DetailBox c={c} />
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={onAttention} data-testid="case-change-attention-button">Change Attention Status</Button>
+          <Button variant="outline" size="sm" onClick={() => setShowHistory(true)} data-testid="case-history-button">Case History</Button>
           {c.overdue && c.technicianId && <Button variant="outline" size="sm" onClick={onOverdueReason} data-testid="case-overdue-reason-button">Overdue Reason</Button>}
         </div>
         <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
@@ -134,5 +164,7 @@ export function CaseControlDialog({ c, canDelete, onClose, onAttention, onOverdu
         </div>
       </DialogContent>
     </Dialog>
+    {showHistory && <CaseHistoryDialog c={c} onClose={() => setShowHistory(false)} />}
+    </>
   );
 }

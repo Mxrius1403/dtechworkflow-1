@@ -32,6 +32,7 @@ export const removeReceivedCase = (caseId) => api.post(`/receiving/cases/${encod
 export const deleteReceivedCase = (caseId) => api.delete(`/receiving/cases/${encodeURIComponent(caseId)}`).then((r) => r.data);
 export const restoreReceivedCase = (caseId) => api.post(`/receiving/cases/${encodeURIComponent(caseId)}/restore`).then((r) => r.data);
 export const updateReceivedCase = (caseId, changes) => api.patch(`/receiving/cases/${encodeURIComponent(caseId)}`, changes).then((r) => r.data);
+export const fetchCaseHistory = (caseId) => api.get(`/receiving/cases/${encodeURIComponent(caseId)}/history`).then((r) => r.data);
 export const updateCaseAttention = (caseId, attention) => api.patch(`/receiving/cases/${encodeURIComponent(caseId)}/attention`, attention).then((r) => r.data);
 export const updateCaseOverdueReason = (caseId, reason) => api.patch(`/receiving/cases/${encodeURIComponent(caseId)}/overdue-reason`, { reason }).then((r) => r.data);
 export const saveReport = (report) => api.post("/reports", report).then((r) => r.data);

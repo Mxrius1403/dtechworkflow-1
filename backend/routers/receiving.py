@@ -5,7 +5,8 @@ from typing import Literal
 from zoneinfo import ZoneInfo
 
 from bson import ObjectId
-from core.collections import AUTH_USERS
+from core.case_history import log_case_event
+from core.collections import AUTH_USERS, CASE_HISTORY
 from core.config import TIMEZONE
 from core.database import db
 from core.models import BaseDocument
@@ -100,13 +101,15 @@ async def expire_completed_cases(now: datetime | None = None) -> int:
     cutoff = (now - COMPLETED_CASE_RETENTION).isoformat(
         timespec="milliseconds"
     ).replace("+00:00", "Z")
+    expiry_query = {
+        "status": "completed",
+        "finishedAt": {"$lte": cutoff},
+        "deleted": {"$ne": True},
+        "completionReviewStatus": {"$ne": "pending"},
+    }
+    expiring = await db["cases"].find(expiry_query).to_list(None)
     result = await db["cases"].update_many(
-        {
-            "status": "completed",
-            "finishedAt": {"$lte": cutoff},
-            "deleted": {"$ne": True},
-            "completionReviewStatus": {"$ne": "pending"},
-        },
+        expiry_query,
         {
             "$set": {
                 "status": "removed",
@@ -127,6 +130,14 @@ async def expire_completed_cases(now: datetime | None = None) -> int:
             },
         },
     )
+    for expired in expiring:
+        await log_case_event(
+            db,
+            expired,
+            "Automatically removed from queue after 10 days completed",
+            None,
+            timestamp,
+        )
     if result.modified_count:
         logger.info(
             "Automatically removed %s completed cases from the Receiving queue",
@@ -142,6 +153,12 @@ async def completed_case_expiry_loop() -> None:
             await expire_completed_cases()
         except Exception:
             logger.exception("Failed to expire completed Receiving cases")
+
+
+async def _log(
+    case: dict, action: str, account: dict | None, at: str | None = None
+) -> None:
+    await log_case_event(db, case, action, account, at)
 
 
 async def receiving_account(account: dict = Depends(current_account)) -> dict:
@@ -323,6 +340,14 @@ async def _create_or_reenter(body: ReceiveCase, account: dict) -> dict:
                     "and try again."
                 ),
             )
+        await _log(
+            case,
+            f"Re-entered for {body.productionDate.isoformat()} "
+            f"({body.department}, {', '.join(body.serviceTypes)}, "
+            f"{body.arch}); previous cycle archived",
+            account,
+            timestamp,
+        )
         return BaseDocument.from_mongo(case).to_api()
 
     if await db["cases"].find_one(
@@ -337,6 +362,13 @@ async def _create_or_reenter(body: ReceiveCase, account: dict) -> dict:
         )
     case = _new_case(body, account)
     await db["cases"].insert_one(case)
+    await _log(
+        case,
+        f"Received and scheduled for {body.productionDate.isoformat()} "
+        f"({body.department}, {', '.join(body.serviceTypes)}, {body.arch})",
+        account,
+        case["receivedAt"],
+    )
     return BaseDocument.from_mongo(case).to_api()
 
 
@@ -398,6 +430,7 @@ async def restore_received_case(
                 "try again."
             ),
         )
+    await _log(case, "Restored to queue", account, timestamp)
     return BaseDocument.from_mongo(case).to_api()
 
 
@@ -454,6 +487,12 @@ async def remove_received_case(
             status_code=409,
             detail="The case changed before it could be removed. Refresh and try again.",
         )
+    await _log(
+        case,
+        f"Removed from queue (was {existing['status']})",
+        account,
+        timestamp,
+    )
     return BaseDocument.from_mongo(case).to_api()
 
 
@@ -467,9 +506,15 @@ async def delete_received_case(
             status_code=403,
             detail="Only managers can delete cases.",
         )
+    existing = await db["cases"].find_one({"_id": case_id})
     result = await db["cases"].delete_one({"_id": case_id})
     if not result.deleted_count:
         raise HTTPException(status_code=404, detail="Case not found.")
+    await _log(
+        existing or {"_id": case_id},
+        "Case deleted",
+        account,
+    )
     return {"id": case_id, "deleted": True}
 
 
@@ -601,6 +646,31 @@ async def update_received_case(
             finishedBy=technician.get("name", ""),
             completionReviewRequired=False,
         )
+    previous_technician = existing.get("technician") or "unassigned"
+    new_technician = changes["technician"] or "unassigned"
+    differences = []
+    for label, old, new in (
+        ("department", existing.get("department"), body.department),
+        ("status", existing.get("status"), body.status),
+        ("technician", previous_technician, new_technician),
+        (
+            "delivery status",
+            existing.get("deliveryStatus", "not_delivered"),
+            body.deliveryStatus,
+        ),
+        (
+            "overdue",
+            bool(existing.get("overdue")),
+            body.overdue if body.overdue is not None else None,
+        ),
+    ):
+        if new is not None and old != new:
+            differences.append(
+                f"{label} {str(old).replace('_', ' ')} -> "
+                f"{str(new).replace('_', ' ')}"
+            )
+    if body.operationalAt is not None:
+        differences.append(f"operational time set to {timestamp}")
     case = await db["cases"].find_one_and_update(
         {"_id": case_id},
         {
@@ -624,6 +694,12 @@ async def update_received_case(
             status_code=409,
             detail="The case changed before it could be updated. Refresh and try again.",
         )
+    await _log(
+        case,
+        "Case updated by manager: "
+        + ("; ".join(differences) if differences else "no field changed"),
+        account,
+    )
     return BaseDocument.from_mongo(case).to_api()
 
 
@@ -670,6 +746,13 @@ async def update_case_attention(
             status_code=409,
             detail="The case changed before its attention status could be updated.",
         )
+    await _log(
+        case,
+        f"Attention status changed to {body.attentionStatus.replace('_', ' ')}"
+        + (f": {body.attentionNote}" if body.attentionNote else ""),
+        account,
+        timestamp,
+    )
     return BaseDocument.from_mongo(case).to_api()
 
 
@@ -713,4 +796,41 @@ async def update_case_overdue_reason(
             status_code=409,
             detail="The case changed before its overdue reason could be saved.",
         )
+    await _log(
+        case, f"Overdue reason saved: {body.reason}", account, timestamp
+    )
     return BaseDocument.from_mongo(case).to_api()
+
+
+@router.get("/cases/{case_id}/history")
+async def read_case_history(
+    case_id: str, account: dict = Depends(receiving_account)
+) -> dict:
+    logged = (
+        await db[CASE_HISTORY].find({"caseId": case_id}).to_list(None)
+    )
+    case = await db["cases"].find_one({"_id": case_id})
+    if not case and not logged:
+        raise HTTPException(status_code=404, detail="Case not found.")
+    entries = [
+        {"at": e["at"], "action": e["action"], "by": e["by"]} for e in logged
+    ]
+    first_logged = min((e["at"] for e in logged), default=None)
+    # Entries written before the audit log existed live on the case itself.
+    for legacy in (case or {}).get("history", []):
+        at = legacy.get("at") or ""
+        if first_logged is None or at < first_logged:
+            entries.append(
+                {
+                    "at": at,
+                    "action": legacy.get("action") or "",
+                    "by": legacy.get("by") or "",
+                }
+            )
+    entries.sort(key=lambda e: e["at"])
+    return {
+        "caseId": case_id,
+        "code": (case or {}).get("code")
+        or next((e.get("caseCode") for e in logged), ""),
+        "history": entries,
+    }

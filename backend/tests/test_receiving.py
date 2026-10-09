@@ -35,6 +35,30 @@ class FakeCases:
     async def insert_one(self, document):
         self.documents[document["_id"]] = document
 
+    def find(self, query=None):
+        matches = [
+            document
+            for document in self.documents.values()
+            if all(
+                not isinstance(value, dict) and document.get(key) == value
+                for key, value in (query or {}).items()
+                if key == "caseId"
+            )
+            and (
+                "caseId" in (query or {})
+                or all(
+                    document.get(key) == value
+                    for key, value in (query or {}).items()
+                    if not isinstance(value, dict)
+                )
+            )
+        ]
+
+        async def to_list(_length):
+            return matches
+
+        return SimpleNamespace(to_list=to_list)
+
     async def delete_one(self, query):
         deleted = self.documents.pop(query["_id"], None)
         return SimpleNamespace(deleted_count=1 if deleted else 0)
@@ -78,8 +102,11 @@ class FakeDatabase:
         self.cases = cases
         self.users = cases.users
         self.auth_users = cases.auth_users
+        self.case_history = FakeCases()
 
     def __getitem__(self, name):
+        if name == "case_history":
+            return self.case_history
         if name == "cases":
             return self.cases
         if name == "users":
@@ -707,3 +734,27 @@ def test_update_case_overdue_reason_rejects_unknown_case(receiving_db):
 def test_overdue_reason_must_be_nonempty_and_limited_to_100_characters(reason):
     with pytest.raises(ValidationError):
         receiving.UpdateOverdueReason(reason=reason)
+
+
+def test_case_history_survives_case_and_technician_deletion(receiving_db):
+    manager = {"_id": "MGR0001", "role": "manager", "name": "Manager Name"}
+    created = asyncio.run(
+        receiving.create_received_case(receive_payload(), manager)
+    )
+    asyncio.run(
+        receiving.update_case_attention(
+            created["id"],
+            receiving.UpdateAttention(
+                attentionStatus="on_hold", attentionNote="Waiting"
+            ),
+            manager,
+        )
+    )
+    asyncio.run(receiving.delete_received_case(created["id"], manager))
+
+    result = asyncio.run(receiving.read_case_history(created["id"], manager))
+
+    assert result["code"] == "RCV-1001"
+    assert [entry["by"] for entry in result["history"]] == ["Manager Name"] * 3
+    assert result["history"][-1]["action"] == "Case deleted"
+    assert "on hold: Waiting" in result["history"][1]["action"]

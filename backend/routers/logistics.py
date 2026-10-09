@@ -4,6 +4,7 @@ from collections import defaultdict
 from datetime import date, datetime, timezone
 from typing import Literal
 
+from core.case_history import log_case_event
 from core.collections import (
     AUTH_USERS,
     CLINIC_CONTACTS,
@@ -264,6 +265,32 @@ async def add_stop(
     return stop
 
 
+async def log_stop_case_events(
+    stop: dict, route: dict, action: str, actor: dict | None
+) -> None:
+    """Write `action` to the history of every case delivered by `stop`."""
+    deliveries = stop.get("deliveries") or []
+    if not deliveries:
+        return
+    clinic = await db["clinics"].find_one({"_id": stop.get("clinicId")})
+    driver = await db["drivers"].find_one({"_id": route.get("driverId")})
+    context = (
+        f"route {route['_id']} on {route.get('date', '?')}, driver "
+        f"{(driver or {}).get('name') or route.get('driverId', '?')}, clinic "
+        f"{(clinic or {}).get('name') or stop.get('clinicId', '?')}"
+    )
+    for delivery in deliveries:
+        if delivery.get("productionCaseId"):
+            query = {"_id": delivery["productionCaseId"]}
+        elif delivery.get("caseNumber"):
+            query = {"code": delivery["caseNumber"], "deleted": {"$ne": True}}
+        else:
+            continue
+        case = await db["cases"].find_one(query)
+        if case:
+            await log_case_event(db, case, f"{action} ({context})", actor)
+
+
 async def active_driver(driver_id: str) -> dict:
     driver = await db["drivers"].find_one({"_id": driver_id, "active": {"$ne": False}})
     if not driver:
@@ -398,6 +425,7 @@ async def create_route(
             if not deliveries and not collections:
                 continue
             stop = await add_stop(route, clinic, deliveries, collections)
+            await log_stop_case_events(stop, route, "Added to delivery route", creator)
             if has_confirmed_plan:
                 await notify_driver_of_stop(route, stop, clinic)
     return BaseDocument.from_mongo(
@@ -413,6 +441,7 @@ async def create_route(
 async def append_route_stop(
     route_id: str,
     body: StopCreate,
+    actor: dict = Depends(current_account),
 ) -> dict:
     route = await db["routes"].find_one({"_id": route_id})
     if not route:
@@ -432,6 +461,7 @@ async def append_route_stop(
         await db["route_plans"].find_one({"_id": route_id, "confirmed": True})
     )
     stop = await add_stop(route, clinic, deliveries, collections)
+    await log_stop_case_events(stop, route, "Added to delivery route", actor)
     if has_confirmed_plan:
         await notify_driver_of_stop(route, stop, clinic)
     return BaseDocument.from_mongo(
@@ -506,6 +536,12 @@ async def transfer_route_stop(
     clinic = await db["clinics"].find_one({"_id": stop["clinicId"]})
     await db["notifications"].delete_many({"routeId": route_id, "stopId": stop_id})
     await notify_driver_of_stop(target, stop, clinic)
+    await log_stop_case_events(
+        stop,
+        target,
+        f"Delivery stop transferred from route {source['_id']}",
+        creator,
+    )
     return BaseDocument.from_mongo(
         await db["routes"].find_one({"_id": target["_id"]})
     ).to_api()
@@ -514,7 +550,11 @@ async def transfer_route_stop(
 @router.delete(
     "/routes/{route_id}/stops/{stop_id}", dependencies=[MANAGERS]
 )
-async def delete_route_stop(route_id: str, stop_id: str) -> dict:
+async def delete_route_stop(
+    route_id: str,
+    stop_id: str,
+    actor: dict = Depends(current_account),
+) -> dict:
     route = await db["routes"].find_one({"_id": route_id})
     stop = await db["stops"].find_one({"_id": stop_id, "routeId": route_id})
     if not route or not stop:
@@ -544,6 +584,9 @@ async def delete_route_stop(route_id: str, stop_id: str) -> dict:
             }
         },
     )
+    await log_stop_case_events(
+        stop, route, "Removed from delivery route", actor
+    )
     await db["stops"].delete_one({"_id": stop_id, "routeId": route_id})
     await db["notifications"].delete_many({"routeId": route_id, "stopId": stop_id})
     await db["route_plans"].delete_many({"_id": route_id})
@@ -551,7 +594,9 @@ async def delete_route_stop(route_id: str, stop_id: str) -> dict:
 
 
 @router.delete("/routes/{route_id}", dependencies=[MANAGERS])
-async def delete_route(route_id: str) -> dict:
+async def delete_route(
+    route_id: str, actor: dict = Depends(current_account)
+) -> dict:
     route = await db["routes"].find_one({"_id": route_id})
     if not route:
         raise HTTPException(status_code=404, detail="Route not found.")
@@ -559,12 +604,17 @@ async def delete_route(route_id: str) -> dict:
         raise HTTPException(
             status_code=409, detail="A route that has started cannot be deleted."
         )
-    await remove_route(route)
+    await remove_route(route, actor)
     return {"id": route_id, "deleted": True}
 
 
-async def remove_route(route: dict) -> None:
+async def remove_route(route: dict, actor: dict | None = None) -> None:
     route_id = route["_id"]
+    stops = await db["stops"].find({"routeId": route_id}).to_list(None)
+    for stop in stops:
+        await log_stop_case_events(
+            stop, route, "Removed from delivery route (route deleted)", actor
+        )
     await db["stops"].delete_many({"routeId": route_id})
     await db["route_plans"].delete_many({"_id": route_id})
     await db["notifications"].delete_many({"routeId": route_id})
@@ -719,7 +769,11 @@ async def create_driver(
 
 
 @router.delete("/drivers/{driver_id}", dependencies=[MANAGERS])
-async def delete_driver(driver_id: str, force: bool = False) -> dict:
+async def delete_driver(
+    driver_id: str,
+    force: bool = False,
+    actor: dict = Depends(current_account),
+) -> dict:
     driver = await db["drivers"].find_one({"_id": driver_id})
     if not driver:
         raise HTTPException(status_code=404, detail="Driver not found.")
@@ -742,7 +796,7 @@ async def delete_driver(driver_id: str, force: bool = False) -> dict:
             },
         )
     for route in open_routes:
-        await remove_route(route)
+        await remove_route(route, actor)
     account = await db[AUTH_USERS].find_one({"_id": driver_id})
     if account and account.get("role") == "driver":
         await db[AUTH_USERS].delete_one({"_id": driver_id})
@@ -751,7 +805,12 @@ async def delete_driver(driver_id: str, force: bool = False) -> dict:
 
 
 @router.patch("/drivers/{driver_id}", dependencies=[MANAGERS])
-async def update_driver(driver_id: str, body: DriverSave, force: bool = False) -> dict:
+async def update_driver(
+    driver_id: str,
+    body: DriverSave,
+    force: bool = False,
+    actor: dict = Depends(current_account),
+) -> dict:
     name = body.name.strip()
     if not name:
         raise HTTPException(status_code=422, detail="Enter a driver name.")
@@ -821,7 +880,7 @@ async def update_driver(driver_id: str, body: DriverSave, force: bool = False) -
                 status_code=409, detail="An account with this email already exists."
             ) from error
     for route in open_routes:
-        await remove_route(route)
+        await remove_route(route, actor)
     await db["drivers"].update_one(
         {"_id": driver_id}, {"$set": {"name": name, "active": body.active}}
     )

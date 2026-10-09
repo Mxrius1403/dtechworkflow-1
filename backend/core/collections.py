@@ -18,3 +18,4 @@ PUBLIC_COLLECTIONS = {
 SETTINGS = "settings"
 CLINIC_CONTACTS = "clinic_contacts"
 AUTH_USERS = "auth_users"
+CASE_HISTORY = "case_history"
