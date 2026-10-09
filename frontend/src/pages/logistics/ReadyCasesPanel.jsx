@@ -25,9 +25,9 @@ export function ReadyCasesPanel({ draft, onAdded, completedOnly = false }) {
     [cases, stops, byId.routes, completedOnly],
   );
   const available = (c) => readyAvailable(c, draft.deliveries);
-  const rows = all.filter((c) => !search || String(c.code).toLowerCase().includes(search.toLowerCase()));
+  const rows = all.filter((c) => (c.deliveryStatus || "not_delivered") === "not_delivered").filter((c) => !search || String(c.code).toLowerCase().includes(search.toLowerCase()));
   const selectable = rows.filter(available);
-  const picked = all.filter((c) => selected.has(readyKey(c)) && available(c));
+  const picked = rows.filter((c) => selected.has(readyKey(c)) && available(c));
   const count = rows.length;
   const toggle = (keys, on) => setSelected((prev) => {
     const next = new Set(prev);
@@ -57,7 +57,7 @@ export function ReadyCasesPanel({ draft, onAdded, completedOnly = false }) {
     },
     { key: "code", header: "Case", render: (c) => <span className="font-mono font-bold">{c.code}</span> },
     { key: "department", header: "Department", render: (c) => departmentName(c.department) },
-    { key: "received", header: "Received", render: (c) => dateTimeOf(c.receivedAt) },
+    { key: "completed", header: "Completed", render: (c) => dateTimeOf(c.finishedAt) },
     { key: "status", header: "Status", render: (c) => <span className={cn("text-xs", !isRouteCaseCode(c.code) && "font-semibold text-amber-700")}>{status(c)}</span> },
   ];
 
