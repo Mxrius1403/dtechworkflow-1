@@ -46,7 +46,9 @@ class RouteCreate(BaseModel):
 class StopCreate(BaseModel):
     clinicId: str = Field(min_length=1, max_length=100)
     type: Literal["collection", "delivery"]
-    caseNumber: str | None = Field(default=None, pattern=r"^\d{4}$")
+    caseNumber: str | None = Field(
+        default=None, max_length=64, pattern=r"^[A-Za-z0-9._/-]+$"
+    )
     notes: str = Field(default="", max_length=500)
 
 
@@ -453,7 +455,7 @@ async def append_route_stop(
     clinic = await require_clinic(body.clinicId)
     if body.type != "collection" and not body.caseNumber:
         raise HTTPException(
-            status_code=422, detail="Enter a four-digit delivery case number."
+            status_code=422, detail="Select a delivery case."
         )
     deliveries = [{"caseNumber": body.caseNumber}] if body.type != "collection" else []
     collections = [{"notes": body.notes.strip()}] if body.type != "delivery" else []
