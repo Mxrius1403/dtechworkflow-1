@@ -529,6 +529,46 @@ def test_technician_emails_are_only_included_for_managers(monkeypatch):
     assert all("email" not in row for row in technician_rows)
 
 
+def test_driver_emails_are_only_included_for_managers(monkeypatch):
+    drivers = [{"_id": "D0001", "name": "Driver", "active": True}]
+    accounts = [
+        {
+            "_id": "D0001",
+            "email": "driver@example.com",
+            "role": "driver",
+        }
+    ]
+
+    class Cursor:
+        def __init__(self, rows):
+            self.rows = rows
+
+        async def to_list(self, _limit):
+            return self.rows
+
+    class Collection:
+        def __init__(self, rows):
+            self.rows = rows
+
+        def find(self, *_args, **_kwargs):
+            return Cursor(self.rows)
+
+    class Database:
+        def __getitem__(self, name):
+            if name == "drivers":
+                return Collection(drivers)
+            if name == "auth_users":
+                return Collection(accounts)
+            return Collection([])
+
+    monkeypatch.setattr(data, "db", Database())
+    manager_rows = asyncio.run(data.read_collection("drivers", include_login_email=True))
+    driver_rows = asyncio.run(data.read_collection("drivers"))
+
+    assert manager_rows[0]["email"] == "driver@example.com"
+    assert "email" not in driver_rows[0]
+
+
 def test_active_technician_cannot_be_deleted(monkeypatch):
     account = {"_id": "DT001", "role": "technician", "active": True}
 

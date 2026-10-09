@@ -46,6 +46,16 @@ async def read_collection(
             for account in auth_users
             if str(account["_id"]) not in existing_ids
         )
+    elif collection == "drivers" and include_login_email:
+        auth_users = await db[AUTH_USERS].find({"role": "driver"}).to_list(10_000)
+        emails = {
+            str(account["_id"]): account["email"]
+            for account in auth_users
+            if account.get("email")
+        }
+        for row in rows:
+            if row["id"] in emails:
+                row["email"] = emails[row["id"]]
     return rows
 
 
