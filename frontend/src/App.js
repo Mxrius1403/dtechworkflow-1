@@ -11,6 +11,7 @@ import CaseSearchPage from "@/pages/CaseSearchPage";
 import ClinicsPage from "@/pages/clinics/ClinicsPage";
 import CompletionReviewPage from "@/pages/CompletionReviewPage";
 import DashboardPage from "@/pages/dashboard/DashboardPage";
+import DeliveryManagementPage from "@/pages/logistics/DeliveryManagementPage";
 import DriversPage from "@/pages/drivers/DriversPage";
 import MaterialsPage from "@/pages/materials/MaterialsPage";
 import OrderMaterialsPage from "@/pages/materials/OrderMaterialsPage";
@@ -35,6 +36,7 @@ import RoutesPage from "@/pages/logistics/RoutesPage";
 const SCREENS = [
   ["/dashboard", DashboardPage],
   ["/receiving", ReceivingPage],
+  ["/delivery-management", DeliveryManagementPage],
   ["/drivers", DriversPage],
   ["/clinics", ClinicsPage],
   ["/suppliers", SuppliersPage],

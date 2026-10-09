@@ -1,5 +1,5 @@
 import {
-  BarChart3, Boxes, Building2, Car, ClipboardList, Inbox, KeyRound, LayoutDashboard, MapPin, Package, Route, Search, ShoppingCart, Store, Users,
+  BarChart3, Boxes, Building2, Car, ClipboardList, Inbox, KeyRound, LayoutDashboard, MapPin, Package, Route, Search, ShoppingCart, Store, Truck, Users,
 } from "lucide-react";
 
 const manager = (u) => u.isManager || u.isOwner;
@@ -16,10 +16,11 @@ export const PAGES = [
   { path: "/owner-control", label: "Ownership & Managers", icon: KeyRound, access: (u) => u.isOwner, nav: (u) => u.isOwner },
   { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard, nav: always },
   { path: "/receiving", label: "Receiving", title: "Receiving Station", icon: Inbox, access: always, nav: always },
-  { path: "/routes", label: "Routes", icon: MapPin, access: always, nav: always },
-  { path: "/logistics", label: "Create Route", icon: Route, access: manager, nav: manager },
-  { path: "/drivers", label: "Drivers", icon: Car, access: manager, nav: manager },
-  { path: "/clinics", label: "Clinics", icon: Building2, access: manager, nav: manager },
+  { path: "/delivery-management", label: "Delivery Management", icon: Truck, access: manager, nav: manager },
+  { path: "/routes", label: "Routes", icon: MapPin, access: always, nav: (u) => !manager(u) },
+  { path: "/logistics", label: "Create Route", icon: Route, access: manager },
+  { path: "/drivers", label: "Drivers", icon: Car, access: manager },
+  { path: "/clinics", label: "Clinics", icon: Building2, access: manager },
   { path: "/suppliers", label: "Suppliers", icon: Store, access: manager },
   { path: "/case-search", label: "Case Search", icon: Search, access: always, nav: always },
   { path: "/tooth-management", label: "Tooth Management", icon: ClipboardList, access: manager, nav: manager },
