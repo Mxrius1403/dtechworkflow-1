@@ -100,7 +100,7 @@ export function CreateRouteTab({ draft, onPublished, readyCases }) {
   );
   return (
     <>
-      <Panel title="Create Route" description="Deliveries and collections for the same clinic are grouped into one stop. The driver chooses the clinic order before starting." className="lg:sticky lg:top-16 lg:z-10" data-testid="mission-summary">
+      <Panel title="Create Route" description="Deliveries and collections for the same clinic are separate stops. The driver chooses the clinic order before starting." className="lg:sticky lg:top-16 lg:z-10" data-testid="mission-summary">
         <div className="grid items-end gap-4 lg:grid-cols-[minmax(0,1fr)_auto_auto]">
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Route date"><Input type="date" value={draft.date} onChange={(e) => draft.setDate(e.target.value)} data-testid="route-date" /></Field>

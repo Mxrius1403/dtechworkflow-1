@@ -47,7 +47,7 @@ class RouteCreate(BaseModel):
 
 class StopCreate(BaseModel):
     clinicId: str = Field(min_length=1, max_length=100)
-    type: Literal["collection", "delivery", "both"]
+    type: Literal["collection", "delivery"]
     caseNumber: str | None = Field(default=None, pattern=r"^\d{4}$")
     notes: str = Field(default="", max_length=500)
 
@@ -450,9 +450,15 @@ async def create_route(
     )
     for clinic_id, items in grouped.items():
         clinic = await require_clinic(clinic_id)
-        stop = await add_stop(route, clinic, items["deliveries"], items["collections"])
-        if has_confirmed_plan:
-            await notify_driver_of_stop(route, stop, clinic)
+        for deliveries, collections in (
+            (items["deliveries"], []),
+            ([], items["collections"]),
+        ):
+            if not deliveries and not collections:
+                continue
+            stop = await add_stop(route, clinic, deliveries, collections)
+            if has_confirmed_plan:
+                await notify_driver_of_stop(route, stop, clinic)
     return BaseDocument.from_mongo(
         await db["routes"].find_one({"_id": route["_id"]})
     ).to_api()

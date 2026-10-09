@@ -77,8 +77,12 @@ export const stopJobs = (stop) => [
   ...(stop.collections?.length ? ["Collection"] : []),
 ].join(" • ");
 
-/** Group draft deliveries and collections by clinic: one stop per clinic, as when publishing. */
-export const draftStopCount = (collections, deliveries) => new Set([...collections, ...deliveries].map((x) => x.clinicId)).size;
+/** Count one stop per clinic and visit type, matching route publishing. */
+export const draftStopCount = (collections, deliveries) =>
+  new Set([
+    ...deliveries.map((delivery) => `delivery:${delivery.clinicId}`),
+    ...collections.map((collection) => `collection:${collection.clinicId}`),
+  ]).size;
 
 export const mapsUrl = (clinic) =>
   `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent([clinic?.address, clinic?.eircode].filter(Boolean).join(", "))}`;

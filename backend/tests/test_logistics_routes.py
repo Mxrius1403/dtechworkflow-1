@@ -86,6 +86,68 @@ def test_route_accepts_active_case_with_non_numeric_case_code(monkeypatch):
     assert result == route
 
 
+def test_route_creates_separate_stops_for_delivery_and_collection_at_same_clinic(
+    monkeypatch,
+):
+    route = {"_id": "R1", "status": "published", "stopIds": []}
+    stop_calls = []
+
+    class FakeCollection:
+        def __init__(self, name):
+            self.name = name
+
+        async def find_one(self, _query):
+            if self.name == "routes":
+                return route
+            return None
+
+    class FakeDatabase:
+        def __getitem__(self, name):
+            if name in ("route_plans", "routes"):
+                return FakeCollection(name)
+            raise AssertionError(f"Unexpected collection: {name}")
+
+    async def active_driver(_driver_id):
+        return {"_id": "D1"}
+
+    async def require_clinic(_clinic_id):
+        return {"_id": "C1"}
+
+    async def get_or_create_route(_date, _driver, _creator):
+        return route
+
+    async def add_stop(_route, clinic, deliveries, collections):
+        stop_calls.append((clinic["_id"], deliveries, collections))
+        stop = {"_id": f"S{len(stop_calls)}"}
+        route["stopIds"].append(stop["_id"])
+        return stop
+
+    monkeypatch.setattr(logistics, "db", FakeDatabase())
+    monkeypatch.setattr(logistics, "active_driver", active_driver)
+    monkeypatch.setattr(logistics, "require_clinic", require_clinic)
+    monkeypatch.setattr(logistics, "get_or_create_route", get_or_create_route)
+    monkeypatch.setattr(logistics, "add_stop", add_stop)
+    monkeypatch.setattr(
+        logistics.BaseDocument,
+        "from_mongo",
+        lambda document: SimpleNamespace(to_api=lambda: document),
+    )
+    body = RouteCreate(
+        date=date(2026, 10, 8),
+        driverId="D1",
+        deliveries=[DeliveryInput(clinicId="C1", caseNumber="6366")],
+        collections=[{"clinicId": "C1", "notes": ""}],
+    )
+
+    result = asyncio.run(logistics.create_route(body, {"_id": "manager-1"}))
+
+    assert result == route
+    assert stop_calls == [
+        ("C1", [{"caseNumber": "6366"}], []),
+        ("C1", [], [{"notes": ""}]),
+    ]
+
+
 def test_tracking_record_uses_mongo_document_ids():
     route = {
         "_id": "R20261008-001",

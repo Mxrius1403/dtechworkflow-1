@@ -1,4 +1,4 @@
-import { unroutedCases } from "./logistics";
+import { draftStopCount, unroutedCases } from "./logistics";
 
 const routesById = { R1: { id: "R1", status: "published", stopIds: ["S1"] } };
 const stops = [{
@@ -33,4 +33,11 @@ test("can limit unrouted cases to completed status", () => {
   ];
 
   expect(unroutedCases(cases, [], {}, ["completed"]).map((c) => c.id)).toEqual(["completed"]);
+});
+
+test("counts deliveries and collections at the same clinic as separate stops", () => {
+  expect(draftStopCount(
+    [{ clinicId: "C1" }, { clinicId: "C1" }, { clinicId: "C2" }],
+    [{ clinicId: "C1" }, { clinicId: "C1" }],
+  )).toBe(3);
 });

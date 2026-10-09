@@ -49,7 +49,7 @@ export function AddStopDialog({ route, planConfirmed, onClose }) {
           <Field label="Clinic"><NativeSelect value={form.clinicId} onChange={set("clinicId")} data-testid="add-stop-clinic"><option value="">Select clinic</option><ClinicOptions clinics={clinics} /></NativeSelect></Field>
           <Field label="Visit type">
             <NativeSelect value={form.type} onChange={set("type")} data-testid="add-stop-type">
-              <option value="collection">Collection</option><option value="delivery">Delivery</option><option value="both">Delivery + Collection</option>
+              <option value="collection">Collection</option><option value="delivery">Delivery</option>
             </NativeSelect>
           </Field>
           {needsCase && <Field label="Delivery case"><Input value={form.caseNumber} onChange={set("caseNumber")} maxLength={4} inputMode="numeric" placeholder="Required for delivery" data-testid="add-stop-case" /></Field>}
