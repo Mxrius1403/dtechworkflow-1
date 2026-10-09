@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Trash2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -139,13 +140,13 @@ export function StaffDialog({ kind, person, nextId, onClose }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Driver still has open routes</AlertDialogTitle>
             <AlertDialogDescription>
-              {person?.name} still has {openRoutes?.length} open route{openRoutes?.length === 1 ? "" : "s"} ({openRoutes?.map((r) => `${r.id}, ${r.date}`).join("; ")}). Do you really want to set this driver inactive? These routes will be deleted.
+              {person?.name} still has {openRoutes?.length} open route{openRoutes?.length === 1 ? "" : "s"}. Do you really want to set this driver inactive? These routes will be deleted.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={saving} data-testid="driver-deactivate-cancel">Cancel</AlertDialogCancel>
-            <AlertDialogAction disabled={saving} onClick={async (event) => { event.preventDefault(); await saveDriver(true); }} data-testid="driver-deactivate-confirm">
-              {saving ? "Saving…" : "Set inactive and delete routes"}
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" disabled={saving} onClick={async (event) => { event.preventDefault(); await saveDriver(true); }} data-testid="driver-deactivate-confirm">
+              <Trash2 /> {saving ? "Saving…" : "Set inactive and delete routes"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
