@@ -7,7 +7,7 @@ import { Field, NativeSelect, Options } from "@/components/common/Field";
 import { ConfirmAction } from "@/components/common/ConfirmAction";
 import { NOTE_LIMIT } from "@/config/constants";
 import { useData } from "@/context/DataContext";
-import { caseDepartment } from "@/lib/cases";
+import { caseDepartment, DELIVERY_STATUSES } from "@/lib/cases";
 import { notifyError } from "@/lib/notify";
 
 const ATTENTION_LABELS = {
@@ -22,6 +22,7 @@ export function ReceivingCaseDialog({ c, onClose, onSave, onAttentionSave, onRem
   const [department, setDepartment] = useState(caseDepartment(c));
   const [status, setStatus] = useState(c.status);
   const [technicianId, setTechnicianId] = useState(c.technicianId || c.finishedById || "");
+  const [deliveryStatus, setDeliveryStatus] = useState(c.deliveryStatus || "not_delivered");
   const [attentionOpen, setAttentionOpen] = useState(false);
   const [attentionStatus, setAttentionStatus] = useState(c.attentionStatus || "active");
   const [attentionNote, setAttentionNote] = useState("");
@@ -34,6 +35,7 @@ export function ReceivingCaseDialog({ c, onClose, onSave, onAttentionSave, onRem
         department,
         status,
         technicianId,
+        deliveryStatus,
       });
       if (saved) onClose();
     } finally {
@@ -129,6 +131,11 @@ export function ReceivingCaseDialog({ c, onClose, onSave, onAttentionSave, onRem
               <option value="queue">In Queue</option>
               <option value="production">In Production</option>
               <option value="completed">Completed</option>
+            </NativeSelect>
+          </Field>
+          <Field label="Delivery Status">
+            <NativeSelect value={deliveryStatus} onChange={(event) => setDeliveryStatus(event.target.value)} data-testid="receiving-case-delivery">
+              {DELIVERY_STATUSES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </NativeSelect>
           </Field>
           <Field label="Responsible Technician">

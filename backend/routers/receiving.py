@@ -52,6 +52,9 @@ class UpdateCase(BaseModel):
     technicianId: str = Field(default="", max_length=100)
     operationalAt: datetime | None = None
     overdue: bool | None = None
+    deliveryStatus: Literal[
+        "not_delivered", "out_for_delivery", "delivered"
+    ] | None = None
 
 
 class UpdateAttention(BaseModel):
@@ -181,6 +184,7 @@ def _new_case(body: ReceiveCase, account: dict) -> dict:
         "arch": body.arch,
         "attentionStatus": "active",
         "attentionNote": "",
+        "deliveryStatus": "not_delivered",
         "overdue": False,
         "wasOverdue": False,
         "overdueReasonRequired": False,
@@ -540,6 +544,8 @@ async def update_received_case(
     }
     if body.overdue is not None:
         changes["overdue"] = body.overdue
+    if body.deliveryStatus is not None:
+        changes["deliveryStatus"] = body.deliveryStatus
     if body.operationalAt is not None:
         if body.status == "queue":
             changes.update(

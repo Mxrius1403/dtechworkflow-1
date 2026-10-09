@@ -8,7 +8,7 @@ import { ConfirmAction } from "@/components/common/ConfirmAction";
 import { Field, NativeSelect, Options } from "@/components/common/Field";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { useData } from "@/context/DataContext";
-import { attentionLabel, caseDepartment, scheduledKey, serviceLabel } from "@/lib/cases";
+import { attentionLabel, caseDepartment, DELIVERY_STATUSES, deliveryStatusLabel, scheduledKey, serviceLabel } from "@/lib/cases";
 import { deleteReceivedCase, updateReceivedCase } from "@/lib/api";
 import { localInputValue, nice } from "@/lib/format";
 import { notify, notifyError } from "@/lib/notify";
@@ -19,6 +19,7 @@ function DetailBox({ c }) {
       <p><b>Scheduled:</b> {nice(scheduledKey(c))}</p>
       <p><b>Service:</b> {serviceLabel(c)}</p>
       <p><b>Attention:</b> {attentionLabel(c) || "Active"}{c.attentionNote && ` — ${c.attentionNote}`}</p>
+      <p><b>Delivery Status:</b> {deliveryStatusLabel(c)}</p>
       {c.overdueReason && <p><b>Overdue reason:</b> {c.overdueReason}</p>}
     </div>
   );
@@ -30,7 +31,7 @@ export function CaseControlDialog({ c, canDelete, onClose, onAttention, onOverdu
   const queryClient = useQueryClient();
   const techs = users.filter((u) => u.role === "technician" && u.active);
   const at = c.status === "completed" ? c.finishedAt : c.status === "production" ? c.startedAt : c.status === "removed" ? c.queueRemovedAt || c.receivedAt : c.receivedAt;
-  const [form, setForm] = useState({ department: caseDepartment(c), status: c.status, techId: c.technicianId || "", at: localInputValue(at), overdue: Boolean(c.overdue) });
+  const [form, setForm] = useState({ department: caseDepartment(c), status: c.status, techId: c.technicianId || "", at: localInputValue(at), overdue: Boolean(c.overdue), deliveryStatus: c.deliveryStatus || "not_delivered" });
   const [saving, setSaving] = useState(false);
   const set = (key) => (e) => setForm({ ...form, [key]: e?.target ? e.target.value : e });
 
@@ -45,6 +46,7 @@ export function CaseControlDialog({ c, canDelete, onClose, onAttention, onOverdu
         technicianId: form.techId,
         operationalAt: form.at,
         overdue: form.overdue,
+        deliveryStatus: form.deliveryStatus,
       });
       await queryClient.invalidateQueries({ queryKey: ["data"] });
       notify(`Case ${c.code} updated`);
@@ -90,6 +92,11 @@ export function CaseControlDialog({ c, canDelete, onClose, onAttention, onOverdu
             <NativeSelect value={form.status} onChange={set("status")} data-testid="case-status-select">
               <option value="queue">In Queue</option><option value="production">In Production</option><option value="completed">Completed</option>
               {c.status === "removed" && <option value="removed">Removed from Queue</option>}
+            </NativeSelect>
+          </Field>
+          <Field label="Delivery Status" className="sm:col-span-2">
+            <NativeSelect value={form.deliveryStatus} onChange={set("deliveryStatus")} data-testid="case-delivery-select">
+              {DELIVERY_STATUSES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </NativeSelect>
           </Field>
           <Field label="Responsible technician" className="sm:col-span-2">

@@ -25,6 +25,14 @@ export function overdueSummary(c) {
 
 export const serviceLabel = (c) => `${(c.serviceTypes || []).join(" + ") || "Not specified"} • ${c.arch || "Arch not specified"}`;
 
+export const DELIVERY_STATUSES = [
+  ["not_delivered", "Not Delivered"],
+  ["out_for_delivery", "Out for Delivery"],
+  ["delivered", "Delivered"],
+];
+export const deliveryStatusLabel = (c) =>
+  (DELIVERY_STATUSES.find(([value]) => value === (c?.deliveryStatus || "not_delivered")) || DELIVERY_STATUSES[0])[1];
+
 export const attentionLabel = (c) =>
   c.attentionStatus === "on_hold" ? "On Hold" : c.attentionStatus === "need_information" ? "Need Information" : "";
 
