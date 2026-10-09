@@ -5,7 +5,7 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { useData } from "@/context/DataContext";
 import { ACTIVE_ROUTE_STATUSES, stopJobs } from "@/lib/logistics";
 
-export function RouteStopRow({ index, route, stop, deleting, onTransfer, onDelete, readOnly = false }) {
+export function RouteStopRow({ index, route, stop, deleting, onTransfer, onDelete, onCheck, checkDisabled = false, readOnly = false }) {
   const { byId } = useData();
   const clinic = byId.clinics[stop.clinicId] || {};
   const transferable = !["arrived", "completed"].includes(stop.status) && !stop.arrived;
@@ -13,7 +13,18 @@ export function RouteStopRow({ index, route, stop, deleting, onTransfer, onDelet
   return (
     <div className="rounded-lg border p-3" data-testid={`route-stop-${stop.id}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
+        {onCheck && (
+          <input
+            type="checkbox"
+            className="mt-1 h-5 w-5 shrink-0 accent-primary"
+            checked={stop.status === "completed"}
+            disabled={checkDisabled}
+            onChange={(event) => onCheck(event.target.checked)}
+            aria-label={`Mark stop ${index + 1} as done`}
+            data-testid={`stop-check-${stop.id}`}
+          />
+        )}
+        <div className="min-w-0 flex-1">
           <p className="flex flex-wrap items-center gap-2 font-semibold text-primary">
             <span className="font-mono text-xs text-muted-foreground">{index + 1}.</span> {stopJobs(stop) || "No jobs"}
             {stop.urgent && <StatusBadge kind="flag" value="urgent" />}

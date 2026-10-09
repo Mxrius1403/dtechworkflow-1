@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, RotateCcw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Muted } from "@/components/common/Bits";
@@ -12,6 +12,7 @@ import { ACTIVE_ROUTE_STATUSES, groupStopsByClinic, orderedStops } from "@/lib/l
 import { notify, notifyError } from "@/lib/notify";
 import { AddStopDialog } from "./AddStopDialog";
 import { RouteStopRow } from "./RouteStopRow";
+import { ReassignUnfinishedDialog } from "./ReassignUnfinishedDialog";
 import { TransferStopDialog } from "./TransferStopDialog";
 
 export function RouteDialog({ route, onClose }) {
@@ -33,7 +34,9 @@ export function RouteDialog({ route, onClose }) {
   }));
   const canAdd = ACTIVE_ROUTE_STATUSES.includes(route.status);
   const canDelete = ["published", "cancelled"].includes(route.status);
+  const unfinishedCount = route.status === "completed" ? stops.filter((s) => s.status !== "completed").length : 0;
 
+  if (sub?.type === "reassign") return <ReassignUnfinishedDialog route={route} count={unfinishedCount} onClose={() => { setSub(null); onClose(); }} />;
   if (sub?.type === "add") return <AddStopDialog route={route} planConfirmed={Boolean(plan?.confirmed)} onClose={() => setSub(null)} />;
   if (sub?.type === "transfer") return <TransferStopDialog route={route} stop={sub.stop} onClose={() => setSub(null)} />;
 
@@ -97,6 +100,11 @@ export function RouteDialog({ route, onClose }) {
         <p className="text-xs text-muted-foreground">Completed or arrived stops cannot be transferred or deleted. Started routes cannot be deleted.</p>
         <DialogFooter className="flex-wrap gap-2 sm:justify-start">
           <Button onClick={() => setSub({ type: "add" })} disabled={!canAdd} data-testid="route-add-stop"><Plus /> Add Stop</Button>
+          {route.status === "completed" && (
+            <Button variant="secondary" onClick={() => setSub({ type: "reassign" })} disabled={!unfinishedCount} data-testid="route-reassign-unfinished">
+              <RotateCcw /> Reassign Unfinished ({unfinishedCount})
+            </Button>
+          )}
           <ConfirmAction title="Delete this route?" description="The route and its stops are removed." confirmLabel="Delete Route" onConfirm={removeRoute} testId="route-delete">
             <Button variant="destructive" disabled={!canDelete || deleting} data-testid="route-delete-button"><Trash2 /> {deleting ? "Deleting…" : "Delete Route"}</Button>
           </ConfirmAction>

@@ -595,6 +595,186 @@ async def delete_route_stop(
     return {"id": stop_id, "routeId": route_id, "deleted": True}
 
 
+DRIVERS = Depends(require_roles("driver"))
+DELIVERY_LABELS = {
+    "out_for_delivery": "Out for Delivery",
+    "delivered": "Delivered",
+    "not_delivered": "Not Delivered",
+}
+
+
+async def own_route(route_id: str, actor: dict) -> dict:
+    route = await db["routes"].find_one({"_id": route_id})
+    if not route or route.get("driverId") != str(actor["_id"]):
+        raise HTTPException(status_code=404, detail="Route not found.")
+    return route
+
+
+async def set_stop_delivery_status(
+    stop: dict, route: dict, delivery_status: str, actor: dict
+) -> None:
+    """Set the delivery status of every case delivered by `stop`."""
+    for delivery in stop.get("deliveries") or []:
+        if delivery.get("productionCaseId"):
+            query = {"_id": delivery["productionCaseId"]}
+        elif delivery.get("caseNumber"):
+            query = {"code": delivery["caseNumber"], "deleted": {"$ne": True}}
+        else:
+            continue
+        case = await db["cases"].find_one(query)
+        if not case or case.get("deliveryStatus", "not_delivered") == delivery_status:
+            continue
+        await db["cases"].update_one(
+            {"_id": case["_id"]}, {"$set": {"deliveryStatus": delivery_status}}
+        )
+        await log_case_event(
+            db,
+            case,
+            f"Delivery status set to {DELIVERY_LABELS[delivery_status]} "
+            f"(route {route['_id']})",
+            actor,
+        )
+
+
+class StopCheck(BaseModel):
+    checked: bool
+
+
+@router.post("/routes/{route_id}/start", dependencies=[DRIVERS])
+async def start_route(
+    route_id: str, actor: dict = Depends(current_account)
+) -> dict:
+    route = await own_route(route_id, actor)
+    if route.get("status") != "published":
+        raise HTTPException(status_code=409, detail="This route cannot be started.")
+    stops = await db["stops"].find({"routeId": route_id}).to_list(None)
+    if not stops:
+        raise HTTPException(status_code=409, detail="This route has no stops.")
+    timestamp = now_iso()
+    await db["routes"].update_one(
+        {"_id": route_id},
+        {"$set": {"status": "started", "startedAt": timestamp, "updatedAt": timestamp}},
+    )
+    for stop in stops:
+        await set_stop_delivery_status(stop, route, "out_for_delivery", actor)
+    return {"id": route_id, "status": "started"}
+
+
+@router.patch("/routes/{route_id}/stops/{stop_id}/check", dependencies=[DRIVERS])
+async def check_route_stop(
+    route_id: str,
+    stop_id: str,
+    body: StopCheck,
+    actor: dict = Depends(current_account),
+) -> dict:
+    route = await own_route(route_id, actor)
+    if route.get("status") != "started":
+        raise HTTPException(status_code=409, detail="Start the route first.")
+    stop_status = "completed" if body.checked else "pending"
+    result = await db["stops"].update_one(
+        {"_id": stop_id, "routeId": route_id},
+        {
+            "$set": {
+                "status": stop_status,
+                "arrived": body.checked,
+                "deliveryCompleted": body.checked,
+                "collectionCompleted": body.checked,
+            }
+        },
+    )
+    if not result.matched_count:
+        raise HTTPException(status_code=404, detail="Route stop not found.")
+    return {"id": stop_id, "routeId": route_id, "status": stop_status}
+
+
+@router.post("/routes/{route_id}/finish", dependencies=[DRIVERS])
+async def finish_route(
+    route_id: str, actor: dict = Depends(current_account)
+) -> dict:
+    route = await own_route(route_id, actor)
+    if route.get("status") != "started":
+        raise HTTPException(status_code=409, detail="This route is not in progress.")
+    stops = await db["stops"].find({"routeId": route_id}).to_list(None)
+    timestamp = now_iso()
+    await db["routes"].update_one(
+        {"_id": route_id},
+        {"$set": {"status": "completed", "completedAt": timestamp, "updatedAt": timestamp}},
+    )
+    for stop in stops:
+        done = stop.get("status") == "completed"
+        await set_stop_delivery_status(
+            stop, route, "delivered" if done else "not_delivered", actor
+        )
+    return {"id": route_id, "status": "completed"}
+
+
+@router.post("/routes/{route_id}/reassign-unfinished", dependencies=[MANAGERS])
+async def reassign_unfinished_stops(
+    route_id: str,
+    body: StopTransfer,
+    creator: dict = Depends(current_account),
+) -> dict:
+    source = await db["routes"].find_one({"_id": route_id})
+    if not source:
+        raise HTTPException(status_code=404, detail="Route not found.")
+    if source.get("status") != "completed":
+        raise HTTPException(
+            status_code=409, detail="Only a completed route can be reassigned."
+        )
+    stops = await db["stops"].find({"routeId": route_id}).to_list(None)
+    unfinished = [s for s in stops if s.get("status") != "completed"]
+    if not unfinished:
+        raise HTTPException(status_code=409, detail="Every stop was finished.")
+    driver = await active_driver(body.driverId)
+    route_date = (body.routeDate or date.fromisoformat(source["date"])).isoformat()
+    target = await get_or_create_route(route_date, driver, creator)
+    order = len(target.get("stopIds", []))
+    moved_ids = []
+    for stop in sorted(unfinished, key=lambda s: s.get("order", 0)):
+        order += 1
+        await db["stops"].update_one(
+            {"_id": stop["_id"]},
+            {
+                "$set": {
+                    "routeId": target["_id"],
+                    "order": order,
+                    "status": "pending",
+                    "arrived": False,
+                    "deliveryCompleted": False,
+                    "collectionCompleted": False,
+                }
+            },
+        )
+        moved_ids.append(stop["_id"])
+        await log_stop_case_events(
+            stop,
+            target,
+            f"Undelivered stop reassigned from route {source['_id']}",
+            creator,
+        )
+    timestamp = now_iso()
+    target_ids = [*target.get("stopIds", []), *moved_ids]
+    await db["routes"].update_one(
+        {"_id": target["_id"]},
+        {
+            "$set": {
+                "stopIds": target_ids,
+                "totalStops": len(target_ids),
+                "updatedAt": timestamp,
+            }
+        },
+    )
+    remaining = [sid for sid in source["stopIds"] if sid not in moved_ids]
+    await db["routes"].update_one(
+        {"_id": source["_id"]},
+        {"$set": {"stopIds": remaining, "totalStops": len(remaining), "updatedAt": timestamp}},
+    )
+    await db["route_plans"].delete_many(
+        {"_id": {"$in": [source["_id"], target["_id"]]}}
+    )
+    return {"id": target["_id"], "moved": len(moved_ids)}
+
+
 @router.delete("/routes/{route_id}", dependencies=[MANAGERS])
 async def delete_route(
     route_id: str, actor: dict = Depends(current_account)

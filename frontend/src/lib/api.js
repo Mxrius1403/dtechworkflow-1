@@ -47,6 +47,10 @@ export const createLogisticsRoute = (route) => api.post("/routes", route).then((
 export const addRouteStop = (routeId, stop) => api.post(`/routes/${routeId}/stops`, stop).then((r) => r.data);
 export const transferRouteStop = (routeId, stopId, driverId, routeDate) => api.patch(`/routes/${routeId}/stops/${stopId}/transfer`, { driverId, routeDate }).then((r) => r.data);
 export const deleteRouteStop = (routeId, stopId) => api.delete(`/routes/${routeId}/stops/${stopId}`).then((r) => r.data);
+export const startRoute = (routeId) => api.post(`/routes/${routeId}/start`).then((r) => r.data);
+export const finishRoute = (routeId) => api.post(`/routes/${routeId}/finish`).then((r) => r.data);
+export const checkRouteStop = (routeId, stopId, checked) => api.patch(`/routes/${routeId}/stops/${stopId}/check`, { checked }).then((r) => r.data);
+export const reassignUnfinishedStops = (routeId, driverId, routeDate) => api.post(`/routes/${routeId}/reassign-unfinished`, { driverId, routeDate }).then((r) => r.data);
 export const deleteLogisticsRoute = (routeId) => api.delete(`/routes/${routeId}`).then((r) => r.data);
 export const createClinic = (clinic) => api.post("/clinics", clinic).then((r) => r.data);
 export const updateClinic = (clinicId, clinic) => api.put(`/clinics/${clinicId}`, clinic).then((r) => r.data);
