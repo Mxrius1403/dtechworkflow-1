@@ -2,6 +2,10 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Field, NativeSelect } from "@/components/common/Field";
 import { isEmail } from "@/lib/csv";
@@ -15,8 +19,31 @@ export function StaffDialog({ kind, person, nextId, onClose }) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState({ name: person?.name || "", email: person?.email || "", password: "", active: person ? String(person.active) : "true" });
   const [saving, setSaving] = useState(false);
+  const [openRoutes, setOpenRoutes] = useState(null);
   const needsLogin = true;
   const set = (key) => (e) => setForm((current) => ({ ...current, [key]: e.target.value }));
+  const saveDriver = async (force) => {
+    setSaving(true);
+    try {
+      const details = {
+        name: form.name.trim(),
+        ...(form.email.trim() ? { email: form.email.trim() } : {}),
+        active: form.active === "true",
+        ...(form.password ? { password: form.password } : {}),
+      };
+      if (person) await updateDriver(person.id, details, force);
+      else await createDriver(details);
+      await queryClient.invalidateQueries({ queryKey: ["data"] });
+      notify(`Driver ${person ? "saved" : "account created"}`);
+      onClose();
+    } catch (error) {
+      const detail = error.response?.data?.detail;
+      if (detail?.code === "driver_has_routes") setOpenRoutes(detail.routes);
+      else notifyError(typeof detail === "string" ? detail : "Could not save driver");
+    } finally {
+      setSaving(false);
+    }
+  };
   const save = async () => {
     if (!form.name.trim()) return notifyError("Enter a name");
     if (needsLogin && !(kind === "driver" && person && !form.email.trim()) && !isEmail(form.email.trim())) {
@@ -29,25 +56,7 @@ export function StaffDialog({ kind, person, nextId, onClose }) {
       return notifyError("New password must be at least 12 characters");
     }
     if (kind === "driver") {
-      setSaving(true);
-      try {
-        const details = {
-          name: form.name.trim(),
-          ...(form.email.trim() ? { email: form.email.trim() } : {}),
-          active: form.active === "true",
-          ...(form.password ? { password: form.password } : {}),
-        };
-        if (person) await updateDriver(person.id, details);
-        else await createDriver(details);
-        await queryClient.invalidateQueries({ queryKey: ["data"] });
-        notify(`Driver ${person ? "saved" : "account created"}`);
-        onClose();
-      } catch (error) {
-        const detail = error.response?.data?.detail;
-        notifyError(typeof detail === "string" ? detail : "Could not save driver");
-      } finally {
-        setSaving(false);
-      }
+      await saveDriver(false);
       return;
     }
     if ((kind === "technician" || kind === "manager") && person) {
@@ -125,6 +134,22 @@ export function StaffDialog({ kind, person, nextId, onClose }) {
           <Button onClick={save} disabled={saving} data-testid={`${kind}-save`}>{saving ? "Saving…" : "Save"}</Button>
         </DialogFooter>
       </DialogContent>
+      <AlertDialog open={Boolean(openRoutes)} onOpenChange={(open) => { if (!open && !saving) setOpenRoutes(null); }}>
+        <AlertDialogContent data-testid="driver-deactivate-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Driver still has open routes</AlertDialogTitle>
+            <AlertDialogDescription>
+              {person?.name} still has {openRoutes?.length} open route{openRoutes?.length === 1 ? "" : "s"} ({openRoutes?.map((r) => `${r.id}, ${r.date}`).join("; ")}). Do you really want to set this driver inactive? These routes will be deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={saving} data-testid="driver-deactivate-cancel">Cancel</AlertDialogCancel>
+            <AlertDialogAction disabled={saving} onClick={async (event) => { event.preventDefault(); await saveDriver(true); }} data-testid="driver-deactivate-confirm">
+              {saving ? "Saving…" : "Set inactive and delete routes"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

@@ -826,7 +826,7 @@ async def delete_driver(driver_id: str, force: bool = False) -> dict:
 
 
 @router.patch("/drivers/{driver_id}", dependencies=[MANAGERS])
-async def update_driver(driver_id: str, body: DriverSave) -> dict:
+async def update_driver(driver_id: str, body: DriverSave, force: bool = False) -> dict:
     name = body.name.strip()
     if not name:
         raise HTTPException(status_code=422, detail="Enter a driver name.")
@@ -835,6 +835,22 @@ async def update_driver(driver_id: str, body: DriverSave) -> dict:
     driver = await db["drivers"].find_one({"_id": driver_id})
     if not driver:
         raise HTTPException(status_code=404, detail="Driver not found.")
+    open_routes = []
+    if not body.active:
+        open_routes = await db["routes"].find(
+            {"driverId": driver_id, "status": {"$nin": ["completed", "cancelled"]}}
+        ).to_list(length=None)
+        if open_routes and not force:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "driver_has_routes",
+                    "routes": [
+                        {"id": r["_id"], "date": r.get("date"), "status": r.get("status")}
+                        for r in open_routes
+                    ],
+                },
+            )
     account = await db[AUTH_USERS].find_one({"_id": driver_id})
     if account and account.get("role") != "driver":
         raise HTTPException(status_code=409, detail="Driver account is invalid.")
@@ -879,6 +895,8 @@ async def update_driver(driver_id: str, body: DriverSave) -> dict:
             raise HTTPException(
                 status_code=409, detail="An account with this email already exists."
             ) from error
+    for route in open_routes:
+        await remove_route(route)
     await db["drivers"].update_one(
         {"_id": driver_id}, {"$set": {"name": name, "active": body.active}}
     )
