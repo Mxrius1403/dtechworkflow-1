@@ -24,11 +24,11 @@ export function RouteStopRow({ index, route, stop, deleting, onTransfer, onDelet
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="flex flex-wrap items-center gap-2 font-semibold text-primary">
-            <span className="font-mono text-xs text-muted-foreground">{index + 1}.</span> {clinic.name || stop.clinicId}
+            <span className="font-mono text-xs text-muted-foreground">{index + 1}.</span> {stopJobs(stop) || "No jobs"}
             {stop.urgent && <StatusBadge kind="flag" value="urgent" />}
           </p>
           <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-            {clinic.eircode} • {stopJobs(stop) || "No jobs"} <StatusBadge kind="stop" value={stop.status} testId={`stop-status-${stop.id}`} />
+            {clinic.eircode} <StatusBadge kind="stop" value={stop.status} testId={`stop-status-${stop.id}`} />
           </p>
         </div>
         <div className="ml-auto flex flex-wrap justify-end gap-2">

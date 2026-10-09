@@ -29,6 +29,15 @@ export function routeOrderIds(route, plan) {
 
 export const orderedStops = (route, plan, stopsById) => routeOrderIds(route, plan).map((id) => stopsById[id]).filter(Boolean);
 
+export function groupStopsByClinic(stops) {
+  const groups = new Map();
+  for (const stop of stops) {
+    if (!groups.has(stop.clinicId)) groups.set(stop.clinicId, []);
+    groups.get(stop.clinicId).push(stop);
+  }
+  return [...groups].map(([clinicId, clinicStops]) => ({ clinicId, stops: clinicStops }));
+}
+
 export const readyKey = (c) => `${c.id}|${c.managerConfirmedAt}`;
 
 function readyAssignment(c, stops, routesById) {

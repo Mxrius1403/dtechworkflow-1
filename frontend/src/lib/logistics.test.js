@@ -1,4 +1,4 @@
-import { draftStopCount, unroutedCases } from "./logistics";
+import { draftStopCount, groupStopsByClinic, unroutedCases } from "./logistics";
 
 const routesById = { R1: { id: "R1", status: "published", stopIds: ["S1"] } };
 const stops = [{
@@ -40,4 +40,15 @@ test("counts deliveries and collections at the same clinic as separate stops", (
     [{ clinicId: "C1" }, { clinicId: "C1" }, { clinicId: "C2" }],
     [{ clinicId: "C1" }, { clinicId: "C1" }],
   )).toBe(3);
+});
+
+test("groups every clinic's stops together while preserving stop order within each clinic", () => {
+  const delivery = { id: "S1", clinicId: "C1", deliveries: [{ caseNumber: "6366" }] };
+  const otherClinic = { id: "S2", clinicId: "C2", collections: [{}] };
+  const collection = { id: "S3", clinicId: "C1", collections: [{}] };
+
+  expect(groupStopsByClinic([delivery, otherClinic, collection])).toEqual([
+    { clinicId: "C1", stops: [delivery, collection] },
+    { clinicId: "C2", stops: [otherClinic] },
+  ]);
 });

@@ -8,7 +8,7 @@ import { ConfirmAction } from "@/components/common/ConfirmAction";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { useData } from "@/context/DataContext";
 import { deleteLogisticsRoute, deleteRouteStop } from "@/lib/api";
-import { ACTIVE_ROUTE_STATUSES, orderedStops } from "@/lib/logistics";
+import { ACTIVE_ROUTE_STATUSES, groupStopsByClinic, orderedStops } from "@/lib/logistics";
 import { notify, notifyError } from "@/lib/notify";
 import { AddStopDialog } from "./AddStopDialog";
 import { RouteStopRow } from "./RouteStopRow";
@@ -22,6 +22,15 @@ export function RouteDialog({ route, onClose }) {
   const [deletingStopId, setDeletingStopId] = useState(null);
   const plan = byId.routePlans[route.id];
   const stops = orderedStops(route, plan, byId.stops);
+  const stopGroups = groupStopsByClinic(stops);
+  let stopIndex = 0;
+  const numberedStopGroups = stopGroups.map((group) => ({
+    ...group,
+    stops: group.stops.map((stop) => ({
+      stop,
+      index: stopIndex++,
+    })),
+  }));
   const canAdd = ACTIVE_ROUTE_STATUSES.includes(route.status);
   const canDelete = ["published", "cancelled"].includes(route.status);
 
@@ -68,7 +77,22 @@ export function RouteDialog({ route, onClose }) {
         </DialogHeader>
         <Notice tone="warn">Tracking email delivery is not configured on this server. Share a clinic page link to provide live updates.</Notice>
         <div className="grid gap-2">
-          {stops.map((s, i) => <RouteStopRow key={s.id} index={i} route={route} stop={s} deleting={deletingStopId === s.id} onTransfer={() => setSub({ type: "transfer", stop: s })} onDelete={() => removeStop(s)} />)}
+          {numberedStopGroups.map((group) => (
+            <section key={group.clinicId} className="grid gap-2" data-testid={`route-clinic-group-${group.clinicId}`}>
+              <h3 className="text-sm font-semibold text-primary">{byId.clinics[group.clinicId]?.name || group.clinicId}</h3>
+              {group.stops.map(({ stop, index }) => (
+                <RouteStopRow
+                  key={stop.id}
+                  index={index}
+                  route={route}
+                  stop={stop}
+                  deleting={deletingStopId === stop.id}
+                  onTransfer={() => setSub({ type: "transfer", stop })}
+                  onDelete={() => removeStop(stop)}
+                />
+              ))}
+            </section>
+          ))}
           {!stops.length && <Muted>No stops.</Muted>}
         </div>
         <p className="text-xs text-muted-foreground">Completed or arrived stops cannot be transferred or deleted. Started routes cannot be deleted.</p>
