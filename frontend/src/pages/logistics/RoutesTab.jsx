@@ -48,7 +48,7 @@ export function RoutesTab() {
       </div>
       <div className="mt-8 grid gap-3" data-testid="routes-archive">
         <h3 className="text-sm font-semibold text-primary">Archive</h3>
-        <p className="text-xs text-muted-foreground">Completed routes archived by a manager, or automatically 10 days after completion.</p>
+        <p className="text-xs text-muted-foreground">Completed routes archived by a owner/manager, or automatically 10 days after completion.</p>
         {!archivedRoutes.length && <p className="py-4 text-center text-sm text-muted-foreground">No archived routes.</p>}
         {!!archivedRoutes.length && <DataTable rows={archivedRoutes} rowTestId={(r) => `archived-route-row-${r.id}`} columns={[{ key: "date", header: "Date", render: (r) => nice(r.date) }, ...columns]} />}
       </div>
