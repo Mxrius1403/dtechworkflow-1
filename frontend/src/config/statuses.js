@@ -12,6 +12,7 @@ export const TONES = {
 
 export const STATUS = {
   case: { queue: ["In Queue", "slate"], production: ["In Production", "cyan"], completed: ["Completed", "emerald"], removed: ["Removed from Queue", "zinc"], deleted: ["Deleted", "rose"] },
+  delivery: { not_delivered: ["Not Delivered", "slate"], out_for_delivery: ["In Delivery", "amber"], delivered: ["Delivered", "sky"] },
   route: { published: ["Published", "slate"], started: ["Started", "cyan"], break: ["On Break", "amber"], completed: ["Completed", "emerald"], cancelled: ["Cancelled", "zinc"] },
   stop: { pending: ["Pending", "slate"], arrived: ["Arrived", "cyan"], completed: ["Completed", "emerald"] },
   order: { pending: ["Pending", "amber"], ordered: ["Ordered", "sky"], received: ["Received", "emerald"], done: ["Done", "emerald"] },

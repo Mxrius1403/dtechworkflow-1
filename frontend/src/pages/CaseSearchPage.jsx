@@ -133,7 +133,7 @@ export default function CaseSearchPage() {
           { key: "code", header: "Case", render: (c) => <span className="font-mono font-bold">{c.code}</span> },
           { key: "department", header: "Department", render: (c) => departmentName(caseDepartment(c)) },
           { key: "status", header: "Status", render: (c) => <StatusBadge kind="case" value={c.deleted ? "deleted" : c.status} /> },
-          { key: "deliveryStatus", header: "Delivery Status", render: (c) => deliveryStatusLabel(c) },
+          { key: "deliveryStatus", header: "Delivery Status", render: (c) => <StatusBadge kind="delivery" value={c.deliveryStatus || "not_delivered"} label={deliveryStatusLabel(c)} /> },
           { key: "tech", header: "Technician", render: (c) => who(c.technicianId || c.finishedById, c.technician || c.finishedBy) },
           { key: "received", header: "Received", render: (c) => `${c.receivedDate || "-"} ${c.receivedTime || ""}` },
           { key: "started", header: "Started", render: (c) => c.startedTime || "-" },
