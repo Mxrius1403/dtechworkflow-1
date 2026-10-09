@@ -22,14 +22,14 @@ export const PAGES = [
   { path: "/clinics", label: "Clinics", icon: Building2, access: manager },
   { path: "/suppliers", label: "Suppliers", icon: Store, access: manager },
   { path: "/case-search", label: "Case Search", icon: Search, access: always, nav: always },
-  { path: "/delivery-management", label: "Delivery Management", icon: Truck, access: manager, nav: manager },
-  { path: "/tooth-management", label: "Tooth Management", icon: ClipboardList, access: manager, nav: manager },
+  { path: "/delivery-management", label: "Delivery Management", icon: Truck, access: manager, nav: manager, activePaths: ["/routes", "/logistics", "/drivers", "/clinics"] },
+  { path: "/tooth-management", label: "Tooth Management", icon: ClipboardList, access: manager, nav: manager, activePaths: ["/tooth-order", "/tooth-orders"] },
   { path: "/tooth-order", label: "Order Tooth", icon: ClipboardList, access: always, nav: technician },
   { path: "/tooth-orders", label: "Tooth Order Requests", icon: ClipboardList, access: manager },
   { path: "/materials/requests", label: "Material Order Requests", icon: ClipboardList, access: manager },
   { path: "/materials/products", label: "Product Management", icon: Boxes, access: manager },
   { path: "/materials/order", label: "Order Materials", icon: ShoppingCart, access: manager },
-  { path: "/materials", label: materialsLabel, icon: Package, nav: always },
+  { path: "/materials", label: materialsLabel, icon: Package, nav: always, activePaths: ["/suppliers"] },
   { path: "/technicians", label: "Technicians", icon: Users, access: manager, nav: manager },
   { path: "/reports", label: "Reports", icon: BarChart3, access: manager, nav: manager },
   { path: "/completion-review", label: "Completion Review", access: manager },
@@ -43,3 +43,8 @@ export const pageForPath = (pathname) => PAGES.find((p) => pathname === p.path |
 export const canOpen = (page, user) => Boolean(page) && (!page.access || page.access(user));
 export const pageTitle = (page, user) => resolve(page?.title || page?.label, user) || "Dashboard";
 export const navItemsFor = (user) => PAGES.filter((p) => p.nav?.(user)).map((p) => ({ ...p, label: resolve(p.label, user) }));
+export const isNavItemActive = (item, pathname, routeIsActive = false) => (
+  routeIsActive || [item.path, ...(item.activePaths || [])].some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`),
+  )
+);

@@ -1,4 +1,4 @@
-import { canOpen, navItemsFor, pageForPath } from "./navigation";
+import { canOpen, isNavItemActive, navItemsFor, pageForPath } from "./navigation";
 
 const caseSearchPage = pageForPath("/case-search");
 
@@ -68,4 +68,31 @@ test("technicians cannot see or open Create Route", () => {
   expect(navItemsFor(technician).some(({ path, label }) => path === "/routes" && label === "Routes")).toBe(true);
   expect(navItemsFor(technician).some(({ path }) => path === "/tooth-order")).toBe(true);
   expect(navItemsFor(technician).some(({ path }) => path === "/owner-control")).toBe(false);
+});
+
+test.each([
+  ["/routes", "/delivery-management"],
+  ["/logistics", "/delivery-management"],
+  ["/drivers", "/delivery-management"],
+  ["/clinics", "/delivery-management"],
+  ["/tooth-order", "/tooth-management"],
+  ["/tooth-orders", "/tooth-management"],
+  ["/materials/requests", "/materials"],
+  ["/materials/products", "/materials"],
+  ["/materials/order", "/materials"],
+  ["/suppliers", "/materials"],
+])("%s keeps its management section active", (pathname, navPath) => {
+  const user = { isManager: true, isOwner: false };
+  const navItem = navItemsFor(user).find(({ path }) => path === navPath);
+
+  expect(isNavItemActive(navItem, pathname)).toBe(true);
+});
+
+test("management sections do not match unrelated paths", () => {
+  const user = { isManager: true, isOwner: false };
+  const delivery = navItemsFor(user).find(({ path }) => path === "/delivery-management");
+  const tooth = navItemsFor(user).find(({ path }) => path === "/tooth-management");
+
+  expect(isNavItemActive(delivery, "/drivers-extra")).toBe(false);
+  expect(isNavItemActive(tooth, "/tooth-orders-archive")).toBe(false);
 });

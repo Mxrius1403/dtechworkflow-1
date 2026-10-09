@@ -1,7 +1,7 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import { LogOut } from "lucide-react";
 import { APP_NAME, LOGO } from "@/config/constants";
-import { navItemsFor } from "@/config/navigation";
+import { isNavItemActive, navItemsFor } from "@/config/navigation";
 import { useSession } from "@/context/SessionContext";
 import { cn } from "@/lib/utils";
 
@@ -9,6 +9,7 @@ const roleName = (u) => (u.isOwner ? "Owner" : u.isManager ? "Manager" : "Techni
 
 export function Sidebar({ onNavigate }) {
   const { user, signOut } = useSession();
+  const { pathname } = useLocation();
   return (
     <div className="flex h-full flex-col gap-5 p-4">
       <div className="flex items-center gap-2 px-1">
@@ -20,14 +21,16 @@ export function Sidebar({ onNavigate }) {
         <p className="font-mono text-[11px] text-muted-foreground">{user.id} • {roleName(user)}</p>
       </div>
       <nav className="grid gap-1" data-testid="sidebar-nav">
-        {navItemsFor(user).map(({ path, label, icon: Icon }) => (
+        {navItemsFor(user).map(({ path, label, icon: Icon, activePaths }) => (
           <NavLink
             key={path}
             to={path}
             onClick={onNavigate}
             className={({ isActive }) => cn(
               "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-              isActive ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-primary",
+              isNavItemActive({ path, activePaths }, pathname, isActive)
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:bg-muted hover:text-primary",
             )}
             data-testid={`nav-${path.slice(1)}`}
           >
