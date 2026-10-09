@@ -1,4 +1,5 @@
 import { useNavigate, useOutletContext } from "react-router-dom";
+import { BackLink } from "@/components/common/Bits";
 import { LogisticsStats } from "./LogisticsStats";
 import { CreateRouteTab } from "./CreateRouteTab";
 import { ReadyCasesPanel } from "./ReadyCasesPanel";
@@ -9,6 +10,7 @@ export default function LogisticsPage() {
 
   return (
     <>
+      <BackLink to="/delivery-management">Delivery Management</BackLink>
       <LogisticsStats />
       <CreateRouteTab
         draft={draft}

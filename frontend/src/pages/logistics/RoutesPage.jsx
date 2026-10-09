@@ -1,4 +1,5 @@
 import { useNavigate, useOutletContext, useSearchParams } from "react-router-dom";
+import { BackLink } from "@/components/common/Bits";
 import { LogisticsStats } from "./LogisticsStats";
 import { ReadyCasesPanel } from "./ReadyCasesPanel";
 import { RoutesTab } from "./RoutesTab";
@@ -20,6 +21,7 @@ export default function RoutesPage() {
 
   return (
     <>
+      <BackLink to="/delivery-management">Delivery Management</BackLink>
       <LogisticsStats />
       <ReadyCasesPanel draft={draft} onAdded={() => navigate("/logistics")} />
       <RoutesTab date={date} onDateChange={onDateChange} />
