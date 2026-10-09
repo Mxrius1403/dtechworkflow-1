@@ -40,6 +40,8 @@ test.each([
   expect(canOpen(pageForPath("/delivery-management"), user)).toBe(true);
   expect(canOpen(pageForPath("/logistics"), user)).toBe(true);
   expect(navItemsFor(user).some(({ path, label }) => path === "/delivery-management" && label === "Delivery Management")).toBe(true);
+  const navPaths = navItemsFor(user).map(({ path }) => path);
+  expect(navPaths.indexOf("/delivery-management")).toBe(navPaths.indexOf("/case-search") + 1);
   expect(canOpen(pageForPath("/routes"), user)).toBe(true);
   for (const path of managerNavPages) {
     expect(navItemsFor(user).some(({ path: navPath }) => navPath === path)).toBe(true);
