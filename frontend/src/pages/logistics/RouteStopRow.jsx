@@ -38,6 +38,8 @@ export function RouteStopRow({ index, route, stop, deleting, onTransfer, onDelet
             title="Delete this stop?"
             description={`${clinic.name || stop.clinicId} will be removed from this route and its clinic tracking link will be disabled.`}
             confirmLabel="Delete Stop"
+            confirmIcon={<Trash2 />}
+            destructiveConfirm
             onConfirm={onDelete}
             testId={`stop-delete-${stop.id}`}
           >
