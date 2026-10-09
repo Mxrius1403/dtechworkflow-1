@@ -120,11 +120,13 @@ def tracking_record(route: dict, stop: dict, clinic: dict) -> dict:
         if route_status == "break"
         else "started" if route_status == "started" else "scheduled"
     )
+    route_id = route["_id"]
+    stop_id = stop["_id"]
     return {
-        "_id": route["trackingTokens"][stop["id"]],
+        "_id": route["trackingTokens"][stop_id],
         "active": True,
-        "routeId": route["id"],
-        "stopId": stop["id"],
+        "routeId": route_id,
+        "stopId": stop_id,
         "clinicName": clinic["name"],
         "companyName": route.get("companyName", "Dentaltech Group"),
         "routeDate": route["date"],
@@ -133,7 +135,7 @@ def tracking_record(route: dict, stop: dict, clinic: dict) -> dict:
         "hasCollection": bool(stop["collections"]),
         "totalStops": len(route["stopIds"]),
         "completedStops": 0,
-        "stopsRemaining": max(0, route["stopIds"].index(stop["id"])),
+        "stopsRemaining": max(0, route["stopIds"].index(stop_id)),
         "etaText": (
             "Available when route starts"
             if status == "scheduled"

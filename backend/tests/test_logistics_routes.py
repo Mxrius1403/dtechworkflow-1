@@ -84,3 +84,26 @@ def test_route_accepts_active_case_with_non_numeric_case_code(monkeypatch):
     result = asyncio.run(logistics.create_route(body, {"_id": "manager-1"}))
 
     assert result == route
+
+
+def test_tracking_record_uses_mongo_document_ids():
+    route = {
+        "_id": "R20261008-001",
+        "date": "2026-10-08",
+        "status": "published",
+        "stopIds": ["R20261008-001-S001"],
+        "trackingTokens": {"R20261008-001-S001": "a" * 48},
+        "updatedAt": "2026-10-08T12:00:00+00:00",
+    }
+    stop = {
+        "_id": "R20261008-001-S001",
+        "deliveries": [{"caseNumber": "1001"}],
+        "collections": [],
+    }
+
+    record = logistics.tracking_record(route, stop, {"name": "Clinic"})
+
+    assert record["_id"] == "a" * 48
+    assert record["routeId"] == route["_id"]
+    assert record["stopId"] == stop["_id"]
+    assert record["stopsRemaining"] == 0
