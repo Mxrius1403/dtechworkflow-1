@@ -53,8 +53,7 @@ export function CaseImportDialog({ onClose }) {
     try {
       const response = await importCases(result.rows);
       await queryClient.invalidateQueries({ queryKey: ["data"] });
-      const skipped = response.skipped?.length || 0;
-      notify(`${response.cases.length} case${response.cases.length === 1 ? "" : "s"} imported${skipped ? `, ${skipped} already existing skipped` : ""}`);
+      notify(`${response.cases.length} case${response.cases.length === 1 ? "" : "s"} imported`);
       onClose();
     } catch (error) {
       const detail = error.response?.data?.detail;

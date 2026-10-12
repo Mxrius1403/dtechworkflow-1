@@ -832,16 +832,16 @@ def test_import_maps_legacy_case_and_keeps_history(receiving_db):
     assert [h["action"] for h in case["history"]][:2] == ["Received", "Missed"]
 
 
-def test_import_cases_skips_existing_case_ids(receiving_db):
+def test_import_cases_is_all_or_nothing_on_duplicates(receiving_db):
     asyncio.run(receiving.create_received_case(
         receive_payload(code="IMP-1"), MANAGER))
     body = receiving.ImportCases(cases=[
         {**LEGACY_CASE, "code": "IMP-2"}, {**LEGACY_CASE, "code": "IMP-1"},
     ])
-    result = asyncio.run(receiving.import_cases(body, MANAGER))
-    assert [c["code"] for c in result["cases"]] == ["IMP-2"]
-    assert result["skipped"] == ["IMP-1"]
-    assert len(receiving_db.documents) == 2
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(receiving.import_cases(body, MANAGER))
+    assert error.value.status_code == 422
+    assert len(receiving_db.documents) == 1
 
 
 def test_import_maps_status_to_queue_or_completed(receiving_db):

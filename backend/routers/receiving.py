@@ -518,21 +518,20 @@ async def import_cases(
     body: ImportCases,
     account: dict = Depends(require_roles("owner", "manager")),
 ) -> dict:
-    to_import = []
-    skipped = []
+    errors = []
     seen = set()
-    for item in body.cases:
+    for index, item in enumerate(body.cases, start=2):
         key = item.code.lower()
         if key in seen or await db["cases"].find_one(
             {"code": item.code, "deleted": {"$ne": True}}
         ):
-            skipped.append(item.code)
-        else:
-            to_import.append(item)
+            errors.append(f"Row {index}: Case {item.code} already exists.")
         seen.add(key)
+    if errors:
+        raise HTTPException(status_code=422, detail=" ".join(errors[:10]))
 
     imported = []
-    for item in to_import:
+    for item in body.cases:
         case = _imported_case(item, account)
         await db["cases"].insert_one(case)
         await _log(
@@ -542,7 +541,7 @@ async def import_cases(
             account,
         )
         imported.append(BaseDocument.from_mongo(case).to_api())
-    return {"cases": imported, "skipped": skipped}
+    return {"cases": imported}
 
 
 @router.post("/cases/{case_id}/restore")
