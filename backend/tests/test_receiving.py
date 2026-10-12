@@ -128,6 +128,32 @@ def receive_payload(**overrides):
     return ReceiveCase(**payload)
 
 
+def test_none_is_valid_for_service_and_arch():
+    payload = receive_payload(serviceTypes=["None"], arch="None")
+    imported = receiving.ImportCase(
+        **{**LEGACY_CASE, "serviceTypes": ["None"], "arch": "None"}
+    )
+
+    assert payload.serviceTypes == ["None"]
+    assert payload.arch == "None"
+    assert imported.serviceTypes == ["None"]
+    assert imported.arch == "None"
+
+
+@pytest.mark.parametrize(
+    "model",
+    [
+        lambda: receive_payload(serviceTypes=["None", "Repair"]),
+        lambda: receiving.ImportCase(
+            **{**LEGACY_CASE, "serviceTypes": ["None", "Repair"]}
+        ),
+    ],
+)
+def test_none_service_cannot_be_combined_with_other_services(model):
+    with pytest.raises(ValidationError):
+        model()
+
+
 @pytest.fixture
 def receiving_db(monkeypatch):
     collection = FakeCases()

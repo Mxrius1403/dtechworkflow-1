@@ -20,7 +20,10 @@ export function ReceivingWizard({ draft, onClose, onSave }) {
   const [saving, setSaving] = useState(false);
   const label = `${draft.reentry ? "Re-entry" : "New case"} ${draft.code}`;
 
-  const toggle = (t) => setTypes(types.includes(t) ? types.filter((x) => x !== t) : [...types, t]);
+  const toggle = (t) => setTypes((selected) => {
+    if (selected.includes(t)) return selected.filter((x) => x !== t);
+    return t === "None" ? ["None"] : [...selected.filter((x) => x !== "None"), t];
+  });
   const pickDate = (value) => {
     const info = value && productionDayInfo(value);
     if (!info || info.available) return setDate(value);

@@ -38,7 +38,9 @@ class ReceiveCase(BaseModel):
 
     @model_validator(mode="after")
     def validate_work_details(self):
-        if any(item not in SERVICE_TYPES for item in self.serviceTypes):
+        if any(item not in SERVICE_TYPES for item in self.serviceTypes) or (
+            "None" in self.serviceTypes and len(self.serviceTypes) > 1
+        ):
             raise ValueError("Select valid service types.")
         if not self.serviceTypes or self.arch not in ARCH_OPTIONS:
             raise ValueError(
@@ -98,7 +100,9 @@ class ImportCase(BaseModel):
 
     @model_validator(mode="after")
     def validate_import(self):
-        if any(item not in SERVICE_TYPES for item in self.serviceTypes):
+        if any(item not in SERVICE_TYPES for item in self.serviceTypes) or (
+            "None" in self.serviceTypes and len(self.serviceTypes) > 1
+        ):
             raise ValueError("Select valid service types.")
         if not self.serviceTypes or self.arch not in ARCH_OPTIONS:
             raise ValueError(
