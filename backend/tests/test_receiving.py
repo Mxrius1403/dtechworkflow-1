@@ -258,16 +258,34 @@ def test_remove_received_case_from_active_queue_preserves_history(receiving_db):
     assert result["status"] == "removed"
     assert result["removedFromQueue"] is True
     assert result["autoRemovedFromQueue"] is False
-    assert result["previousQueueStatus"] == "queue"
+    assert result["previousQueueStatus"] == "production"
     assert result["queueRemovedAt"] == "2026-10-06T12:00:00.000Z"
     assert result["queueRemovedBy"] == "Technician"
     assert result["history"][-1]["action"] == "Removed from queue"
 
 
-def test_remove_received_case_rejects_completed_case(receiving_db):
+def test_remove_received_case_allows_completed_case(receiving_db):
     receiving_db.documents["CASE-1"] = {
         "_id": "CASE-1",
         "status": "completed",
+        "history": [],
+    }
+
+    result = asyncio.run(
+        receiving.remove_received_case(
+            "CASE-1",
+            {"_id": "DT005", "role": "technician", "name": "Technician"},
+        )
+    )
+
+    assert result["status"] == "removed"
+    assert result["previousQueueStatus"] == "completed"
+
+
+def test_remove_received_case_rejects_already_removed_case(receiving_db):
+    receiving_db.documents["CASE-1"] = {
+        "_id": "CASE-1",
+        "status": "removed",
         "history": [],
     }
 
@@ -280,7 +298,7 @@ def test_remove_received_case_rejects_completed_case(receiving_db):
         )
 
     assert error.value.status_code == 409
-    assert receiving_db.documents["CASE-1"]["status"] == "completed"
+    assert receiving_db.documents["CASE-1"]["status"] == "removed"
 
 
 def test_auto_removed_case_cannot_be_restored_from_receiving(receiving_db):
