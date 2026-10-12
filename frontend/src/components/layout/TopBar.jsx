@@ -20,7 +20,7 @@ export function TopBar({ title, onTvMode }) {
           <p className="text-xs text-muted-foreground">{niceToday()}</p>
         </div>
       </div>
-      {user.isManager && (
+      {(user.isManager || user.role === "technician") && (
         <div className="flex shrink-0 gap-2">
           <Button variant="outline" size="sm" onClick={onTvMode} className="hidden sm:inline-flex" data-testid="tv-mode-button"><MonitorPlay /> TV Mode</Button>
           <Button variant="outline" size="sm" onClick={() => setAccount(true)} data-testid="account-button"><UserCog /> <span className="hidden sm:inline">Account</span></Button>
