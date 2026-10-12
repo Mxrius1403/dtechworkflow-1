@@ -1,49 +1,54 @@
-import { ArrowRightLeft, ExternalLink, Mail } from "lucide-react";
+import { ArrowRightLeft, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ConfirmAction } from "@/components/common/ConfirmAction";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { useData } from "@/context/DataContext";
-import { emailKey, stopJobs, trackingUrl } from "@/lib/logistics";
-import { demoSave } from "@/lib/notify";
+import { ACTIVE_ROUTE_STATUSES, stopJobs } from "@/lib/logistics";
 
-function EmailButton({ route, stop, planReady }) {
-  const { byId, emails } = useData();
-  const mail = emails[emailKey(route.id, stop.id)];
-  const hasEmail = byId.clinics[stop.clinicId]?.hasEmail;
-  const sent = mail?.status === "sent";
-  const title = !hasEmail ? "No clinic email on file" : !planReady ? "Wait for the driver to confirm the clinic order" : undefined;
-  return (
-    <Button size="sm" variant="outline" title={title} disabled={!hasEmail || !planReady || sent} onClick={() => demoSave("Clinic tracking email sent")} data-testid={`stop-email-${stop.id}`}>
-      <Mail /> {sent ? "Email sent ✓" : mail?.status === "failed" ? "Retry Tracking Email" : "Send Tracking Email"}
-    </Button>
-  );
-}
-
-export function RouteStopRow({ index, route, stop, planReady, onTransfer }) {
+export function RouteStopRow({ index, route, stop, deleting, onTransfer, onDelete, onCheck, checkDisabled = false, readOnly = false }) {
   const { byId } = useData();
   const clinic = byId.clinics[stop.clinicId] || {};
-  const token = route.trackingTokens?.[stop.id];
-  const transferable = stop.status !== "completed" && !stop.arrived;
+  const transferable = !["arrived", "completed"].includes(stop.status) && !stop.arrived;
+  const deletable = transferable && ACTIVE_ROUTE_STATUSES.includes(route.status);
   return (
     <div className="rounded-lg border p-3" data-testid={`route-stop-${stop.id}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
+        {onCheck && (
+          <input
+            type="checkbox"
+            className="mt-1 h-5 w-5 shrink-0 accent-primary"
+            checked={stop.status === "completed"}
+            disabled={checkDisabled}
+            onChange={(event) => onCheck(event.target.checked)}
+            aria-label={`Mark stop ${index + 1} as done`}
+            data-testid={`stop-check-${stop.id}`}
+          />
+        )}
+        <div className="min-w-0 flex-1">
           <p className="flex flex-wrap items-center gap-2 font-semibold text-primary">
-            <span className="font-mono text-xs text-muted-foreground">{index + 1}.</span> {clinic.name || stop.clinicId}
+            <span className="font-mono text-xs text-muted-foreground">{index + 1}.</span> {stopJobs(stop) || "No jobs"}
             {stop.urgent && <StatusBadge kind="flag" value="urgent" />}
           </p>
           <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-            {clinic.eircode} • {stopJobs(stop) || "No jobs"} <StatusBadge kind="stop" value={stop.status} testId={`stop-status-${stop.id}`} />
+            {clinic.eircode} <StatusBadge kind="stop" value={stop.status} testId={`stop-status-${stop.id}`} />
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <EmailButton route={route} stop={stop} planReady={planReady} />
+        {!readOnly && <div className="ml-auto flex flex-wrap justify-end gap-2">
           <Button size="sm" variant="outline" disabled={!transferable} onClick={onTransfer} data-testid={`stop-transfer-${stop.id}`}><ArrowRightLeft /> Transfer Stop</Button>
-          {token && (
-            <Button asChild size="sm" variant="ghost" data-testid={`stop-tracking-link-${stop.id}`}>
-              <a href={trackingUrl(token)} target="_blank" rel="noopener noreferrer"><ExternalLink /> Clinic page</a>
+          <ConfirmAction
+            title="Delete this stop?"
+            description={`${clinic.name || stop.clinicId} will be removed from this route.`}
+            confirmLabel="Delete Stop"
+            confirmIcon={<Trash2 />}
+            destructiveConfirm
+            onConfirm={onDelete}
+            testId={`stop-delete-${stop.id}`}
+          >
+            <Button size="sm" variant="destructive" disabled={!deletable || deleting} data-testid={`stop-delete-button-${stop.id}`}>
+              <Trash2 /> {deleting ? "Deleting…" : "Delete Stop"}
             </Button>
-          )}
-        </div>
+          </ConfirmAction>
+        </div>}
       </div>
     </div>
   );

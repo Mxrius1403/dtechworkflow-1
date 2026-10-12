@@ -1,11 +1,12 @@
 import {
-  BarChart3, ClipboardList, Inbox, KeyRound, LayoutDashboard, Package, Search, Timer, TreePalm, Truck, Users,
+  BarChart3, Boxes, Building2, Car, ClipboardList, Inbox, KeyRound, LayoutDashboard, MapPin, Package, Route, Search, ShoppingCart, Store, Truck, Users,
 } from "lucide-react";
 
-const manager = (u) => u.isManager;
-const technician = (u) => !u.isManager;
-const always = () => true;
-const materialsLabel = (u) => (u.isManager ? "Material Order Requests" : "Order TDS");
+const manager = (u) => u.isManager || u.isOwner;
+const driver = (u) => Boolean(u.isDriver);
+const technician = (u) => !manager(u) && !driver(u);
+const always = (u) => !driver(u);
+const materialsLabel = (u) => (manager(u) ? "Material Management" : "Order Materials");
 
 /**
  * Every staff screen in one list (order = sidebar order).
@@ -13,22 +14,31 @@ const materialsLabel = (u) => (u.isManager ? "Material Order Requests" : "Order 
  * Add the page component for a new path in src/App.js (SCREENS).
  */
 export const PAGES = [
-  { path: "/owner-control", label: "Owner Control", icon: KeyRound, access: (u) => u.isOwner, nav: (u) => u.isOwner },
-  { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard, nav: always },
-  { path: "/receiving", label: "Digital Receiving", title: "Receiving Station", icon: Inbox, access: (u) => u.isManager || u.department === "digital", nav: (u) => !u.isManager && u.department === "digital" },
-  { path: "/other-work", label: "Other Work", icon: Timer, access: (u) => !u.isManager && u.department === "ortho", nav: (u) => !u.isManager && u.department === "ortho" },
-  { path: "/logistics", label: "Deliveries & Collections", icon: Truck, access: manager, nav: manager },
-  { path: "/case-search", label: "Case Search", icon: Search, access: manager, nav: manager },
-  { path: "/tooth-order", label: "Tooth Order", icon: ClipboardList, access: technician, nav: technician },
-  { path: "/tooth-orders", label: "Tooth Orders", icon: ClipboardList, access: manager, nav: manager },
-  { path: "/materials", label: materialsLabel, icon: Package, nav: always },
+  { path: "/owner-control", label: "Ownership & Managers", icon: KeyRound, access: (u) => u.isOwner, nav: (u) => u.isOwner },
+  { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard, access: always, nav: always },
+  { path: "/receiving", label: "Receiving", title: "Receiving Station", icon: Inbox, access: always, nav: always },
+  { path: "/routes", label: "Routes", icon: MapPin, access: () => true, nav: driver },
+  { path: "/logistics", label: "Create Route", icon: Route, access: manager },
+  { path: "/drivers", label: "Drivers", icon: Car, access: manager },
+  { path: "/clinics", label: "Clinics", icon: Building2, access: manager },
+  { path: "/suppliers", label: "Suppliers", icon: Store, access: manager },
+  { path: "/case-search", label: "Case Search", icon: Search, access: always, nav: always },
+  { path: "/delivery-management", label: "Delivery Management", icon: Truck, access: manager, nav: manager, activePaths: ["/routes", "/logistics", "/drivers", "/clinics"] },
+  { path: "/tooth-management", label: "Tooth Management", icon: ClipboardList, access: manager, nav: manager, activePaths: ["/tooth-order", "/tooth-orders"] },
+  { path: "/tooth-order", label: "Order Tooth", icon: ClipboardList, access: always, nav: technician },
+  { path: "/tooth-orders", label: "Tooth Order Requests", icon: ClipboardList, access: manager },
+  { path: "/materials/requests", label: "Material Order Requests", icon: ClipboardList, access: manager },
+  { path: "/materials/products", label: "Product Management", icon: Boxes, access: manager },
+  { path: "/materials/order", label: "Order Materials", icon: ShoppingCart, access: manager },
+  { path: "/materials", label: materialsLabel, icon: Package, access: always, nav: always, activePaths: ["/suppliers"] },
   { path: "/technicians", label: "Technicians", icon: Users, access: manager, nav: manager },
-  { path: "/holidays", label: "Holiday Requests", icon: TreePalm, nav: always },
   { path: "/reports", label: "Reports", icon: BarChart3, access: manager, nav: manager },
   { path: "/completion-review", label: "Completion Review", access: manager },
   { path: "/attention", label: "Cases Needing Attention", access: manager },
   { path: "/calendar", label: "Production Calendar", access: manager },
 ];
+
+export const homePath = (user) => (user?.isDriver ? "/routes" : "/dashboard");
 
 const resolve = (value, user) => (typeof value === "function" ? value(user) : value);
 
@@ -36,3 +46,8 @@ export const pageForPath = (pathname) => PAGES.find((p) => pathname === p.path |
 export const canOpen = (page, user) => Boolean(page) && (!page.access || page.access(user));
 export const pageTitle = (page, user) => resolve(page?.title || page?.label, user) || "Dashboard";
 export const navItemsFor = (user) => PAGES.filter((p) => p.nav?.(user)).map((p) => ({ ...p, label: resolve(p.label, user) }));
+export const isNavItemActive = (item, pathname, routeIsActive = false) => (
+  routeIsActive || [item.path, ...(item.activePaths || [])].some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`),
+  )
+);

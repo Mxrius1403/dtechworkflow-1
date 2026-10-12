@@ -1,0 +1,54 @@
+import { draftStopCount, groupStopsByClinic, unroutedCases } from "./logistics";
+
+const routesById = { R1: { id: "R1", status: "published", stopIds: ["S1"] } };
+const stops = [{
+  id: "S1",
+  routeId: "R1",
+  clinicId: "C1",
+  deliveries: [{ productionCaseId: "routed", productionConfirmedAt: "" }],
+}];
+
+test("lists every active case not already assigned to a route", () => {
+  const cases = [
+    { id: "queued", code: "A-1001", status: "queue", createdAt: "2026-01-01" },
+    { id: "working", code: "1002", status: "production", createdAt: "2026-01-02" },
+    { id: "completed", code: "1003", status: "completed", completionReviewStatus: "pending", createdAt: "2026-01-03" },
+    { id: "routed", code: "1004", status: "queue", createdAt: "2026-01-04" },
+    { id: "removed", code: "1005", status: "removed", createdAt: "2026-01-05" },
+    { id: "deleted", code: "1006", status: "queue", deleted: true, createdAt: "2026-01-06" },
+  ];
+
+  expect(unroutedCases(cases, stops, routesById).map((c) => c.id)).toEqual([
+    "queued",
+    "working",
+    "completed",
+  ]);
+});
+
+test("can limit unrouted cases to completed status", () => {
+  const cases = [
+    { id: "queued", code: "A-1001", status: "queue", createdAt: "2026-01-01" },
+    { id: "working", code: "1002", status: "production", createdAt: "2026-01-02" },
+    { id: "completed", code: "1003", status: "completed", createdAt: "2026-01-03" },
+  ];
+
+  expect(unroutedCases(cases, [], {}, ["completed"]).map((c) => c.id)).toEqual(["completed"]);
+});
+
+test("counts deliveries and collections at the same clinic as separate stops", () => {
+  expect(draftStopCount(
+    [{ clinicId: "C1" }, { clinicId: "C1" }, { clinicId: "C2" }],
+    [{ clinicId: "C1" }, { clinicId: "C1" }],
+  )).toBe(3);
+});
+
+test("groups every clinic's stops together with deliveries before collections", () => {
+  const collection = { id: "S1", clinicId: "C1", collections: [{}] };
+  const otherClinic = { id: "S2", clinicId: "C2", collections: [{}] };
+  const delivery = { id: "S3", clinicId: "C1", deliveries: [{ caseNumber: "6366" }] };
+
+  expect(groupStopsByClinic([collection, otherClinic, delivery])).toEqual([
+    { clinicId: "C1", stops: [delivery, collection] },
+    { clinicId: "C2", stops: [otherClinic] },
+  ]);
+});

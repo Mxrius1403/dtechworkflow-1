@@ -1,8 +1,13 @@
 import { calendarDaysBetween, dateKey, isToday, timeOf, today } from "./format";
 
-export const DEPARTMENTS = ["denture", "ortho", "digital"];
-export const departmentName = (d) => (d === "ortho" ? "Ortho" : d === "digital" ? "Digital" : "Denture");
-export const caseDepartment = (c) => c.department || "denture";
+export const DEPARTMENTS = ["prosthesis", "ortho", "digital"];
+export const departmentKey = (department) =>
+  department === "denture" ? "prosthesis" : department || "prosthesis";
+export const departmentName = (department) => {
+  const key = departmentKey(department);
+  return key === "ortho" ? "Ortho" : key === "digital" ? "Digital" : "Prosthesis";
+};
+export const caseDepartment = (c) => departmentKey(c.department);
 
 export const scheduledKey = (c) => c.currentDueDate || c.scheduledDate || c.receivedDate || "";
 
@@ -19,6 +24,14 @@ export function overdueSummary(c) {
 }
 
 export const serviceLabel = (c) => `${(c.serviceTypes || []).join(" + ") || "Not specified"} • ${c.arch || "Arch not specified"}`;
+
+export const DELIVERY_STATUSES = [
+  ["not_delivered", "Not Delivered"],
+  ["out_for_delivery", "Out for Delivery"],
+  ["delivered", "Delivered"],
+];
+export const deliveryStatusLabel = (c) =>
+  (DELIVERY_STATUSES.find(([value]) => value === (c?.deliveryStatus || "not_delivered")) || DELIVERY_STATUSES[0])[1];
 
 export const attentionLabel = (c) =>
   c.attentionStatus === "on_hold" ? "On Hold" : c.attentionStatus === "need_information" ? "Need Information" : "";
@@ -85,6 +98,17 @@ const sortStamp = (c) => String(c.updatedAt || c.startedAt || c.receivedAt || c.
 const latestFirst = (rows) => [...rows].sort((a, b) => sortStamp(b).localeCompare(sortStamp(a)));
 const matchingCode = (cases, code) => cases.filter((c) => !c.deleted && normaliseCaseCode(c.code) === code);
 
+export function caseSearchRows(cases, query = "") {
+  const search = query.trim().toLowerCase();
+  return latestFirst(cases.filter((c) => {
+    if (!search) return true;
+    return [
+      c.code, c.status, c.status === "removed" ? "Removed from Queue" : "", c.department, c.technician, c.finishedBy,
+      c.technicianId, c.finishedById,
+    ].some((value) => String(value || "").toLowerCase().includes(search));
+  }));
+}
+
 export function chooseScanCase(cases, techId) {
   const rows = latestFirst(cases);
   return rows.find((c) => c.status === "production" && c.technicianId === techId)
@@ -102,7 +126,6 @@ export function scanOutcome(cases, value, user, techName) {
   if (!selected) return { kind: "error", message: user.isManager ? "Case not found. Add it in Receiving." : "Case not found. Ask Receiving." };
   if (user.isManager) return { kind: "manage", caseItem: selected };
   if (selected.overdueReasonRequired && selected.technicianId === user.id && !selected.overdueReason) return { kind: "overdueReason", caseItem: selected };
-  if (caseDepartment(selected) !== (user.department || "denture")) return { kind: "error", message: `This case belongs to ${departmentName(caseDepartment(selected))}.` };
   if (selected.status === "queue") return { kind: "save", message: `Case ${code} started` };
   if (selected.status === "production" && selected.technicianId !== user.id) {
     return { kind: "error", message: `Already in production by ${techName(selected.technicianId, selected.technician) || "another technician"}` };
@@ -119,7 +142,12 @@ export function receivingOutcome(cases, value) {
   if (rows.some((c) => c.completionReviewStatus === "pending")) return { kind: "error", message: "This completion is awaiting Manager confirmation" };
   const existing = latestFirst(rows)[0];
   if (!existing) return { kind: "new", code };
-  if (existing.status === "removed") return { kind: "removed", code, caseItem: existing };
+  if (existing.status === "removed") {
+    if (existing.autoRemovedFromQueue) {
+      return { kind: "error", message: `Case ${code} was removed after 10 days. Find it in Case Search.` };
+    }
+    return { kind: "removed", code, caseItem: existing };
+  }
   if (existing.status !== "completed") return { kind: "duplicate", code, caseItem: existing };
   return { kind: "reentry", code, caseItem: existing };
 }
@@ -132,7 +160,11 @@ export function casePlace(c, techName) {
 }
 
 export function caseWho(c, techName) {
-  if (c.status === "queue") return `Received ${c.receivedDate || ""} ${c.receivedTime || ""}`.trim();
+  if (c.status === "queue") {
+    const received = `Received ${c.receivedDate || ""} ${c.receivedTime || ""}`.trim();
+    if (!c.technicianId) return received;
+    return `${techName(c.technicianId, c.technician) || c.technicianId} (${c.technicianId}) • ${received}`;
+  }
   if (c.status === "production") return `${techName(c.technicianId, c.technician)} (${c.technicianId}) • started ${c.startedTime || timeOf(c.startedAt)}`;
   if (c.status === "completed") return `${techName(c.finishedById, c.finishedBy)} (${c.finishedById}) • finished ${c.finishedTime || timeOf(c.finishedAt)}`;
   return "Removed from queue";

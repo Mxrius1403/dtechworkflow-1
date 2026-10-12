@@ -7,7 +7,6 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { INSIGHT_TONE } from "@/config/statuses";
 import { DEPARTMENTS, departmentName } from "@/lib/cases";
 import { dateKey, formatDuration, minutesBetween, nice, timeOf } from "@/lib/format";
-import { demoSave } from "@/lib/notify";
 import { printHtml, reportPdfHtml } from "@/lib/print";
 import { cn } from "@/lib/utils";
 
@@ -26,7 +25,6 @@ function TechnicianSection({ t }) {
     <div className="rounded-xl border p-4" data-testid={`report-tech-${t.id}`}>
       <h3 className="mb-3 flex flex-wrap items-center gap-2 text-base font-bold text-primary">
         <span className="rounded-md bg-primary px-2 py-0.5 font-mono text-xs text-white">{t.id}</span> {t.name}
-        <span className="text-xs font-medium text-muted-foreground">{departmentName(t.department)}</span>
       </h3>
       <InsightList insights={t.insights} />
       <div className="mt-3">
@@ -44,11 +42,11 @@ function TechnicianSection({ t }) {
   );
 }
 
-export function ReportPreview({ report: r }) {
+export function ReportPreview({ report: r, onSave, saving = false }) {
   return (
     <Panel title="Report Preview" description={`${nice(r.from)} to ${nice(r.to)}`} data-testid="report-preview" actions={<>
       <Button onClick={() => printHtml(reportPdfHtml(r))} data-testid="report-print"><Printer /> Print / Save PDF</Button>
-      <Button variant="outline" onClick={() => demoSave("Report saved")} data-testid="report-save"><Save /> Save Report</Button>
+      <Button variant="outline" onClick={onSave} disabled={saving} data-testid="report-save"><Save /> {saving ? "Saving…" : "Save Report"}</Button>
     </>}>
       <StatGrid>
         <StatCard label="Total Services" value={r.cases.length} testId="report-kpi-total" />

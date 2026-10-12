@@ -1,8 +1,5 @@
-import { useSession } from "@/context/SessionContext";
-import { ManagerDashboard } from "./ManagerDashboard";
-import { TechnicianDashboard } from "./TechnicianDashboard";
+import AttentionPage from "@/pages/AttentionPage";
 
 export default function DashboardPage() {
-  const { user } = useSession();
-  return user.isManager ? <ManagerDashboard /> : <TechnicianDashboard />;
+  return <AttentionPage />;
 }

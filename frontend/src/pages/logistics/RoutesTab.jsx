@@ -1,36 +1,57 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { DataTable } from "@/components/common/DataTable";
-import { Field } from "@/components/common/Field";
 import { Panel } from "@/components/common/Panel";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { useData } from "@/context/DataContext";
+import { nice } from "@/lib/format";
 import { routeStops } from "@/lib/logistics";
 import { RouteDialog } from "./RouteDialog";
 
-export function RoutesTab({ date, onDateChange }) {
+export function RoutesTab() {
   const { routes, byId } = useData();
   const [openId, setOpenId] = useState(null);
-  const rows = routes.filter((r) => r.date === date).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  const activeRoutes = routes.filter((r) => !r.archived);
+  const archivedRoutes = routes
+    .filter((r) => r.archived)
+    .sort((a, b) => String(b.archivedAt).localeCompare(String(a.archivedAt)));
+  const routesByDate = activeRoutes.reduce((groups, route) => {
+    (groups[route.date] ||= []).push(route);
+    return groups;
+  }, {});
+  const dates = Object.keys(routesByDate).sort((a, b) => a.localeCompare(b));
   const progress = (r) => {
     const stops = routeStops(r, byId.stops);
     return `${stops.filter((s) => s.status === "completed").length}/${stops.length}`;
   };
+  const columns = [
+    { key: "id", header: "Route", render: (r) => <span className="font-mono font-bold">{r.id}</span> },
+    { key: "driver", header: "Driver", render: (r) => `${r.driverId} — ${byId.drivers[r.driverId]?.name || ""}` },
+    { key: "stops", header: "Stops", render: (r) => r.stopIds.length },
+    { key: "status", header: "Status", render: (r) => <StatusBadge kind="route" value={r.status} testId={`route-status-${r.id}`} /> },
+    { key: "progress", header: "Progress", render: (r) => <span className="font-mono">{progress(r)}</span> },
+    { key: "open", header: "", render: (r) => <Button size="sm" variant="outline" onClick={() => setOpenId(r.id)} data-testid={`route-open-${r.id}`}>Open</Button> },
+  ];
   return (
     <Panel
       title="Existing Routes"
-      description="Open a route to add a stop, transfer a pending destination to another driver, manage tracking email, or delete a route that has not started."
-      actions={<Field label="Date"><Input type="date" value={date} onChange={(e) => onDateChange(e.target.value)} className="w-44" data-testid="routes-date" /></Field>}
+      description="All routes, grouped by delivery date. Open a route to add a stop, transfer a pending destination to another driver, or delete a route that has not started."
     >
-      <DataTable testId="routes-table" rows={rows} rowTestId={(r) => `route-row-${r.id}`} empty="No routes for this date." columns={[
-        { key: "id", header: "Route", render: (r) => <span className="font-mono font-bold">{r.id}</span> },
-        { key: "driver", header: "Driver", render: (r) => `${r.driverId} — ${byId.drivers[r.driverId]?.name || ""}` },
-        { key: "stops", header: "Stops", render: (r) => r.stopIds.length },
-        { key: "status", header: "Status", render: (r) => <StatusBadge kind="route" value={r.status} testId={`route-status-${r.id}`} /> },
-        { key: "progress", header: "Progress", render: (r) => <span className="font-mono">{progress(r)}</span> },
-        { key: "open", header: "", render: (r) => <Button size="sm" variant="outline" onClick={() => setOpenId(r.id)} data-testid={`route-open-${r.id}`}>Open</Button> },
-      ]} />
+      <div className="grid gap-6" data-testid="routes-table">
+        {!dates.length && <p className="py-8 text-center text-sm text-muted-foreground">No routes found.</p>}
+        {dates.map((date) => (
+          <section key={date} className="grid gap-3" aria-labelledby={`routes-date-${date}`}>
+            <h3 id={`routes-date-${date}`} className="text-sm font-semibold text-primary">{nice(date)}</h3>
+            <DataTable rows={routesByDate[date].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))} rowTestId={(r) => `route-row-${r.id}`} columns={columns} />
+          </section>
+        ))}
+      </div>
+      <div className="mt-8 grid gap-3" data-testid="routes-archive">
+        <h3 className="text-sm font-semibold text-primary">Archive</h3>
+        <p className="text-xs text-muted-foreground">Completed routes archived by a owner/manager, or automatically 10 days after completion.</p>
+        {!archivedRoutes.length && <p className="py-4 text-center text-sm text-muted-foreground">No archived routes.</p>}
+        {!!archivedRoutes.length && <DataTable rows={archivedRoutes} rowTestId={(r) => `archived-route-row-${r.id}`} columns={[{ key: "date", header: "Date", render: (r) => nice(r.date) }, ...columns]} />}
+      </div>
       {openId && byId.routes[openId] && <RouteDialog route={byId.routes[openId]} onClose={() => setOpenId(null)} />}
     </Panel>
   );

@@ -1,6 +1,7 @@
 import { MoreVertical } from "lucide-react";
+import { DEPARTMENT_STYLE } from "@/config/statuses";
 import { useData } from "@/context/DataContext";
-import { caseWho, scheduledKey, serviceLabel } from "@/lib/cases";
+import { caseDepartment, caseWho, departmentName, scheduledKey, serviceLabel } from "@/lib/cases";
 import { nice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { CaseFlags } from "./CaseFlags";
@@ -12,17 +13,20 @@ export function CaseCard({ c, onClick, actions, showWho = true, compact }) {
   const { techName } = useData();
   const Tag = onClick ? "button" : "div";
   return (
-    <div className={cn("lift rounded-lg border border-l-4 bg-card shadow-sm", EDGE[c.status], c.overdue && c.status !== "completed" && "border-l-rose-500 bg-rose-50/40")} data-testid={`case-card-${c.code}`}>
-      <Tag onClick={onClick} className={cn("flex w-full items-start justify-between gap-2 p-3 text-left", onClick && "cursor-pointer")} data-testid={onClick ? `case-card-open-${c.code}` : undefined}>
+    <div className={cn("lift min-w-0 rounded-lg border border-l-4 bg-card shadow-sm", EDGE[c.status], c.overdue && c.status !== "completed" && "border-l-rose-500 bg-rose-50/40")} data-testid={`case-card-${c.code}`}>
+      <Tag onClick={onClick} className={cn("flex w-full min-w-0 items-start justify-between gap-2 p-3 text-left", onClick && "cursor-pointer")} data-testid={onClick ? `case-card-open-${c.code}` : undefined}>
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="font-mono text-sm font-bold text-primary">{c.code}</span>
+            <span className={cn("rounded border px-1.5 py-0.5 text-[10px] font-semibold", DEPARTMENT_STYLE[caseDepartment(c)].soft, DEPARTMENT_STYLE[caseDepartment(c)].text)}>
+              {departmentName(caseDepartment(c))}
+            </span>
             <CaseFlags c={c} />
           </div>
-          <p className="truncate text-xs text-muted-foreground" title={serviceLabel(c)}>
+          <p className="whitespace-normal break-words text-xs text-muted-foreground" title={serviceLabel(c)}>
             {serviceLabel(c)}{scheduledKey(c) && ` • Due ${nice(scheduledKey(c))}`}
           </p>
-          {showWho && !compact && <p className="truncate text-xs text-foreground/70">{caseWho(c, techName)}</p>}
+          {showWho && !compact && <p className="whitespace-normal break-words text-xs text-foreground/70">{caseWho(c, techName)}</p>}
         </div>
         {onClick && <MoreVertical className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />}
       </Tag>

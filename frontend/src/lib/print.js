@@ -38,7 +38,7 @@ export function printHtml(html) {
 
 export function reportPdfHtml(r) {
   const insights = DEPARTMENTS.map((dep) => `<div class="box"><h2>${departmentName(dep)} — 5 Production Insights</h2><ol>${(r.departmentInsights?.[dep] || []).map((i) => `<li>${esc(i.text)}</li>`).join("")}</ol></div>`).join("");
-  const techs = r.byTech.map((t) => `<h2>${esc(t.id)} — ${esc(t.name)} (${departmentName(t.department)})</h2>${table(
+  const techs = r.byTech.map((t) => `<h2>${esc(t.id)} — ${esc(t.name)}</h2>${table(
     ["Case", "Service Type", "Arch", "Date", "Started", "Completed", "Duration", "Status / Reason"],
     t.cases.map((c) => `<tr><td>${esc(c.code)}${c.code === "OW" ? ` — ${esc(c.activity || "Other Work")}` : ""}</td><td>${esc((c.serviceTypes || []).join(" + ") || "-")}</td><td>${esc(c.arch || "-")}</td><td>${esc(nice(c.finishedDate || dateKey(c.finishedAt)))}</td><td>${esc(c.startedTime || timeOf(c.startedAt))}</td><td>${esc(c.finishedTime || timeOf(c.finishedAt))}</td><td>${formatDuration(minutesBetween(c.startedAt, c.finishedAt))}</td><td class="${c.code === "OW" ? "" : c.overdue ? "late" : "on"}">${c.code === "OW" ? "Other Work" : c.overdue ? "Overdue" : "On Time"}${c.overdueReason ? ` — ${esc(c.overdueReason)}` : ""}</td></tr>`),
   )}<p><b>Total:</b> ${t.total} &nbsp; <b>Overdue:</b> ${t.overdue} &nbsp; <b>Average:</b> ${formatDuration(t.avgMinutes)}</p>`).join("");
@@ -47,11 +47,12 @@ export function reportPdfHtml(r) {
 }
 
 export function toothOrderPdfHtml(o) {
-  const meta = `<div class="box"><b>Technician:</b> ${esc(o.technician)} (${esc(o.technicianId)})<br><b>Date:</b> ${esc(o.date)} ${esc(o.time)}<br><b>Total:</b> ${o.total} teeth</div>`;
-  return page(o.id, "Tooth Order", esc(o.id), meta + table(["Group", "Tooth", "Shade", "Quantity"], o.items.map((i) => `<tr><td>${esc(i.group)}</td><td>${esc(i.tooth)}</td><td>${esc(i.shade)}</td><td>${i.qty}</td></tr>`)));
+  const meta = `<div class="box"><b>Ordered by:</b> ${esc(o.technician)} (${esc(o.technicianId)})<br><b>Date:</b> ${esc(o.date)} ${esc(o.time)}<br><b>Total:</b> ${o.total} teeth</div>`;
+  return page(o.id, "Order Tooth", esc(o.id), meta + table(["Group", "Tooth", "Shade", "Quantity"], o.items.map((i) => `<tr><td>${esc(i.group)}</td><td>${esc(i.tooth)}</td><td>${esc(i.shade)}</td><td>${i.qty}</td></tr>`)));
 }
 
 export function materialOrderPdfHtml(o) {
-  const meta = `<div class="box"><b>Requested by:</b> ${esc(o.requestedBy)} (${esc(o.requestedById)})<br><b>Department:</b> ${esc(departmentName(o.department))}<br><b>Date:</b> ${esc(o.date)} ${esc(o.time)}<br><b>Total quantity:</b> ${Number(o.totalItems || 0)}${o.notes ? `<br><b>Notes:</b> ${esc(o.notes)}` : ""}</div>`;
+  const department = o.department ? `<br><b>Department:</b> ${esc(departmentName(o.department))}` : "";
+  const meta = `<div class="box"><b>Requested by:</b> ${esc(o.requestedBy)} (${esc(o.requestedById)})${department}<br><b>Date:</b> ${esc(o.date)} ${esc(o.time)}<br><b>Total quantity:</b> ${Number(o.totalItems || 0)}${o.notes ? `<br><b>Notes:</b> ${esc(o.notes)}` : ""}</div>`;
   return page(o.id, "TDS Material Order", esc(o.id), meta + table(["Code", "Description", "Brand", "Pack", "Qty"], (o.items || []).map((i) => `<tr><td>${esc(i.code)}</td><td>${esc(i.description)}</td><td>${esc(i.brand)}</td><td>${esc(i.pack)}</td><td>${Number(i.qty || 0)}</td></tr>`)));
 }

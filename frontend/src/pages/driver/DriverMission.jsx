@@ -4,7 +4,7 @@ import { useData } from "@/context/DataContext";
 import { useSession } from "@/context/SessionContext";
 import { timeOf } from "@/lib/format";
 import { defaultDriverDate, driverPlanNeedsUpdate, orderedStops, validDriverPlan } from "@/lib/logistics";
-import { demoSave } from "@/lib/notify";
+import { notifyError } from "@/lib/notify";
 import { ActiveMission } from "./ActiveMission";
 import { BigAction, Card, DriverAlert, MissionHero, RouteTimeline } from "./DriverParts";
 import { PlanningList } from "./PlanningList";
@@ -18,7 +18,7 @@ function Alerts({ notes, updating, flow }) {
     <>
       {notes.map((n) => (
         <DriverAlert key={n.id} title="Route updated" text={n.message} testId={`driver-alert-${n.id}`}
-          action={n.type === "urgent_stop" ? place : <Button variant="outline" size="sm" onClick={() => demoSave("Notification dismissed")} data-testid={`driver-dismiss-${n.id}`}>Dismiss</Button>} />
+          action={n.type === "urgent_stop" ? place : <Button variant="outline" size="sm" onClick={() => notifyError("Notifications are not connected to server storage.")} data-testid={`driver-dismiss-${n.id}`}>Dismiss</Button>} />
       ))}
       {updating && !urgent && <DriverAlert title="Urgent stop awaiting placement" text="Review the remaining route and choose where the new clinic should be visited." action={place} testId="driver-alert-unplaced" />}
     </>

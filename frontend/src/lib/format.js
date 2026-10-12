@@ -1,4 +1,4 @@
-export const TIMEZONE = "Europe/Dublin";
+export const TIMEZONE = process.env.REACT_APP_TIMEZONE || "Europe/Dublin";
 
 const DAY_MS = 86400000;
 const toDate = (v) => new Date(typeof v === "string" && v.length === 10 ? `${v}T12:00:00Z` : v);

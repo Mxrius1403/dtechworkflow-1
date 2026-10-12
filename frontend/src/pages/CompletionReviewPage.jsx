@@ -6,7 +6,7 @@ import { CountPill } from "@/components/common/StatusBadge";
 import { useData } from "@/context/DataContext";
 import { completionReviewCases, serviceLabel } from "@/lib/cases";
 import { dateTimeOf } from "@/lib/format";
-import { demoSave } from "@/lib/notify";
+import { notifyError } from "@/lib/notify";
 
 export default function CompletionReviewPage() {
   const { cases, techName } = useData();
@@ -25,8 +25,8 @@ export default function CompletionReviewPage() {
                 </p>
               </div>
               <div className="flex gap-2">
-                <Button size="sm" onClick={() => demoSave("Case confirmed and released to reports")} data-testid={`review-confirm-${c.code}`}>Confirm Completed</Button>
-                <ConfirmAction title="Return this case to the responsible technician?" description="The rejected completion will not appear in reports." confirmLabel="Return case" onConfirm={() => demoSave("Case returned to the responsible technician")} testId={`review-return-${c.code}`}>
+                <Button size="sm" onClick={() => notifyError("Completion review is not connected to server storage.")} data-testid={`review-confirm-${c.code}`}>Confirm Completed</Button>
+                <ConfirmAction title="Return this case to the responsible technician?" description="The rejected completion will not appear in reports." confirmLabel="Return case" onConfirm={() => notifyError("Completion review is not connected to server storage.")} testId={`review-return-${c.code}`}>
                   <Button size="sm" variant="destructive" data-testid={`review-return-button-${c.code}`}>Return to Technician</Button>
                 </ConfirmAction>
               </div>

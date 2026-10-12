@@ -2,10 +2,12 @@ import { useState } from "react";
 import { ScanLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { CameraScanner } from "@/components/common/CameraScanner";
 
 /** Barcode scanner input: scanners type the code and press Enter. */
 export function ScanBar({ placeholder, buttonLabel = "Scan", onScan, hint, testId = "scan", className }) {
   const [value, setValue] = useState("");
+  const [cameraOpen, setCameraOpen] = useState(false);
   const submit = () => {
     const v = value;
     setValue("");
@@ -14,7 +16,15 @@ export function ScanBar({ placeholder, buttonLabel = "Scan", onScan, hint, testI
   return (
     <div className={cn("flex flex-wrap items-center gap-3", className)}>
       <div className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border-2 border-secondary bg-card px-3 py-1.5 shadow-sm transition-shadow focus-within:shadow-[0_0_0_4px_hsl(186_100%_33%/0.15)]">
-        <ScanLine className="h-5 w-5 shrink-0 text-secondary" />
+        <button
+          type="button"
+          onClick={() => setCameraOpen(true)}
+          className="shrink-0 rounded-md p-1 text-secondary hover:bg-secondary/10"
+          aria-label="Scan with camera"
+          data-testid={`${testId}-camera`}
+        >
+          <ScanLine className="h-5 w-5" />
+        </button>
         <input
           value={value}
           onChange={(e) => setValue(e.target.value)}
@@ -25,6 +35,7 @@ export function ScanBar({ placeholder, buttonLabel = "Scan", onScan, hint, testI
         />
         <Button onClick={submit} className="bg-secondary hover:bg-secondary/90" data-testid={`${testId}-button`}>{buttonLabel}</Button>
       </div>
+      <CameraScanner open={cameraOpen} onOpenChange={setCameraOpen} onDetected={onScan} testId={testId} />
       {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
   );

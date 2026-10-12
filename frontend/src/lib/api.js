@@ -1,9 +1,74 @@
 import axios from "axios";
 
-export const API_BASE = `${process.env.REACT_APP_BACKEND_URL}/api`;
-const api = axios.create({ baseURL: API_BASE });
+const defaultBackendUrl =
+  process.env.NODE_ENV === "development" ? "http://localhost:8001" : "";
+const backendUrl = (process.env.REACT_APP_BACKEND_URL || defaultBackendUrl).replace(/\/+$/, "");
+export const API_BASE = `${backendUrl}/api`;
+const api = axios.create({ baseURL: API_BASE, withCredentials: true });
 
+export const fetchCurrentUser = () => api.get("/auth/me").then((r) => r.data.user);
+export const updateMyProfile = (details) => api.patch("/auth/me/profile", details).then((r) => r.data.user);
+export const refreshSession = () => api.post("/auth/refresh");
+export const fetchSetupStatus = () => api.get("/auth/setup").then((r) => r.data.required);
+export const setupOwner = ({ setupSecret, ...details }) => api.post(
+  "/auth/setup",
+  details,
+  { headers: { "X-Setup-Secret": setupSecret } },
+).then((r) => r.data.user);
+export const login = (credentials) => api.post("/auth/login", credentials).then((r) => r.data.user);
+export const logout = () => api.post("/auth/logout");
+export const createTechnician = (technician) => api.post("/auth/technicians", technician).then((r) => r.data.user);
+export const updateTechnician = (technicianId, details) => api.patch(`/auth/technicians/${encodeURIComponent(technicianId)}/profile`, details).then((r) => r.data.user);
+export const updateTechnicianStatus = (technicianId, active) => api.patch(`/auth/technicians/${encodeURIComponent(technicianId)}`, { active }).then((r) => r.data.user);
+export const deleteTechnician = (technicianId) => api.delete(`/auth/technicians/${encodeURIComponent(technicianId)}`).then((r) => r.data);
+export const fetchManagers = () => api.get("/auth/managers").then((r) => r.data.managers);
+export const createManager = (manager) => api.post("/auth/managers", manager).then((r) => r.data.user);
+export const updateManager = (managerId, details) => api.patch(`/auth/managers/${encodeURIComponent(managerId)}/profile`, details).then((r) => r.data.user);
+export const updateManagerStatus = (managerId, active) => api.patch(`/auth/managers/${encodeURIComponent(managerId)}`, { active }).then((r) => r.data.user);
+export const deleteManager = (managerId) => api.delete(`/auth/managers/${encodeURIComponent(managerId)}`).then((r) => r.data);
+export const transferOwnership = (managerId) => api.post("/auth/ownership/transfer", { managerId }).then((r) => r.data.user);
 export const fetchAllData = () => api.get("/data").then((r) => r.data);
+export const fetchCases = () => api.get("/data/cases").then((r) => r.data);
 export const fetchCatalog = () => api.get("/catalog").then((r) => r.data);
-export const fetchTracking = (token) => api.get(`/tracking/${token}`).then((r) => r.data);
 export const fetchClinicContact = (clinicId) => api.get(`/clinics/${clinicId}/contact`).then((r) => r.data);
+export const createReceivedCase = (receivedCase) => api.post("/receiving/cases", receivedCase).then((r) => r.data);
+export const importCases = (cases) => api.post("/receiving/cases/import", { cases }).then((r) => r.data);
+export const removeReceivedCase = (caseId) => api.post(`/receiving/cases/${encodeURIComponent(caseId)}/remove`).then((r) => r.data);
+export const deleteReceivedCase = (caseId) => api.delete(`/receiving/cases/${encodeURIComponent(caseId)}`).then((r) => r.data);
+export const restoreReceivedCase = (caseId) => api.post(`/receiving/cases/${encodeURIComponent(caseId)}/restore`).then((r) => r.data);
+export const updateReceivedCase = (caseId, changes) => api.patch(`/receiving/cases/${encodeURIComponent(caseId)}`, changes).then((r) => r.data);
+export const fetchCaseHistory = (caseId) => api.get(`/receiving/cases/${encodeURIComponent(caseId)}/history`).then((r) => r.data);
+export const updateCaseAttention = (caseId, attention) => api.patch(`/receiving/cases/${encodeURIComponent(caseId)}/attention`, attention).then((r) => r.data);
+export const updateCaseOverdueReason = (caseId, reason) => api.patch(`/receiving/cases/${encodeURIComponent(caseId)}/overdue-reason`, { reason }).then((r) => r.data);
+export const saveReport = (report) => api.post("/reports", report).then((r) => r.data);
+export const deleteReport = (reportId) => api.delete(`/reports/${encodeURIComponent(reportId)}`).then((r) => r.data);
+export const createToothOrder = (order) => api.post("/tooth-orders", order).then((r) => r.data);
+export const updateToothOrderStatus = (orderId, status) => api.patch(`/tooth-orders/${encodeURIComponent(orderId)}/status`, { status }).then((r) => r.data);
+export const deleteToothOrder = (orderId) => api.delete(`/tooth-orders/${encodeURIComponent(orderId)}`).then((r) => r.data);
+export const createMaterialOrder = (order) => api.post("/material-orders", order).then((r) => r.data);
+export const updateMaterialOrderStatus = (orderId, status) => api.patch(`/material-orders/${encodeURIComponent(orderId)}/status`, { status }).then((r) => r.data);
+export const deleteMaterialOrder = (orderId) => api.delete(`/material-orders/${encodeURIComponent(orderId)}`).then((r) => r.data);
+export const createLogisticsRoute = (route) => api.post("/routes", route).then((r) => r.data);
+export const addRouteStop = (routeId, stop) => api.post(`/routes/${routeId}/stops`, stop).then((r) => r.data);
+export const transferRouteStop = (routeId, stopId, driverId, routeDate) => api.patch(`/routes/${routeId}/stops/${stopId}/transfer`, { driverId, routeDate }).then((r) => r.data);
+export const deleteRouteStop = (routeId, stopId) => api.delete(`/routes/${routeId}/stops/${stopId}`).then((r) => r.data);
+export const startRoute = (routeId) => api.post(`/routes/${routeId}/start`).then((r) => r.data);
+export const finishRoute = (routeId) => api.post(`/routes/${routeId}/finish`).then((r) => r.data);
+export const checkRouteStop = (routeId, stopId, checked) => api.patch(`/routes/${routeId}/stops/${stopId}/check`, { checked }).then((r) => r.data);
+export const reassignUnfinishedStops = (routeId, driverId, routeDate) => api.post(`/routes/${routeId}/reassign-unfinished`, { driverId, routeDate }).then((r) => r.data);
+export const archiveRoute = (routeId) => api.post(`/routes/${routeId}/archive`).then((r) => r.data);
+export const deleteLogisticsRoute = (routeId) => api.delete(`/routes/${routeId}`).then((r) => r.data);
+export const createClinic = (clinic) => api.post("/clinics", clinic).then((r) => r.data);
+export const updateClinic = (clinicId, clinic) => api.put(`/clinics/${clinicId}`, clinic).then((r) => r.data);
+export const importClinics = (clinics) => api.post("/clinics/import", { clinics }).then((r) => r.data);
+export const createDriver = (driver) => api.post("/drivers", driver).then((r) => r.data);
+export const deleteDriver = (driverId, force = false) => api.delete(`/drivers/${driverId}`, { params: { force } }).then((r) => r.data);
+export const updateDriver = (driverId, driver, force = false) => api.patch(`/drivers/${driverId}`, driver, { params: { force } }).then((r) => r.data);
+export const createSupplier = (supplier) => api.post("/suppliers", supplier).then((r) => r.data);
+export const updateSupplier = (supplierId, supplier) => api.patch(`/suppliers/${encodeURIComponent(supplierId)}`, supplier).then((r) => r.data);
+export const deleteSupplier = (supplierId) => api.delete(`/suppliers/${encodeURIComponent(supplierId)}`).then((r) => r.data);
+export const fetchProducts = () => api.get("/products").then((r) => r.data);
+export const createProduct = (product) => api.post("/products", product).then((r) => r.data);
+export const importProducts = (products) => api.post("/products/import", { products }).then((r) => r.data);
+export const updateProduct = (productId, product) => api.patch(`/products/${encodeURIComponent(productId)}`, product).then((r) => r.data);
+export const deleteProduct = (productId) => api.delete(`/products/${encodeURIComponent(productId)}`).then((r) => r.data);

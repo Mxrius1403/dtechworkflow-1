@@ -1,11 +1,14 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Muted } from "@/components/common/Bits";
+import { BackLink, Muted } from "@/components/common/Bits";
 import { Panel } from "@/components/common/Panel";
 import { CountPill } from "@/components/common/StatusBadge";
 import { useData } from "@/context/DataContext";
-import { demoSave, notifyError } from "@/lib/notify";
+import { useSession } from "@/context/SessionContext";
+import { createToothOrder } from "@/lib/api";
+import { notify, notifyError } from "@/lib/notify";
 import { cn } from "@/lib/utils";
 import { ToothPickDialog } from "./ToothPickDialog";
 
@@ -32,36 +35,52 @@ function ToothGroup({ group, items, onPick }) {
 
 export default function ToothOrderPage() {
   const { catalog } = useData();
+  const { user } = useSession();
+  const queryClient = useQueryClient();
   const [items, setItems] = useState([]);
   const [picking, setPicking] = useState(null);
+  const [saving, setSaving] = useState(false);
   const total = items.reduce((n, i) => n + i.qty, 0);
-  const send = () => {
+  const send = async () => {
     if (!items.length) return notifyError("No teeth selected");
-    demoSave("Order sent to manager");
-    setItems([]);
+    setSaving(true);
+    try {
+      const order = await createToothOrder({ items });
+      await queryClient.invalidateQueries({ queryKey: ["data"] });
+      notify(`Order Tooth ${order.id} sent to manager`);
+      setItems([]);
+    } catch (error) {
+      const detail = error.response?.data?.detail;
+      notifyError(typeof detail === "string" ? detail : "Could not send the Order Tooth");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
-    <div className="grid items-start gap-5 lg:grid-cols-[1fr_360px]">
-      <Panel title="New Tooth Order" description="Select a tooth, then choose its shade and quantity.">
-        {catalog.toothGroups.map((g) => <ToothGroup key={g.name} group={g} items={items} onPick={setPicking} />)}
-      </Panel>
-      <Panel title="Order Summary" actions={<CountPill testId="tooth-order-total">{total} teeth</CountPill>} className="lg:sticky lg:top-24">
-        <div className="grid gap-1.5" data-testid="tooth-order-summary">
-          {items.map((i, n) => (
-            <div key={`${i.group}-${i.tooth}-${n}`} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm" data-testid={`tooth-line-${n}`}>
-              <span className="min-w-0 truncate">{i.group} • <b className="font-mono">{i.tooth}</b> • {i.shade} • Qty {i.qty}</span>
-              <Button size="icon" variant="ghost" className="h-7 w-7 text-rose-600" onClick={() => setItems(items.filter((_, k) => k !== n))} data-testid={`tooth-line-remove-${n}`}><X /></Button>
-            </div>
-          ))}
-          {!items.length && <Muted>No teeth selected.</Muted>}
-        </div>
-        <div className="mt-4 grid gap-2">
-          <Button onClick={send} data-testid="tooth-order-send"><Send /> Send to Manager</Button>
-          <Button variant="outline" onClick={() => setItems([])} data-testid="tooth-order-clear">Clear</Button>
-        </div>
-      </Panel>
-      {picking && <ToothPickDialog pick={picking} onClose={() => setPicking(null)} onAdd={(shade, qty) => setItems([...items, { ...picking, shade, qty }])} />}
-    </div>
+    <>
+      {user.isManager && <BackLink to="/tooth-management">Tooth Management</BackLink>}
+      <div className="grid items-start gap-5 lg:grid-cols-[1fr_360px]">
+        <Panel title="New Order Tooth" description="Select a tooth, then choose its shade and quantity.">
+          {catalog.toothGroups.map((g) => <ToothGroup key={g.name} group={g} items={items} onPick={setPicking} />)}
+        </Panel>
+        <Panel title="Order Summary" actions={<CountPill testId="tooth-order-total">{total} teeth</CountPill>} className="lg:sticky lg:top-24">
+          <div className="grid gap-1.5" data-testid="tooth-order-summary">
+            {items.map((i, n) => (
+              <div key={`${i.group}-${i.tooth}-${n}`} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm" data-testid={`tooth-line-${n}`}>
+                <span className="min-w-0 truncate">{i.group} • <b className="font-mono">{i.tooth}</b> • {i.shade} • Qty {i.qty}</span>
+                <Button size="icon" variant="ghost" className="h-7 w-7 text-rose-600" onClick={() => setItems(items.filter((_, k) => k !== n))} data-testid={`tooth-line-remove-${n}`}><X /></Button>
+              </div>
+            ))}
+            {!items.length && <Muted>No teeth selected.</Muted>}
+          </div>
+          <div className="mt-4 grid gap-2">
+            <Button onClick={send} disabled={saving} data-testid="tooth-order-send">{saving ? "Sending…" : <><Send /> Send to Manager</>}</Button>
+            <Button variant="outline" onClick={() => setItems([])} disabled={saving} data-testid="tooth-order-clear">Clear</Button>
+          </div>
+        </Panel>
+        {picking && <ToothPickDialog pick={picking} onClose={() => setPicking(null)} onAdd={(shade, qty) => setItems([...items, { ...picking, shade, qty }])} />}
+      </div>
+    </>
   );
 }

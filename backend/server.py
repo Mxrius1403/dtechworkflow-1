@@ -1,33 +1,118 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
+from fastapi.responses import JSONResponse
+from starlette.middleware.base import RequestResponseEndpoint
 from starlette.middleware.cors import CORSMiddleware
 
-from core.config import CORS_ORIGINS
-from core.database import client
-from routers import catalog, data, logistics
-from seed.loader import ensure_demo_data
+from core.collections import AUTH_USERS
+from core.config import CORS_ORIGINS, HOST, PORT
+from core.database import client, db
+from core.security import has_allowed_request_origin, validate_security_config
+from routers import (
+    auth,
+    catalog,
+    data,
+    logistics,
+    material_orders,
+    products,
+    receiving,
+    reports,
+    suppliers,
+    tooth_orders,
+)
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+
+
+async def ensure_auth_email_index() -> None:
+    collection = db[AUTH_USERS]
+    partial_filter = {"email": {"$type": "string"}}
+    indexes = await collection.index_information()
+    for name, index in indexes.items():
+        if index.get("key") == [("email", 1)] and (
+            index.get("unique") is not True
+            or index.get("partialFilterExpression") != partial_filter
+        ):
+            await collection.drop_index(name)
+    await collection.create_index(
+        "email",
+        unique=True,
+        partialFilterExpression=partial_filter,
+    )
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    await ensure_demo_data()
-    yield
-    client.close()
+    validate_security_config()
+    for collection_name in ("auth_users", "users", "cases"):
+        await db[collection_name].update_many(
+            {"department": "denture"},
+            {"$set": {"department": "prosthesis"}},
+        )
+    for collection_name in ("auth_users", "users"):
+        await db[collection_name].update_many(
+            {"role": "technician", "department": {"$exists": True}},
+            {"$unset": {"department": ""}},
+        )
+    await ensure_auth_email_index()
+    await receiving.expire_completed_cases()
+    expiry_task = asyncio.create_task(
+        receiving.completed_case_expiry_loop(),
+        name="completed-case-expiry",
+    )
+    try:
+        yield
+    finally:
+        expiry_task.cancel()
+        try:
+            await expiry_task
+        except asyncio.CancelledError:
+            pass
+        client.close()
 
 
 app = FastAPI(title="Dentaltech Daily Flow API", lifespan=lifespan)
 
-for module in (data, catalog, logistics):
+
+@app.middleware("http")
+async def protect_state_changing_requests(
+    request: Request, call_next: RequestResponseEndpoint
+) -> Response:
+    if (
+        request.url.path.startswith("/api/")
+        and request.method not in ("GET", "HEAD", "OPTIONS")
+        and not has_allowed_request_origin(request)
+    ):
+        return JSONResponse(
+            {"detail": "Request origin is missing or not allowed."},
+            status_code=403,
+        )
+    return await call_next(request)
+
+
+for module in (
+    auth,
+    data,
+    catalog,
+    logistics,
+    material_orders,
+    products,
+    receiving,
+    reports,
+    suppliers,
+    tooth_orders,
+):
     app.include_router(module.router)
 
 
 @app.get("/api/health")
 async def health() -> dict:
-    return {"status": "ok", "mode": "read-only demo"}
+    return {"status": "ok"}
 
 
 app.add_middleware(
@@ -37,3 +122,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(app, host=HOST, port=PORT)

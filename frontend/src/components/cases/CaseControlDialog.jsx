@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -7,11 +8,10 @@ import { ConfirmAction } from "@/components/common/ConfirmAction";
 import { Field, NativeSelect, Options } from "@/components/common/Field";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { useData } from "@/context/DataContext";
-import { attentionLabel, caseDepartment, scheduledKey, serviceLabel } from "@/lib/cases";
-import { localInputValue, nice } from "@/lib/format";
-import { demoSave, notifyError } from "@/lib/notify";
-
-const SAVED = { completed: "Case completed by manager", production: "Case moved to production", queue: "Case moved to queue" };
+import { attentionLabel, caseDepartment, DELIVERY_STATUSES, deliveryStatusLabel, scheduledKey, serviceLabel } from "@/lib/cases";
+import { deleteReceivedCase, fetchCaseHistory, updateReceivedCase } from "@/lib/api";
+import { dateTimeOf, localInputValue, nice } from "@/lib/format";
+import { notify, notifyError } from "@/lib/notify";
 
 function DetailBox({ c }) {
   return (
@@ -19,27 +19,92 @@ function DetailBox({ c }) {
       <p><b>Scheduled:</b> {nice(scheduledKey(c))}</p>
       <p><b>Service:</b> {serviceLabel(c)}</p>
       <p><b>Attention:</b> {attentionLabel(c) || "Active"}{c.attentionNote && ` — ${c.attentionNote}`}</p>
+      <p><b>Delivery Status:</b> {deliveryStatusLabel(c)}</p>
       {c.overdueReason && <p><b>Overdue reason:</b> {c.overdueReason}</p>}
     </div>
   );
 }
 
+function CaseHistoryDialog({ c, onClose }) {
+  const { data, isLoading, isError } = useQuery({ queryKey: ["case-history", c.id], queryFn: () => fetchCaseHistory(c.id), staleTime: 0 });
+  const rows = [...(data?.history || [])].reverse();
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[92vh] max-w-2xl overflow-y-auto" data-testid="case-history-dialog">
+        <DialogHeader>
+          <DialogTitle className="font-mono">History of Case {c.code}</DialogTitle>
+          <DialogDescription>Every action on this case, newest first.</DialogDescription>
+        </DialogHeader>
+        {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
+        {isError && <p className="text-sm text-destructive">Could not load the history.</p>}
+        {data && !rows.length && <p className="text-sm text-muted-foreground">No history recorded.</p>}
+        <ul className="divide-y rounded-lg border">
+          {rows.map((h, i) => (
+            <li key={`${h.at}-${i}`} className="grid gap-1 p-3 text-sm sm:grid-cols-[11rem_1fr]" data-testid="case-history-row">
+              <span className="text-muted-foreground">{dateTimeOf(h.at)}</span>
+              <span><b>{h.action}</b><br /><span className="text-muted-foreground">by {h.by || "Unknown"}</span></span>
+            </li>
+          ))}
+        </ul>
+        <div className="flex justify-end"><Button variant="outline" onClick={onClose}>Close</Button></div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 /** Manager correction dialog: status, department, technician and the real operational time. */
-export function CaseControlDialog({ c, onClose, onAttention, onOverdueReason }) {
+export function CaseControlDialog({ c, canDelete, onClose, onAttention, onOverdueReason }) {
   const { users, byId } = useData();
+  const queryClient = useQueryClient();
   const techs = users.filter((u) => u.role === "technician" && u.active);
-  const at = c.status === "completed" ? c.finishedAt : c.status === "production" ? c.startedAt : c.receivedAt;
-  const [form, setForm] = useState({ department: caseDepartment(c), status: c.status, techId: c.technicianId || "", at: localInputValue(at), overdue: Boolean(c.overdue) });
+  const at = c.status === "completed" ? c.finishedAt : c.status === "production" ? c.startedAt : c.status === "removed" ? c.queueRemovedAt || c.receivedAt : c.receivedAt;
+  const [form, setForm] = useState({ department: caseDepartment(c), status: c.status, techId: c.technicianId || "", at: localInputValue(at), overdue: Boolean(c.overdue), deliveryStatus: c.deliveryStatus || "not_delivered" });
+  const [saving, setSaving] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const set = (key) => (e) => setForm({ ...form, [key]: e?.target ? e.target.value : e });
 
-  const save = () => {
+  const save = async () => {
     if (!form.at) return notifyError("Choose a valid date and time");
     if (["production", "completed"].includes(form.status) && !byId.users[form.techId]) return notifyError("Select a responsible technician");
-    demoSave(SAVED[form.status] || "Case updated");
-    onClose();
+    setSaving(true);
+    try {
+      await updateReceivedCase(c.id, {
+        department: form.department,
+        status: form.status,
+        technicianId: form.techId,
+        operationalAt: form.at,
+        overdue: form.overdue,
+        deliveryStatus: form.deliveryStatus,
+      });
+      await queryClient.invalidateQueries({ queryKey: ["data"] });
+      notify(`Case ${c.code} updated`);
+      onClose();
+    } catch (error) {
+      const detail = error.response?.data?.detail;
+      notifyError(typeof detail === "string" ? detail : "Could not update the case");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteCase = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await deleteReceivedCase(c.id);
+      await queryClient.invalidateQueries({ queryKey: ["data"] });
+      notify(`Case ${c.code} deleted`);
+      onClose();
+    } catch (error) {
+      const detail = error.response?.data?.detail;
+      notifyError(typeof detail === "string" ? detail : "Could not delete the case");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
+    <>
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[92vh] max-w-lg overflow-y-auto" data-testid="case-control-dialog">
         <DialogHeader>
@@ -49,13 +114,18 @@ export function CaseControlDialog({ c, onClose, onAttention, onOverdueReason }) 
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Department">
             <NativeSelect value={form.department} onChange={set("department")} data-testid="case-department-select">
-              <option value="denture">Denture</option><option value="ortho">Ortho</option><option value="digital">Digital</option>
+              <option value="prosthesis">Prosthesis</option><option value="ortho">Ortho</option><option value="digital">Digital</option>
             </NativeSelect>
           </Field>
           <Field label="Status">
             <NativeSelect value={form.status} onChange={set("status")} data-testid="case-status-select">
               <option value="queue">In Queue</option><option value="production">In Production</option><option value="completed">Completed</option>
               {c.status === "removed" && <option value="removed">Removed from Queue</option>}
+            </NativeSelect>
+          </Field>
+          <Field label="Delivery Status" className="sm:col-span-2">
+            <NativeSelect value={form.deliveryStatus} onChange={set("deliveryStatus")} data-testid="case-delivery-select">
+              {DELIVERY_STATUSES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </NativeSelect>
           </Field>
           <Field label="Responsible technician" className="sm:col-span-2">
@@ -74,18 +144,27 @@ export function CaseControlDialog({ c, onClose, onAttention, onOverdueReason }) 
         <DetailBox c={c} />
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={onAttention} data-testid="case-change-attention-button">Change Attention Status</Button>
+          <Button variant="outline" size="sm" onClick={() => setShowHistory(true)} data-testid="case-history-button">Case History</Button>
           {c.overdue && c.technicianId && <Button variant="outline" size="sm" onClick={onOverdueReason} data-testid="case-overdue-reason-button">Overdue Reason</Button>}
         </div>
         <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
-          {["queue", "production"].includes(c.status) && (
-            <ConfirmAction title="Remove this case from the active queue?" description="Its history and reports will be preserved." confirmLabel="Remove" onConfirm={() => { demoSave("Case removed from queue; history preserved"); onClose(); }} testId="case-remove">
-              <Button variant="destructive" data-testid="case-remove-button">Remove from Queue</Button>
+          {canDelete && (
+            <ConfirmAction
+              title={`Delete case ${c.code}?`}
+              description="This permanently deletes the case and its history. This action cannot be undone."
+              confirmLabel="Delete Case"
+              onConfirm={deleteCase}
+              testId="case-delete"
+            >
+              <Button variant="destructive" disabled={saving} data-testid="case-delete-button">Delete Case</Button>
             </ConfirmAction>
           )}
-          <Button variant="outline" onClick={onClose} data-testid="case-control-cancel">Cancel</Button>
-          <Button onClick={save} data-testid="case-control-save">Save Changes</Button>
+          <Button variant="outline" onClick={onClose} disabled={saving} data-testid="case-control-cancel">Cancel</Button>
+          <Button onClick={save} disabled={saving} data-testid="case-control-save">{saving ? "Saving…" : "Save Changes"}</Button>
         </div>
       </DialogContent>
     </Dialog>
+    {showHistory && <CaseHistoryDialog c={c} onClose={() => setShowHistory(false)} />}
+    </>
   );
 }

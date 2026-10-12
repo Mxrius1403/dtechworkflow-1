@@ -1,76 +1,185 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { ChevronLeft, ChevronRight, Upload } from "lucide-react";
+import { CaseImportDialog } from "@/pages/CaseImportDialog";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { CaseControlDialog } from "@/components/cases/CaseControlDialog";
 import { useCaseDialogs } from "@/components/cases/CaseDialogsProvider";
 import { DataTable } from "@/components/common/DataTable";
 import { Field, NativeSelect } from "@/components/common/Field";
 import { Panel } from "@/components/common/Panel";
 import { CountPill, StatusBadge } from "@/components/common/StatusBadge";
+import { NOTE_LIMIT } from "@/config/constants";
 import { useData } from "@/context/DataContext";
-import { caseDepartment, departmentName, sessionHistoryRows } from "@/lib/cases";
-import { endOfWeekKey, formatDuration, minutesBetween, shortDate, startOfWeekKey } from "@/lib/format";
+import { useSession } from "@/context/SessionContext";
+import { updateCaseAttention } from "@/lib/api";
+import { caseDepartment, caseSearchRows, deliveryStatusLabel, departmentName } from "@/lib/cases";
+import { notify, notifyError } from "@/lib/notify";
 
-const EMPTY = { query: "", status: "all", from: "", to: "" };
-const relevantDate = (c) => (c.finishedAt || c.startedAt || c.receivedAt || c.receivedDate || "").slice(0, 10);
-const inPeriod = (d, f) => (!f.from || d >= f.from) && (!f.to || d <= f.to);
+const PAGE_SIZE = 25;
+
+const ATTENTION_LABELS = {
+  active: "Active",
+  on_hold: "On Hold",
+  need_information: "Need Information",
+};
+
+function CaseSearchAttentionDialog({ c, onClose, onSave }) {
+  const [attentionStatus, setAttentionStatus] = useState(c.attentionStatus || "active");
+  const [attentionNote, setAttentionNote] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const saveAttention = async () => {
+    if (attentionStatus !== "active" && !attentionNote.trim()) return notifyError("Enter a short reason");
+    setSaving(true);
+    try {
+      if (await onSave({
+        attentionStatus,
+        attentionNote: attentionNote.trim(),
+      })) onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-md" data-testid="case-search-attention-dialog">
+        <DialogHeader>
+          <DialogTitle>Change Attention Status</DialogTitle>
+          <DialogDescription>Case {c.code}</DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4">
+          <Field label="Attention status">
+            <NativeSelect
+              value={attentionStatus}
+              onChange={(event) => {
+                const nextStatus = event.target.value;
+                setAttentionStatus(nextStatus);
+                if (nextStatus === "active") setAttentionNote("");
+              }}
+              data-testid="case-search-attention-status-select"
+            >
+              {Object.entries(ATTENTION_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </NativeSelect>
+          </Field>
+          <Field
+            label={`Short reason (${attentionStatus === "active" ? "optional" : "required"})`}
+            hint={`${attentionNote.length}/${NOTE_LIMIT} characters`}
+          >
+            <Textarea
+              required={attentionStatus !== "active"}
+              maxLength={NOTE_LIMIT}
+              value={attentionNote}
+              onChange={(event) => setAttentionNote(event.target.value)}
+              placeholder="Enter a short reason (optional for Active)"
+              data-testid="case-search-attention-reason-input"
+            />
+          </Field>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button onClick={saveAttention} disabled={saving} data-testid="case-search-attention-save">
+            {saving ? "Saving…" : "Save Attention Status"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export default function CaseSearchPage() {
   const { cases, techName } = useData();
-  const { openCase } = useCaseDialogs();
-  const [form, setForm] = useState(EMPTY);
-  const [filters, setFilters] = useState(EMPTY);
-  const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
-  const apply = (next) => { setForm(next); setFilters(next); };
-
-  const q = filters.query.toLowerCase();
-  const rows = cases.filter((c) => !c.deleted && inPeriod(relevantDate(c), filters) && (filters.status === "all" || c.status === filters.status)
-    && (!q || `${c.code} ${c.technician || ""} ${c.finishedBy || ""} ${c.technicianId || ""} ${c.finishedById || ""}`.toLowerCase().includes(q)))
-    .sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")));
-  const history = rows.flatMap(sessionHistoryRows).filter((s) => inPeriod(s.date || "", filters));
+  const { user } = useSession();
+  const { openOverdueReason } = useCaseDialogs();
+  const queryClient = useQueryClient();
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(0);
+  const [selectedCaseId, setSelectedCaseId] = useState(null);
+  const [attentionOpen, setAttentionOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const canImport = Boolean(user?.isManager || user?.isOwner);
+  const rows = useMemo(() => caseSearchRows(cases, query), [cases, query]);
+  const pageCount = Math.ceil(rows.length / PAGE_SIZE);
+  const pageRows = rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const selectedCase = cases.find((caseItem) => caseItem.id === selectedCaseId);
   const who = (id, fallback) => <>{techName(id, fallback || "-")}{id && <span className="ml-1 font-mono text-[11px] text-muted-foreground">({id})</span>}</>;
 
+  const saveAttention = async (attention) => {
+    try {
+      await updateCaseAttention(selectedCase.id, attention);
+      await queryClient.invalidateQueries({ queryKey: ["data"] });
+      notify(`Case ${selectedCase.code} updated`);
+      return true;
+    } catch (error) {
+      const detail = error.response?.data?.detail;
+      notifyError(typeof detail === "string" ? detail : "Could not update the case");
+      return false;
+    }
+  };
+
   return (
-    <>
-      <Panel title="Find and Correct Cases" description="Search the complete case history. Every production cycle stays listed separately when the same case number returns on another date.">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Field label="Case number / technician"><Input value={form.query} onChange={set("query")} onKeyDown={(e) => e.key === "Enter" && setFilters(form)} placeholder="Example: 4101 or Liam" data-testid="case-search-query" /></Field>
-          <Field label="Current status">
-            <NativeSelect value={form.status} onChange={set("status")} data-testid="case-search-status">
-              <option value="all">All statuses</option><option value="queue">Queue</option><option value="production">In Production</option><option value="completed">Completed</option><option value="removed">Removed</option>
-            </NativeSelect>
-          </Field>
-          <Field label="From"><Input type="date" value={form.from} onChange={set("from")} data-testid="case-search-from" /></Field>
-          <Field label="To"><Input type="date" value={form.to} onChange={set("to")} data-testid="case-search-to" /></Field>
-        </div>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Button onClick={() => setFilters(form)} data-testid="case-search-submit">Search</Button>
-          <Button variant="outline" onClick={() => apply({ ...EMPTY })} data-testid="case-search-all-dates">All Dates</Button>
-          <Button variant="outline" onClick={() => apply({ ...form, from: startOfWeekKey(), to: endOfWeekKey() })} data-testid="case-search-this-week">This Week</Button>
-        </div>
-      </Panel>
-      <Panel title="Production History" actions={<CountPill testId="history-count">{history.length}</CountPill>}>
-        <DataTable dense testId="history-table" rows={history} rowKey={(r) => r.key} empty="No production sessions found." columns={[
-          { key: "code", header: "Case", render: (s) => <span className="font-mono font-bold">{s.code}</span> },
-          { key: "date", header: "Date", render: (s) => shortDate(s.date) },
-          { key: "startedTime", header: "Started", render: (s) => s.startedTime || "-" },
-          { key: "finishedTime", header: "Finished", render: (s) => s.finishedTime || "-" },
-          { key: "time", header: "Time", render: (s) => (s.startedAt && s.finishedAt ? formatDuration(minutesBetween(s.startedAt, s.finishedAt)) : "-") },
-          { key: "tech", header: "Technician", render: (s) => who(s.technicianId, s.technician) },
-        ]} />
-      </Panel>
-      <Panel title="Current Case Records" actions={<CountPill testId="records-count">{rows.length}</CountPill>}>
-        <DataTable dense testId="records-table" rows={rows} empty="No cases found." rowTestId={(c) => `record-row-${c.code}`} columns={[
+    <Panel title="All Cases" description="Search and manage every case, regardless of status." actions={<>
+      {canImport && <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} data-testid="case-import-open"><Upload /> Import</Button>}
+      <CountPill testId="records-count">{rows.length}</CountPill>
+    </>}>
+      <Field label="Search cases">
+        <Input
+          value={query}
+          onChange={(event) => { setQuery(event.target.value); setPage(0); }}
+          placeholder="Case number, technician or status"
+          data-testid="case-search-query"
+        />
+      </Field>
+      <div className="mt-4">
+        <DataTable dense testId="records-table" rows={pageRows} empty="No cases found." rowTestId={(c) => `record-row-${c.code}-${c.id}`} columns={[
           { key: "code", header: "Case", render: (c) => <span className="font-mono font-bold">{c.code}</span> },
           { key: "department", header: "Department", render: (c) => departmentName(caseDepartment(c)) },
-          { key: "status", header: "Status", render: (c) => <StatusBadge kind="case" value={c.status} /> },
+          { key: "status", header: "Status", render: (c) => <StatusBadge kind="case" value={c.deleted ? "deleted" : c.status} /> },
+          { key: "deliveryStatus", header: "Delivery Status", render: (c) => <StatusBadge kind="delivery" value={c.deliveryStatus || "not_delivered"} label={deliveryStatusLabel(c)} /> },
           { key: "tech", header: "Technician", render: (c) => who(c.technicianId || c.finishedById, c.technician || c.finishedBy) },
           { key: "received", header: "Received", render: (c) => `${c.receivedDate || "-"} ${c.receivedTime || ""}` },
           { key: "started", header: "Started", render: (c) => c.startedTime || "-" },
           { key: "finished", header: "Completed", render: (c) => c.finishedTime || "-" },
           { key: "overdue", header: "Overdue", render: (c) => (c.overdue && c.status !== "completed" ? <StatusBadge kind="flag" value="overdue" /> : "No") },
-          { key: "manage", header: "", render: (c) => <Button size="sm" onClick={() => openCase(c.id)} data-testid={`record-manage-${c.code}`}>Manage</Button> },
+          { key: "manage", header: "", render: (c) => c.deleted ? "-" : <Button size="sm" onClick={() => { setSelectedCaseId(c.id); setAttentionOpen(false); }} data-testid={`record-manage-${c.code}`}>Manage</Button> },
         ]} />
-      </Panel>
-    </>
+      </div>
+      {canImport && importOpen && <CaseImportDialog onClose={() => setImportOpen(false)} />}
+      {selectedCase && !attentionOpen && (
+        <CaseControlDialog
+          c={selectedCase}
+          canDelete={user?.isManager || user?.isOwner}
+          onClose={() => setSelectedCaseId(null)}
+          onAttention={() => setAttentionOpen(true)}
+          onOverdueReason={() => openOverdueReason(selectedCase.id)}
+        />
+      )}
+      {selectedCase && attentionOpen && (
+        <CaseSearchAttentionDialog
+          c={selectedCase}
+          onClose={() => setAttentionOpen(false)}
+          onSave={saveAttention}
+        />
+      )}
+      {pageCount > 1 && (
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">
+            Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, rows.length)} of {rows.length}
+          </p>
+          <div className="flex gap-2">
+            <Button variant="outline" size="icon" aria-label="Previous page" title="Previous page" disabled={page === 0} onClick={() => setPage((current) => current - 1)} data-testid="case-search-previous">
+              <ChevronLeft />
+            </Button>
+            <Button variant="outline" size="icon" aria-label="Next page" title="Next page" disabled={page >= pageCount - 1} onClick={() => setPage((current) => current + 1)} data-testid="case-search-next">
+              <ChevronRight />
+            </Button>
+          </div>
+        </div>
+      )}
+    </Panel>
   );
 }

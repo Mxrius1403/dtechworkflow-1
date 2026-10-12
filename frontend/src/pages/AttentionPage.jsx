@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { useCaseDialogs } from "@/components/cases/CaseDialogsProvider";
 import { OverdueSchedule } from "@/components/cases/OverdueSchedule";
-import { BackLink, Muted } from "@/components/common/Bits";
+import { Muted } from "@/components/common/Bits";
 import { Panel } from "@/components/common/Panel";
 import { StatCard } from "@/components/common/StatCard";
 import { CountPill } from "@/components/common/StatusBadge";
@@ -43,16 +43,20 @@ export default function AttentionPage() {
   const g = attentionGroups(cases);
   return (
     <>
-      <BackLink to="/dashboard">Back to Dashboard</BackLink>
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatCard label="Due Today" value={g.due.length} accent="teal" testId="attention-kpi-due" />
         <StatCard label="On Hold" value={g.holds.length} accent="amber" testId="attention-kpi-hold" />
         <StatCard label="Need Information" value={g.info.length} accent="indigo" testId="attention-kpi-info" />
         <StatCard label="Overdue" value={g.overdue.length} accent="rose" testId="attention-kpi-overdue" />
       </div>
-      <AttentionList title="Overdue Cases" rows={g.overdue} edge="border-l-rose-500" testId="attention-overdue" />
-      <AttentionList title="On Hold" rows={g.holds} edge="border-l-amber-400" testId="attention-hold" />
-      <AttentionList title="Need Information" rows={g.info} edge="border-l-indigo-500" testId="attention-info" />
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+        <AttentionList title="Due Today" rows={g.due} edge="border-l-teal-500" testId="attention-due" />
+        <div className="grid content-start gap-4">
+          <AttentionList title="Overdue Cases" rows={g.overdue} edge="border-l-rose-500" testId="attention-overdue" />
+          <AttentionList title="On Hold" rows={g.holds} edge="border-l-amber-400" testId="attention-hold" />
+          <AttentionList title="Need Information" rows={g.info} edge="border-l-indigo-500" testId="attention-info" />
+        </div>
+      </div>
     </>
   );
 }

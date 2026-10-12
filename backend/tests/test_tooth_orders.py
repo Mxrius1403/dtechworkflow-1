@@ -1,0 +1,141 @@
+import asyncio
+
+import pytest
+from fastapi import HTTPException
+from pydantic import ValidationError
+from routers import tooth_orders
+
+
+class FakeToothOrdersCollection:
+    def __init__(self):
+        self.documents = {}
+
+    async def insert_one(self, document):
+        self.documents[document["_id"]] = document
+
+    async def delete_one(self, query):
+        deleted = self.documents.pop(query["_id"], None)
+        return type("DeleteResult", (), {"deleted_count": int(deleted is not None)})()
+
+    async def update_one(self, query, update):
+        document = self.documents.get(query["_id"])
+        if document is None:
+            return type("UpdateResult", (), {"matched_count": 0})()
+        document.update(update["$set"])
+        return type("UpdateResult", (), {"matched_count": 1})()
+
+
+class FakeSettingsCollection:
+    def __init__(self):
+        self.document = None
+
+    async def find_one_and_update(
+        self, query, update, upsert=False, return_document=None
+    ):
+        if self.document is None:
+            if not upsert:
+                return None
+            self.document = {"_id": query["_id"]}
+        for field, value in update.get("$inc", {}).items():
+            self.document[field] = self.document.get(field, 0) + value
+        return self.document
+
+
+class FakeDatabase:
+    def __init__(self):
+        self.collections = {
+            "tooth_orders": FakeToothOrdersCollection(),
+            "settings": FakeSettingsCollection(),
+        }
+        self.collection = self.collections["tooth_orders"]
+
+    def __getitem__(self, name):
+        return self.collections[name]
+
+
+def test_tooth_order_requires_items_and_positive_quantities():
+    with pytest.raises(ValidationError):
+        tooth_orders.ToothOrderSubmit.model_validate({"items": []})
+    with pytest.raises(ValidationError):
+        tooth_orders.ToothOrderSubmit.model_validate(
+            {"items": [{"group": "Upper Anteriors", "tooth": "S1", "shade": "A1", "qty": 0}]}
+        )
+
+
+def test_submitting_tooth_order_allows_all_staff_roles():
+    route = next(
+        route
+        for route in tooth_orders.router.routes
+        if route.path == "/api/tooth-orders" and "POST" in route.methods
+    )
+    role_check = next(
+        dependency.call
+        for dependency in route.dependant.dependencies
+        if getattr(dependency.call, "__name__", None) == "check_role"
+    )
+
+    for role in ("technician", "manager", "owner"):
+        assert asyncio.run(role_check({"role": role}))["role"] == role
+
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(role_check({"role": "driver"}))
+    assert error.value.status_code == 403
+
+
+def test_submit_and_manager_delete_tooth_order(monkeypatch):
+    database = FakeDatabase()
+    monkeypatch.setattr(tooth_orders, "db", database)
+    body = tooth_orders.ToothOrderSubmit.model_validate(
+        {
+            "items": [
+                {"group": "Upper Anteriors", "tooth": "S1", "shade": "A1", "qty": 2},
+                {"group": "Lower Anteriors", "tooth": "L4", "shade": "B2", "qty": 1},
+            ]
+        }
+    )
+    account = {"_id": "TECH001", "name": "Test Technician"}
+
+    saved = asyncio.run(tooth_orders.submit_tooth_order(body, account))
+    stored = database["tooth_orders"].documents[saved["id"]]
+    second = asyncio.run(tooth_orders.submit_tooth_order(body, account))
+
+    assert saved["id"] == "TO1"
+    assert second["id"] == "TO2"
+    assert saved["technicianId"] == account["_id"]
+    assert saved["technician"] == account["name"]
+    assert saved["items"] == [item.model_dump() for item in body.items]
+    assert saved["total"] == 3
+    assert saved["status"] == "pending"
+    assert stored["createdAt"].endswith("Z")
+
+    deleted = asyncio.run(tooth_orders.delete_tooth_order(saved["id"]))
+    assert deleted == {"id": saved["id"], "deleted": True}
+    assert set(database["tooth_orders"].documents) == {"TO2"}
+
+
+def test_manager_marks_tooth_order_done(monkeypatch):
+    database = FakeDatabase()
+    database.collection.documents["order-1"] = {"_id": "order-1", "status": "pending"}
+    monkeypatch.setattr(tooth_orders, "db", database)
+    body = tooth_orders.ToothOrderStatusUpdate.model_validate({"status": "done"})
+
+    result = asyncio.run(tooth_orders.update_tooth_order_status("order-1", body))
+
+    assert result == {"id": "order-1", "status": "done"}
+    assert database.collection.documents["order-1"]["status"] == "done"
+
+
+def test_marking_missing_tooth_order_done_returns_404(monkeypatch):
+    monkeypatch.setattr(tooth_orders, "db", FakeDatabase())
+    body = tooth_orders.ToothOrderStatusUpdate.model_validate({"status": "done"})
+
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(tooth_orders.update_tooth_order_status("missing", body))
+    assert error.value.status_code == 404
+
+
+def test_delete_missing_tooth_order_returns_404(monkeypatch):
+    monkeypatch.setattr(tooth_orders, "db", FakeDatabase())
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(tooth_orders.delete_tooth_order("missing"))
+    assert error.value.status_code == 404

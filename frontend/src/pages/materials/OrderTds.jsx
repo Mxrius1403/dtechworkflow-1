@@ -1,21 +1,26 @@
-import { useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Loader2, Search } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, NativeSelect, Options } from "@/components/common/Field";
 import { Panel } from "@/components/common/Panel";
 import { CountPill } from "@/components/common/StatusBadge";
-import { MATERIAL_SUPPLIERS } from "@/config/constants";
 import { useData } from "@/context/DataContext";
 import { useSession } from "@/context/SessionContext";
-import { demoSave, notifyError } from "@/lib/notify";
+import { createMaterialOrder, fetchProducts } from "@/lib/api";
+import { notify, notifyError } from "@/lib/notify";
 import { MaterialCart } from "./MaterialCart";
 import { MaterialGrid } from "./MaterialCard";
 import { MaterialOrderList } from "./MaterialOrderList";
 import { useFavourites } from "./useFavourites";
 
-const EMPTY = { search: "", supplier: "all", group: "all" };
-const searchText = (p) => [p.code, p.description, p.brand, p.group, p.subgroup, p.supplier, p.machine, p.pack, p.keywords].join(" ").toLowerCase();
+const EMPTY = { search: "", supplier: "all" };
+const EMPTY_PRODUCTS = [];
+const searchText = (product, supplier) =>
+  [product.refNo, product.title, product.producer, supplier, product.unit, product.quantity, product.measure]
+    .join(" ")
+    .toLowerCase();
 
 function useCart() {
   const [cart, setCart] = useState([]);
@@ -26,39 +31,71 @@ function useCart() {
 }
 
 export function OrderTds() {
-  const { catalog, materialOrders } = useData();
+  const { materialOrders, suppliers } = useData();
   const { user } = useSession();
-  const products = catalog.materials;
+  const queryClient = useQueryClient();
+  const productsQuery = useQuery({ queryKey: ["products"], queryFn: fetchProducts });
+  useEffect(() => {
+    const refresh = window.setInterval(
+      () => queryClient.invalidateQueries({ queryKey: ["data"] }),
+      15000,
+    );
+    return () => window.clearInterval(refresh);
+  }, [queryClient]);
+  const products = productsQuery.data || EMPTY_PRODUCTS;
+  const supplierNames = useMemo(
+    () => Object.fromEntries(suppliers.map((supplier) => [supplier.id, supplier.name])),
+    [suppliers],
+  );
   const byId = useMemo(() => Object.fromEntries(products.map((p) => [p.id, p])), [products]);
   const [form, setForm] = useState(EMPTY);
   const [filters, setFilters] = useState(EMPTY);
   const [notes, setNotes] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [favourites, toggleFavourite] = useFavourites(user.id);
   const cart = useCart();
   const mine = materialOrders.filter((o) => o.requestedById === user.id);
+  const openMine = mine.filter((o) => o.status !== "done");
   const recent = [...new Set([...mine].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).flatMap((o) => o.items.map((i) => i.productId)))].slice(0, 8).map((id) => byId[id]).filter(Boolean);
   const words = filters.search.toLowerCase().split(/\s+/).filter(Boolean);
   const shown = products
-    .filter((p) => (filters.supplier === "all" || p.supplier === filters.supplier) && (filters.group === "all" || p.group === filters.group) && words.every((w) => searchText(p).includes(w)))
-    .sort((a, b) => (favourites.includes(b.id) - favourites.includes(a.id)) || a.group.localeCompare(b.group) || a.description.localeCompare(b.description));
+    .filter((product) => {
+      const supplierName = supplierNames[product.supplierId] || "";
+      return (filters.supplier === "all" || product.supplierId === filters.supplier)
+        && words.every((word) => searchText(product, supplierName).includes(word));
+    })
+    .sort((a, b) => (favourites.includes(b.id) - favourites.includes(a.id))
+      || a.title.localeCompare(b.title));
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
-  const grid = { favourites, onFavourite: toggleFavourite, onAdd: cart.add };
-  const submit = () => {
+  const grid = { favourites, suppliers: supplierNames, onFavourite: toggleFavourite, onAdd: cart.add };
+  const submit = async () => {
     if (!cart.cart.length) return notifyError("Add at least one product");
-    demoSave("Material order sent");
-    cart.clear();
-    setNotes("");
+    setSubmitting(true);
+    try {
+      await createMaterialOrder({
+        items: cart.cart.map(({ productId, qty }) => ({ productId, qty })),
+        notes,
+      });
+      await queryClient.invalidateQueries({ queryKey: ["data"] });
+      cart.clear();
+      setNotes("");
+      notify("Material order sent");
+    } catch (error) {
+      const detail = error.response?.data?.detail;
+      notifyError(typeof detail === "string" ? detail : "Could not send the material order");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
     <>
       <div className="grid items-start gap-5 lg:grid-cols-[1fr_360px]">
         <div className="grid min-w-0 gap-5">
-          <Panel title="Find Products" description="Search by product name, code, brand, supplier or keywords such as cutter, acrylic, brush, lathe, micromotor, ortho or denture.">
-            <div className="grid gap-3 md:grid-cols-[2fr_1fr_1fr]">
-              <Field label="Search"><Input value={form.search} onChange={set("search")} onKeyDown={(e) => e.key === "Enter" && setFilters(form)} placeholder="Example: cutter, acrylic, EDE/0664…" data-testid="material-search" /></Field>
-              <Field label="Supplier"><NativeSelect value={form.supplier} onChange={set("supplier")} data-testid="material-supplier"><option value="all">All suppliers</option><Options items={MATERIAL_SUPPLIERS.map((s) => [s, s])} /></NativeSelect></Field>
-              <Field label="Group"><NativeSelect value={form.group} onChange={set("group")} data-testid="material-group"><option value="all">All groups</option><Options items={[...new Set(products.map((p) => p.group))].map((g) => [g, g])} /></NativeSelect></Field>
+          <Panel title="Order Materials" description="Browse and search the products maintained by Product Management.">
+            <div className="grid gap-3 md:grid-cols-[2fr_1fr]">
+              <Field label="Search products"><Input value={form.search} onChange={set("search")} onKeyDown={(e) => e.key === "Enter" && setFilters(form)} placeholder="Search by reference number, title, producer or pack…" data-testid="material-search" /></Field>
+              <Field label="Supplier"><NativeSelect value={form.supplier} onChange={set("supplier")} data-testid="material-supplier"><option value="all">All suppliers</option><Options items={[...new Set(products.map((product) => product.supplierId))].map((id) => [id, supplierNames[id] || "Supplier unavailable"])} /></NativeSelect></Field>
             </div>
             <div className="mt-4 flex flex-wrap items-center gap-2">
               <Button onClick={() => setFilters(form)} data-testid="material-search-submit"><Search /> Search</Button>
@@ -66,13 +103,24 @@ export function OrderTds() {
               <CountPill testId="material-results-count">{shown.length} products</CountPill>
             </div>
           </Panel>
-          {!filters.search && favourites.length > 0 && <MaterialGrid title="Favourites" products={favourites.map((id) => byId[id]).filter(Boolean)} testId="material-favourites" {...grid} />}
-          {!filters.search && recent.length > 0 && <MaterialGrid title="Recently Ordered" products={recent} testId="material-recent" {...grid} />}
-          <MaterialGrid title={filters.search ? "Search Results" : "All Products"} products={shown} testId="material-results" empty="No products found. Try fewer words or another code." {...grid} />
+          {productsQuery.isLoading ? (
+            <Panel title="Products"><Loader2 className="mx-auto my-8 h-5 w-5 animate-spin text-secondary" /></Panel>
+          ) : productsQuery.isError ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-destructive/30 p-3 text-sm" role="alert">
+              <span>Could not load products.</span>
+              <Button variant="outline" size="sm" onClick={() => productsQuery.refetch()}>Retry</Button>
+            </div>
+          ) : (
+            <>
+              {!filters.search && favourites.length > 0 && <MaterialGrid title="Favourites" products={favourites.map((id) => byId[id]).filter(Boolean)} testId="material-favourites" {...grid} />}
+              {!filters.search && recent.length > 0 && <MaterialGrid title="Recently Ordered" products={recent} testId="material-recent" {...grid} />}
+              <MaterialGrid title={filters.search ? "Search Results" : "All Products"} products={shown} testId="material-results" empty="No products available. Add products in Product Management." {...grid} />
+            </>
+          )}
         </div>
-        <MaterialCart cart={cart.cart} productsById={byId} notes={notes} onNotes={setNotes} onQty={cart.qty} onRemove={cart.remove} onSubmit={submit} onClear={cart.clear} />
+        <MaterialCart cart={cart.cart} productsById={byId} suppliers={supplierNames} notes={notes} submitting={submitting} onNotes={setNotes} onQty={cart.qty} onRemove={cart.remove} onSubmit={submit} onClear={cart.clear} />
       </div>
-      <MaterialOrderList title="My Material Orders" orders={mine} />
+      <MaterialOrderList title="My Material Orders" orders={openMine} />
     </>
   );
 }

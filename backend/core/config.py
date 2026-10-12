@@ -8,7 +8,16 @@ load_dotenv(BACKEND_DIR / ".env")
 
 MONGO_URL = os.environ["MONGO_URL"]
 DB_NAME = os.environ["DB_NAME"]
-CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "*").split(",")
+HOST = os.environ.get("HOST", "0.0.0.0")
+PORT = int(os.environ.get("PORT", "8001"))
+CORS_ORIGINS = [
+    origin.strip().rstrip("/")
+    for origin in os.environ.get("CORS_ORIGINS", "http://localhost:3000").split(",")
+    if origin.strip()
+]
+AUTH_SECRET_KEY = os.environ.get("AUTH_SECRET_KEY", "")
+OWNER_SETUP_SECRET = os.environ.get("OWNER_SETUP_SECRET", "")
+AUTH_COOKIE_SECURE = os.environ.get("AUTH_COOKIE_SECURE", "false").lower() == "true"
 
 DATA_DIR = BACKEND_DIR / "data"
-TIMEZONE = "Europe/Dublin"
+TIMEZONE = os.environ.get("TIMEZONE", "Europe/Dublin")

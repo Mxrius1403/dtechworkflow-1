@@ -17,13 +17,10 @@ export function TopBar({ title, onTvMode }) {
         <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMenu(true)} data-testid="mobile-menu-button"><Menu /></Button>
         <div className="min-w-0">
           <h1 className="truncate text-xl font-extrabold text-primary sm:text-2xl" data-testid="page-title">{title}</h1>
-          <p className="flex items-center gap-2 text-xs text-muted-foreground">
-            {niceToday()}
-            <span className="inline-flex items-center gap-1 font-medium text-emerald-700" data-testid="connection-status"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Demo data • read-only</span>
-          </p>
+          <p className="text-xs text-muted-foreground">{niceToday()}</p>
         </div>
       </div>
-      {user.isManager && (
+      {(user.isManager || user.role === "technician") && (
         <div className="flex shrink-0 gap-2">
           <Button variant="outline" size="sm" onClick={onTvMode} className="hidden sm:inline-flex" data-testid="tv-mode-button"><MonitorPlay /> TV Mode</Button>
           <Button variant="outline" size="sm" onClick={() => setAccount(true)} data-testid="account-button"><UserCog /> <span className="hidden sm:inline">Account</span></Button>
