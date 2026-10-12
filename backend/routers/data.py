@@ -13,6 +13,30 @@ router = APIRouter(
     dependencies=[Depends(current_account)],
 )
 MANAGER_ROLES = ("owner", "manager")
+TECHNICIAN_COLLECTIONS = frozenset(
+    {
+        "users",
+        "cases",
+        "toothOrders",
+        "materialOrders",
+        "suppliers",
+        "notifications",
+    }
+)
+DRIVER_COLLECTIONS = frozenset(
+    {"drivers", "clinics", "routes", "stops", "routePlans"}
+)
+
+
+def allowed_collections(account: dict) -> frozenset[str]:
+    role = account.get("role")
+    if role in MANAGER_ROLES:
+        return frozenset(PUBLIC_COLLECTIONS)
+    if role == "technician":
+        return TECHNICIAN_COLLECTIONS
+    if role == "driver":
+        return DRIVER_COLLECTIONS
+    raise HTTPException(status_code=403, detail="Insufficient permissions.")
 
 
 async def read_collection(
@@ -66,6 +90,15 @@ async def read_settings() -> dict:
     return BaseDocument.from_mongo(doc).to_api() if doc else {}
 
 
+async def read_suppliers() -> list[dict]:
+    docs = await db["suppliers"].find().to_list(10_000)
+    return [
+        {"id": str(doc["_id"]), "name": doc["name"]}
+        for doc in docs
+        if doc.get("name")
+    ]
+
+
 def visible_material_orders(rows: list[dict], account: dict) -> list[dict]:
     if account.get("role") != "technician":
         return rows
@@ -77,11 +110,13 @@ def driver_payload(payload: dict, account: dict) -> dict:
     account_id = str(account["_id"])
     routes = [r for r in payload["routes"] if r.get("driverId") == account_id]
     route_ids = {r["id"] for r in routes}
+    stops = [s for s in payload["stops"] if s.get("routeId") in route_ids]
+    clinic_ids = {s["clinicId"] for s in stops if s.get("clinicId")}
     scoped = {
         "drivers": [d for d in payload["drivers"] if d["id"] == account_id],
-        "clinics": payload["clinics"],
+        "clinics": [c for c in payload["clinics"] if c["id"] in clinic_ids],
         "routes": routes,
-        "stops": [s for s in payload["stops"] if s.get("routeId") in route_ids],
+        "stops": stops,
         "routePlans": [p for p in payload["routePlans"] if p.get("routeId") in route_ids],
     }
     return {name: scoped.get(name, []) for name in payload}
@@ -106,26 +141,31 @@ async def archive_stale_routes() -> None:
 @router.get("")
 async def all_data(account: dict = Depends(current_account)) -> dict:
     """Everything the authenticated app screens need."""
+    allowed = allowed_collections(account)
     await archive_stale_routes()
-    names = list(PUBLIC_COLLECTIONS.items())
+    names = [
+        (api_name, collection)
+        for api_name, collection in PUBLIC_COLLECTIONS.items()
+        if api_name in allowed
+    ]
     can_read_reports = account.get("role") in MANAGER_ROLES
-    if not can_read_reports:
-        names = [
-            (api_name, collection)
-            for api_name, collection in names
-            if api_name != "reports"
-        ]
     rows = await asyncio.gather(
         *(
-            read_collection(collection, include_login_email=can_read_reports)
-            for _, collection in names
+            (
+                read_suppliers()
+                if api_name == "suppliers"
+                else read_collection(
+                    collection, include_login_email=can_read_reports
+                )
+            )
+            for api_name, collection in names
         )
     )
     payload = {api_name: items for (api_name, _), items in zip(names, rows)}
     if account.get("role") == "driver":
         payload = driver_payload(payload, account)
     payload["materialOrders"] = visible_material_orders(
-        payload["materialOrders"], account
+        payload.get("materialOrders", []), account
     )
     payload["settings"] = await read_settings()
     return payload
@@ -137,14 +177,16 @@ async def one_collection(name: str, account: dict = Depends(current_account)):
         return await read_settings()
     if name not in PUBLIC_COLLECTIONS:
         raise HTTPException(status_code=404, detail=f"Unknown collection '{name}'")
-    if name == "reports" and account.get("role") not in MANAGER_ROLES:
+    if name not in allowed_collections(account):
         raise HTTPException(status_code=403, detail="Insufficient permissions.")
+    if account.get("role") == "driver":
+        return (await all_data(account))[name]
+    if name == "suppliers":
+        return await read_suppliers()
     rows = await read_collection(
         PUBLIC_COLLECTIONS[name],
         include_login_email=account.get("role") in MANAGER_ROLES,
     )
-    if account.get("role") == "driver":
-        return (await all_data(account))[name]
     if name == "materialOrders":
         return visible_material_orders(rows, account)
     return rows
