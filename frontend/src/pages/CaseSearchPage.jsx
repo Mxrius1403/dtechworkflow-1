@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Upload } from "lucide-react";
+import { CaseImportDialog } from "@/pages/CaseImportDialog";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -99,6 +100,8 @@ export default function CaseSearchPage() {
   const [page, setPage] = useState(0);
   const [selectedCaseId, setSelectedCaseId] = useState(null);
   const [attentionOpen, setAttentionOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const canImport = Boolean(user?.isManager || user?.isOwner);
   const rows = useMemo(() => caseSearchRows(cases, query), [cases, query]);
   const pageCount = Math.ceil(rows.length / PAGE_SIZE);
   const pageRows = rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
@@ -119,7 +122,10 @@ export default function CaseSearchPage() {
   };
 
   return (
-    <Panel title="All Cases" description="Search and manage every case, regardless of status." actions={<CountPill testId="records-count">{rows.length}</CountPill>}>
+    <Panel title="All Cases" description="Search and manage every case, regardless of status." actions={<>
+      {canImport && <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} data-testid="case-import-open"><Upload /> Import</Button>}
+      <CountPill testId="records-count">{rows.length}</CountPill>
+    </>}>
       <Field label="Search cases">
         <Input
           value={query}
@@ -142,6 +148,7 @@ export default function CaseSearchPage() {
           { key: "manage", header: "", render: (c) => c.deleted ? "-" : <Button size="sm" onClick={() => { setSelectedCaseId(c.id); setAttentionOpen(false); }} data-testid={`record-manage-${c.code}`}>Manage</Button> },
         ]} />
       </div>
+      {canImport && importOpen && <CaseImportDialog onClose={() => setImportOpen(false)} />}
       {selectedCase && !attentionOpen && (
         <CaseControlDialog
           c={selectedCase}

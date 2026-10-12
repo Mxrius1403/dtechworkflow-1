@@ -758,3 +758,67 @@ def test_case_history_survives_case_and_technician_deletion(receiving_db):
     assert [entry["by"] for entry in result["history"]] == ["Manager Name"] * 3
     assert result["history"][-1]["action"] == "Case deleted"
     assert "on hold: Waiting" in result["history"][1]["action"]
+
+
+LEGACY_CASE = {
+    "arch": "Upper", "code": "1235", "department": "denture",
+    "currentDueDate": "2026-10-08", "originalScheduledDate": "2026-10-01",
+    "scheduledDate": "2026-10-01", "status": "queue", "overdue": True,
+    "serviceTypes": ["Repair"], "receivedAt": "2026-10-01T10:06:02.537Z",
+    "createdAt": "2026-10-01T10:06:02.537Z", "id": "CASE1",
+    "missedScheduleDates": {"2026-10-01": True, "2026-10-06": True},
+    "history": {
+        "-b": {"action": "Missed", "at": "2026-10-05T11:02:00.335Z", "by": "System"},
+        "-a": {"action": "Received", "at": "2026-10-01T10:06:02.537Z", "by": "TEST Manager"},
+    },
+}
+MANAGER = {"_id": "MGR1", "role": "manager", "name": "M"}
+
+
+def test_import_maps_legacy_case_and_keeps_history(receiving_db):
+    body = receiving.ImportCases(cases=[LEGACY_CASE])
+    result = asyncio.run(receiving.import_cases(body, MANAGER))
+    case = result["cases"][0]
+    assert case["department"] == "prosthesis"
+    assert case["currentDueDate"] == "2026-10-08"
+    assert case["status"] == "queue"
+    assert case["overdue"] is False
+    assert case["missedScheduleDates"] == {"2026-10-01": True, "2026-10-06": True}
+    assert case["receivedAt"] == "2026-10-01T10:06:02.537Z"
+    assert [h["action"] for h in case["history"]][:2] == ["Received", "Missed"]
+
+
+def test_import_cases_is_all_or_nothing_on_duplicates(receiving_db):
+    asyncio.run(receiving.create_received_case(
+        receive_payload(code="IMP-1"), MANAGER))
+    body = receiving.ImportCases(cases=[
+        {**LEGACY_CASE, "code": "IMP-2"}, {**LEGACY_CASE, "code": "IMP-1"},
+    ])
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(receiving.import_cases(body, MANAGER))
+    assert error.value.status_code == 422
+    assert len(receiving_db.documents) == 1
+
+
+def test_import_maps_status_to_queue_or_completed(receiving_db):
+    cases = [
+        {**LEGACY_CASE, "code": "S1", "status": "production"},
+        {**LEGACY_CASE, "code": "S2", "status": "completed"},
+        {**LEGACY_CASE, "code": "S3", "status": "removed"},
+    ]
+    result = asyncio.run(receiving.import_cases(receiving.ImportCases(cases=cases), MANAGER))
+    assert [c["status"] for c in result["cases"]] == ["queue", "completed", "queue"]
+
+
+def test_import_requires_a_due_date():
+    with pytest.raises(ValidationError):
+        receiving.ImportCases(cases=[{**LEGACY_CASE, "currentDueDate": None}])
+
+
+def test_import_route_requires_manager_or_owner():
+    route = next(r for r in receiving.router.routes if r.path == "/api/receiving/cases/import")
+    dep = route.dependant.dependencies[-1].call
+    for role in ("technician", "driver"):
+        with pytest.raises(HTTPException) as error:
+            asyncio.run(dep({"role": role}))
+        assert error.value.status_code == 403

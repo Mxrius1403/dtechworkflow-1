@@ -12,7 +12,7 @@ from core.database import db
 from core.models import BaseDocument
 from core.production_calendar import is_production_day
 from core.workflow_constants import ARCH_OPTIONS, SERVICE_TYPES
-from core.security import current_account
+from core.security import current_account, require_roles
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, model_validator
 from pymongo import ReturnDocument
@@ -45,6 +45,72 @@ class ReceiveCase(BaseModel):
                 "Select at least one service type and a valid arch."
             )
         return self
+
+
+MAX_IMPORT_CASES = 500
+LEGACY_DEPARTMENTS = {"denture": "prosthesis"}
+
+
+class ImportHistoryEntry(BaseModel):
+    at: str = Field(default="", max_length=40)
+    action: str = Field(min_length=1, max_length=300)
+    by: str = Field(default="", max_length=100)
+
+
+class ImportCase(BaseModel):
+    code: str = Field(
+        min_length=1, max_length=64, pattern=r"^[A-Za-z0-9._/-]+$"
+    )
+    department: Literal["prosthesis", "ortho", "digital"]
+    currentDueDate: date | None = None
+    productionDate: date | None = None
+    scheduledDate: date | None = None
+    originalScheduledDate: date | None = None
+    status: Literal["queue", "completed"] = "queue"
+    serviceTypes: list[str] = Field(
+        default_factory=list, max_length=len(SERVICE_TYPES)
+    )
+    arch: str = ""
+    attentionStatus: Literal["active", "on_hold", "need_information"] = "active"
+    attentionNote: str = Field(default="", max_length=100)
+    receivedAt: datetime | None = None
+    createdAt: datetime | None = None
+    updatedAt: datetime | None = None
+    missedScheduleDates: dict[date, bool] = Field(
+        default_factory=dict, max_length=366
+    )
+    history: list[ImportHistoryEntry] | dict[str, ImportHistoryEntry] = Field(
+        default_factory=list, max_length=200
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def map_legacy_department(cls, data):
+        if isinstance(data, dict):
+            department = str(data.get("department", "")).strip().lower()
+            status_value = str(data.get("status", "")).strip().lower()
+            data = {
+                **data,
+                "department": LEGACY_DEPARTMENTS.get(department, department),
+                "status": "completed" if status_value == "completed" else "queue",
+            }
+        return data
+
+    @model_validator(mode="after")
+    def validate_import(self):
+        if any(item not in SERVICE_TYPES for item in self.serviceTypes):
+            raise ValueError("Select valid service types.")
+        if not self.serviceTypes or self.arch not in ARCH_OPTIONS:
+            raise ValueError(
+                "Select at least one service type and a valid arch."
+            )
+        if not (self.currentDueDate or self.productionDate):
+            raise ValueError("currentDueDate is required.")
+        return self
+
+
+class ImportCases(BaseModel):
+    cases: list[ImportCase] = Field(min_length=1, max_length=MAX_IMPORT_CASES)
 
 
 class UpdateCase(BaseModel):
@@ -377,6 +443,101 @@ async def create_received_case(
     body: ReceiveCase, account: dict = Depends(receiving_account)
 ) -> dict:
     return await _create_or_reenter(body, account)
+
+
+def _iso(value: datetime) -> str:
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return (
+        value.astimezone(timezone.utc)
+        .isoformat(timespec="milliseconds")
+        .replace("+00:00", "Z")
+    )
+
+
+def _imported_case(item: ImportCase, account: dict) -> dict:
+    now, _, _ = _now()
+    due = (item.currentDueDate or item.productionDate).isoformat()
+    scheduled = (item.scheduledDate or item.currentDueDate or item.productionDate).isoformat()
+    original = (item.originalScheduledDate or item.scheduledDate or item.currentDueDate or item.productionDate).isoformat()
+    received = _iso(item.receivedAt or item.createdAt) if (item.receivedAt or item.createdAt) else now
+    local_received = datetime.fromisoformat(received.replace("Z", "+00:00")).astimezone(ZoneInfo(TIMEZONE))
+    entries = (
+        list(item.history.values())
+        if isinstance(item.history, dict)
+        else item.history
+    )
+    entries = sorted(entries, key=lambda entry: entry.at)
+    history = [entry.model_dump() for entry in entries]
+    history.append(
+        {
+            "at": now,
+            "action": "Imported from previous system",
+            "by": account.get("name", account.get("email", "Import")),
+        }
+    )
+    case = _new_case(
+        ReceiveCase.model_construct(
+            code=item.code,
+            department=item.department,
+            productionDate=item.productionDate or item.currentDueDate,
+            serviceTypes=item.serviceTypes,
+            arch=item.arch,
+            caseId=None,
+        ),
+        account,
+    )
+    case.update(
+        {
+            "status": item.status,
+            "scheduledDate": scheduled,
+            "originalScheduledDate": original,
+            "currentDueDate": due,
+            "missedScheduleDates": {
+                key.isoformat(): True for key in item.missedScheduleDates
+            },
+            "receivedDate": local_received.date().isoformat(),
+            "receivedAt": received,
+            "receivedTime": local_received.strftime("%H:%M"),
+            "attentionStatus": item.attentionStatus,
+            "attentionNote": item.attentionNote,
+            "createdAt": _iso(item.createdAt) if item.createdAt else received,
+            "updatedAt": _iso(item.updatedAt) if item.updatedAt else now,
+            "history": history,
+        }
+    )
+    return case
+
+
+@router.post("/cases/import", status_code=status.HTTP_201_CREATED)
+async def import_cases(
+    body: ImportCases,
+    account: dict = Depends(require_roles("owner", "manager")),
+) -> dict:
+    errors = []
+    seen = set()
+    for index, item in enumerate(body.cases, start=2):
+        key = item.code.lower()
+        if key in seen or await db["cases"].find_one(
+            {"code": item.code, "deleted": {"$ne": True}}
+        ):
+            errors.append(f"Row {index}: Case {item.code} already exists.")
+        seen.add(key)
+    if errors:
+        raise HTTPException(status_code=422, detail=" ".join(errors[:10]))
+
+    imported = []
+    for item in body.cases:
+        case = _imported_case(item, account)
+        await db["cases"].insert_one(case)
+        await _log(
+            case,
+            f"Imported with status {item.status}, due {case['currentDueDate']} "
+            f"({item.department}, {', '.join(item.serviceTypes)}, {item.arch})",
+            account,
+        )
+        imported.append(BaseDocument.from_mongo(case).to_api())
+    return {"cases": imported}
 
 
 @router.post("/cases/{case_id}/restore")

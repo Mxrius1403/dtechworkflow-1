@@ -32,6 +32,7 @@ export const fetchCases = () => api.get("/data/cases").then((r) => r.data);
 export const fetchCatalog = () => api.get("/catalog").then((r) => r.data);
 export const fetchClinicContact = (clinicId) => api.get(`/clinics/${clinicId}/contact`).then((r) => r.data);
 export const createReceivedCase = (receivedCase) => api.post("/receiving/cases", receivedCase).then((r) => r.data);
+export const importCases = (cases) => api.post("/receiving/cases/import", { cases }).then((r) => r.data);
 export const removeReceivedCase = (caseId) => api.post(`/receiving/cases/${encodeURIComponent(caseId)}/remove`).then((r) => r.data);
 export const deleteReceivedCase = (caseId) => api.delete(`/receiving/cases/${encodeURIComponent(caseId)}`).then((r) => r.data);
 export const restoreReceivedCase = (caseId) => api.post(`/receiving/cases/${encodeURIComponent(caseId)}/restore`).then((r) => r.data);
