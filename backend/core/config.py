@@ -16,6 +16,7 @@ CORS_ORIGINS = [
     if origin.strip()
 ]
 AUTH_SECRET_KEY = os.environ.get("AUTH_SECRET_KEY", "")
+OWNER_SETUP_SECRET = os.environ.get("OWNER_SETUP_SECRET", "")
 AUTH_COOKIE_SECURE = os.environ.get("AUTH_COOKIE_SECURE", "false").lower() == "true"
 
 DATA_DIR = BACKEND_DIR / "data"

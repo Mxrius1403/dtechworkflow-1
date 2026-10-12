@@ -16,6 +16,7 @@ export default function SignInPage() {
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [setupSecret, setSetupSecret] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -33,7 +34,7 @@ export default function SignInPage() {
           setError("Passwords do not match.");
           return;
         }
-        await createOwner({ name, email, password });
+        await createOwner({ name, email, password, setupSecret });
       } else {
         await signIn({ email, password });
       }
@@ -69,6 +70,11 @@ export default function SignInPage() {
             {setupRequired && (
               <Field label="Name">
                 <Input type="text" autoComplete="name" required minLength={1} maxLength={100} value={name} onChange={(event) => setName(event.target.value)} data-testid="owner-setup-name" />
+              </Field>
+            )}
+            {setupRequired && (
+              <Field label="Setup secret">
+                <Input type="password" autoComplete="off" required value={setupSecret} onChange={(event) => setSetupSecret(event.target.value)} data-testid="owner-setup-secret" />
               </Field>
             )}
             <Field label="Email">

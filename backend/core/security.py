@@ -1,14 +1,22 @@
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
+from secrets import compare_digest
 from time import monotonic
 from typing import Any
+from urllib.parse import urlsplit
 
 import bcrypt
 import jwt
-from core.collections import AUTH_USERS
-from core.config import AUTH_COOKIE_SECURE, AUTH_SECRET_KEY, CORS_ORIGINS
-from core.database import db
 from fastapi import Depends, HTTPException, Request, Response, status
+
+from core.collections import AUTH_USERS
+from core.config import (
+    AUTH_COOKIE_SECURE,
+    AUTH_SECRET_KEY,
+    CORS_ORIGINS,
+    OWNER_SETUP_SECRET,
+)
+from core.database import db
 
 SESSION_COOKIE = "dt_session"
 SESSION_TTL_SECONDS = 30 * 60
@@ -23,6 +31,10 @@ def validate_security_config() -> None:
     if not AUTH_SECRET_KEY or len(AUTH_SECRET_KEY.encode("utf-8")) < 32:
         raise RuntimeError(
             "AUTH_SECRET_KEY must be set to a random value of at least 32 bytes."
+        )
+    if len(OWNER_SETUP_SECRET.encode("utf-8")) < 32:
+        raise RuntimeError(
+            "OWNER_SETUP_SECRET must be set to a random value of at least 32 bytes."
         )
     if "*" in CORS_ORIGINS:
         raise RuntimeError(
@@ -52,6 +64,10 @@ def verify_password(password: str, password_hash: str | bytes) -> bool:
         return len(encoded) <= 72 and bcrypt.checkpw(encoded, stored_hash)
     except (AttributeError, ValueError, TypeError, UnicodeEncodeError):
         return False
+
+
+def verify_setup_secret(candidate: str) -> bool:
+    return bool(OWNER_SETUP_SECRET) and compare_digest(candidate, OWNER_SETUP_SECRET)
 
 
 def create_session_token(user_id: str, auth_version: int) -> str:
@@ -131,12 +147,27 @@ def require_roles(*roles: str):
     return check_role
 
 
-def require_allowed_origin(request: Request) -> None:
+def has_allowed_request_origin(request: Request) -> bool:
     origin = request.headers.get("origin")
-    if origin and origin.rstrip("/") not in CORS_ORIGINS:
+    if origin:
+        return origin != "null" and origin.rstrip("/") in CORS_ORIGINS
+
+    referer = request.headers.get("referer")
+    if not referer:
+        return False
+
+    parsed_referer = urlsplit(referer)
+    if parsed_referer.scheme not in ("http", "https") or not parsed_referer.netloc:
+        return False
+    referer_origin = f"{parsed_referer.scheme}://{parsed_referer.netloc}"
+    return referer_origin in CORS_ORIGINS
+
+
+def require_allowed_origin(request: Request) -> None:
+    if not has_allowed_request_origin(request):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Request origin is not allowed.",
+            detail="Request origin is missing or not allowed.",
         )
 
 

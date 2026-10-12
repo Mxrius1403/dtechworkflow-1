@@ -2,11 +2,15 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 
+from fastapi import FastAPI, Request, Response
+from fastapi.responses import JSONResponse
+from starlette.middleware.base import RequestResponseEndpoint
+from starlette.middleware.cors import CORSMiddleware
+
 from core.collections import AUTH_USERS
 from core.config import CORS_ORIGINS, HOST, PORT
 from core.database import client, db
-from core.security import validate_security_config
-from fastapi import FastAPI
+from core.security import has_allowed_request_origin, validate_security_config
 from routers import (
     auth,
     catalog,
@@ -19,9 +23,10 @@ from routers import (
     suppliers,
     tooth_orders,
 )
-from starlette.middleware.cors import CORSMiddleware
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 
 
 async def ensure_auth_email_index() -> None:
@@ -72,6 +77,23 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="Dentaltech Daily Flow API", lifespan=lifespan)
+
+
+@app.middleware("http")
+async def protect_state_changing_requests(
+    request: Request, call_next: RequestResponseEndpoint
+) -> Response:
+    if (
+        request.url.path.startswith("/api/")
+        and request.method not in ("GET", "HEAD", "OPTIONS")
+        and not has_allowed_request_origin(request)
+    ):
+        return JSONResponse(
+            {"detail": "Request origin is missing or not allowed."},
+            status_code=403,
+        )
+    return await call_next(request)
+
 
 for module in (
     auth,

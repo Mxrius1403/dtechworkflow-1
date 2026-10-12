@@ -1,9 +1,11 @@
 import asyncio
 
 import pytest
-from core import security
 from fastapi import HTTPException, Response
 from pydantic import ValidationError
+from starlette.requests import Request
+
+from core import security
 from routers import auth, data
 from routers.auth import (
     AccountProfileUpdate,
@@ -17,7 +19,6 @@ from routers.auth import (
     TechnicianStatusUpdate,
     TechnicianUpdate,
 )
-from starlette.requests import Request
 
 
 def test_password_hash_is_verified_without_storing_plaintext():
@@ -58,6 +59,9 @@ def test_session_token_rejects_wrong_secret(monkeypatch):
 
 def test_auth_configuration_rejects_weak_key_and_wildcard_origin(monkeypatch):
     monkeypatch.setattr(security, "AUTH_SECRET_KEY", "short")
+    monkeypatch.setattr(
+        security, "OWNER_SETUP_SECRET", "setup-secret-that-is-long-enough"
+    )
     monkeypatch.setattr(security, "CORS_ORIGINS", ["http://localhost:3000"])
     with pytest.raises(RuntimeError, match="32 bytes"):
         security.validate_security_config()
@@ -66,6 +70,49 @@ def test_auth_configuration_rejects_weak_key_and_wildcard_origin(monkeypatch):
     monkeypatch.setattr(security, "CORS_ORIGINS", ["*"])
     with pytest.raises(RuntimeError, match="explicit frontend origins"):
         security.validate_security_config()
+
+
+def test_auth_configuration_requires_a_strong_owner_setup_secret(monkeypatch):
+    monkeypatch.setattr(security, "AUTH_SECRET_KEY", "s" * 48)
+    monkeypatch.setattr(security, "OWNER_SETUP_SECRET", "too-short")
+    monkeypatch.setattr(security, "CORS_ORIGINS", ["http://localhost:3000"])
+
+    with pytest.raises(RuntimeError, match="OWNER_SETUP_SECRET"):
+        security.validate_security_config()
+
+
+def test_allowed_request_origin_requires_trusted_origin_or_referer(monkeypatch):
+    monkeypatch.setattr(security, "CORS_ORIGINS", ["https://daily.example"])
+
+    def make_request(headers):
+        return Request(
+            {
+                "type": "http",
+                "http_version": "1.1",
+                "method": "POST",
+                "scheme": "https",
+                "path": "/api/cases",
+                "raw_path": b"/api/cases",
+                "query_string": b"",
+                "headers": [
+                    (key.lower().encode("latin-1"), value.encode("latin-1"))
+                    for key, value in headers.items()
+                ],
+                "server": ("daily.example", 443),
+                "client": ("127.0.0.1", 1234),
+            }
+        )
+
+    assert security.has_allowed_request_origin(
+        make_request({"origin": "https://daily.example"})
+    )
+    assert security.has_allowed_request_origin(
+        make_request({"referer": "https://daily.example/setup?step=owner"})
+    )
+    assert not security.has_allowed_request_origin(
+        make_request({"origin": "https://attacker.example"})
+    )
+    assert not security.has_allowed_request_origin(make_request({}))
 
 
 def test_technician_credentials_and_department_assignment_are_validated():
@@ -184,6 +231,9 @@ def test_owner_setup_creates_first_owner_and_signs_them_in(monkeypatch):
 
     database = Database()
     monkeypatch.setattr(auth, "db", database)
+    monkeypatch.setattr(
+        security, "OWNER_SETUP_SECRET", "setup-secret-that-is-long-enough"
+    )
     monkeypatch.setattr(auth, "create_session_token", lambda user_id, version: "token")
     assert asyncio.run(auth.get_setup_status()) == {"required": True}
 
@@ -196,6 +246,7 @@ def test_owner_setup_creates_first_owner_and_signs_them_in(monkeypatch):
                 password="long-enough-password",
             ),
             response,
+            setup_secret="setup-secret-that-is-long-enough",
         )
     )
 
@@ -208,6 +259,27 @@ def test_owner_setup_creates_first_owner_and_signs_them_in(monkeypatch):
     assert result["user"]["id"] == "OWNER001"
     assert "dt_session=token" in response.headers["set-cookie"]
     assert asyncio.run(auth.get_setup_status()) == {"required": False}
+
+
+def test_owner_setup_rejects_invalid_setup_secret(monkeypatch):
+    monkeypatch.setattr(
+        security, "OWNER_SETUP_SECRET", "setup-secret-that-is-long-enough"
+    )
+
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(
+            auth.setup_owner(
+                OwnerSetup(
+                    name="Owner",
+                    email="owner@example.com",
+                    password="long-enough-password",
+                ),
+                Response(),
+                setup_secret="wrong-secret",
+            )
+        )
+
+    assert error.value.status_code == 403
 
 
 def test_owner_creates_manager_as_separate_login_role(monkeypatch):
@@ -232,7 +304,9 @@ def test_owner_creates_manager_as_separate_login_role(monkeypatch):
 
     database = Database()
     monkeypatch.setattr(auth, "db", database)
-    monkeypatch.setattr(auth, "allocate_manager_id", lambda: asyncio.sleep(0, result="MGR0001"))
+    monkeypatch.setattr(
+        auth, "allocate_manager_id", lambda: asyncio.sleep(0, result="MGR0001")
+    )
 
     result = asyncio.run(
         auth.create_manager(
@@ -562,7 +636,9 @@ def test_driver_emails_are_only_included_for_managers(monkeypatch):
             return Collection([])
 
     monkeypatch.setattr(data, "db", Database())
-    manager_rows = asyncio.run(data.read_collection("drivers", include_login_email=True))
+    manager_rows = asyncio.run(
+        data.read_collection("drivers", include_login_email=True)
+    )
     driver_rows = asyncio.run(data.read_collection("drivers"))
 
     assert manager_rows[0]["email"] == "driver@example.com"
@@ -586,9 +662,7 @@ def test_active_technician_cannot_be_deleted(monkeypatch):
     monkeypatch.setattr(auth, "db", Database())
     with pytest.raises(HTTPException) as error:
         asyncio.run(
-            auth.delete_technician(
-                "DT001", {"_id": "MGR0001", "role": "manager"}
-            )
+            auth.delete_technician("DT001", {"_id": "MGR0001", "role": "manager"})
         )
 
     assert error.value.status_code == 409
@@ -745,9 +819,7 @@ def test_owner_can_delete_inactive_manager_without_deleting_history(monkeypatch)
 
     monkeypatch.setattr(auth, "db", Database())
     result = asyncio.run(
-        auth.delete_manager(
-            "MGR0001", {"_id": "OWNER001", "role": "owner"}
-        )
+        auth.delete_manager("MGR0001", {"_id": "OWNER001", "role": "owner"})
     )
 
     assert result == {"id": "MGR0001", "deleted": True}
@@ -776,9 +848,7 @@ def test_owner_cannot_delete_active_manager(monkeypatch):
     monkeypatch.setattr(auth, "db", Database())
     with pytest.raises(HTTPException) as error:
         asyncio.run(
-            auth.delete_manager(
-                "MGR0001", {"_id": "OWNER001", "role": "owner"}
-            )
+            auth.delete_manager("MGR0001", {"_id": "OWNER001", "role": "owner"})
         )
 
     assert error.value.status_code == 409
@@ -920,7 +990,9 @@ def test_ownership_transfer_swaps_roles_and_rotates_sessions(monkeypatch):
             return Collection()
 
     monkeypatch.setattr(auth, "db", Database())
-    monkeypatch.setattr(auth, "create_session_token", lambda user_id, version: f"{user_id}:{version}")
+    monkeypatch.setattr(
+        auth, "create_session_token", lambda user_id, version: f"{user_id}:{version}"
+    )
 
     response = Response()
     result = asyncio.run(
@@ -952,6 +1024,9 @@ def test_owner_setup_rejects_second_owner(monkeypatch):
             return Collection()
 
     monkeypatch.setattr(auth, "db", Database())
+    monkeypatch.setattr(
+        security, "OWNER_SETUP_SECRET", "setup-secret-that-is-long-enough"
+    )
     with pytest.raises(HTTPException) as error:
         asyncio.run(
             auth.setup_owner(
@@ -961,6 +1036,7 @@ def test_owner_setup_rejects_second_owner(monkeypatch):
                     password="long-enough-password",
                 ),
                 Response(),
+                setup_secret="setup-secret-that-is-long-enough",
             )
         )
     assert error.value.status_code == 409
@@ -993,7 +1069,8 @@ def test_refresh_session_renews_cookie_for_authenticated_activity(monkeypatch):
     monkeypatch.setattr(
         auth,
         "create_session_token",
-        lambda user_id, version: token_calls.append((user_id, version)) or "fresh-token",
+        lambda user_id, version: token_calls.append((user_id, version))
+        or "fresh-token",
     )
     response = Response()
 

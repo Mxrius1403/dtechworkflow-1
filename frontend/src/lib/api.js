@@ -10,7 +10,11 @@ export const fetchCurrentUser = () => api.get("/auth/me").then((r) => r.data.use
 export const updateMyProfile = (details) => api.patch("/auth/me/profile", details).then((r) => r.data.user);
 export const refreshSession = () => api.post("/auth/refresh");
 export const fetchSetupStatus = () => api.get("/auth/setup").then((r) => r.data.required);
-export const setupOwner = (details) => api.post("/auth/setup", details).then((r) => r.data.user);
+export const setupOwner = ({ setupSecret, ...details }) => api.post(
+  "/auth/setup",
+  details,
+  { headers: { "X-Setup-Secret": setupSecret } },
+).then((r) => r.data.user);
 export const login = (credentials) => api.post("/auth/login", credentials).then((r) => r.data.user);
 export const logout = () => api.post("/auth/logout");
 export const createTechnician = (technician) => api.post("/auth/technicians", technician).then((r) => r.data.user);

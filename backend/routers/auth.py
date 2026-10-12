@@ -1,5 +1,10 @@
 from datetime import datetime, timezone
 
+from email_validator import EmailNotValidError, validate_email
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pymongo.errors import DuplicateKeyError
+
 from core.collections import AUTH_USERS
 from core.database import db
 from core.security import (
@@ -19,11 +24,8 @@ from core.security import (
     require_roles,
     set_session_cookie,
     verify_password,
+    verify_setup_secret,
 )
-from email_validator import EmailNotValidError, validate_email
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
-from pymongo.errors import DuplicateKeyError
 
 router = APIRouter(prefix="/api/auth", tags=["authentication"])
 
@@ -99,7 +101,17 @@ async def get_setup_status() -> dict:
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require_allowed_origin)],
 )
-async def setup_owner(body: OwnerSetup, response: Response) -> dict:
+async def setup_owner(
+    body: OwnerSetup,
+    response: Response,
+    setup_secret: str | None = Header(default=None, alias="X-Setup-Secret"),
+) -> dict:
+    if not setup_secret or not verify_setup_secret(setup_secret):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="A valid owner setup secret is required.",
+        )
+
     name = body.name.strip()
     if not name:
         raise HTTPException(
@@ -459,9 +471,11 @@ async def delete_technician(
 
 @router.get("/managers", dependencies=[Depends(require_role("owner"))])
 async def list_managers() -> dict:
-    accounts = await db[AUTH_USERS].find(
-        {"role": "manager", "deleted": {"$ne": True}}
-    ).to_list(10_000)
+    accounts = (
+        await db[AUTH_USERS]
+        .find({"role": "manager", "deleted": {"$ne": True}})
+        .to_list(10_000)
+    )
     return {"managers": [public_account(account) for account in accounts]}
 
 
@@ -616,9 +630,7 @@ async def delete_manager(
         },
     )
     if result.matched_count != 1:
-        account = await db[AUTH_USERS].find_one(
-            {"_id": manager_id, "role": "manager"}
-        )
+        account = await db[AUTH_USERS].find_one({"_id": manager_id, "role": "manager"})
         if account and account.get("active") and not account.get("deleted"):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,

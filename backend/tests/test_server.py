@@ -1,6 +1,9 @@
 import asyncio
 
-from server import app, ensure_auth_email_index, health
+import pytest
+from fastapi import Request, Response
+
+from server import app, ensure_auth_email_index, health, protect_state_changing_requests
 
 
 def test_tooth_order_routes_are_registered():
@@ -27,6 +30,41 @@ def test_public_tracking_route_is_not_registered():
 
 def test_health_only_reports_service_status():
     assert asyncio.run(health()) == {"status": "ok"}
+
+
+@pytest.mark.parametrize(
+    ("headers", "expected_status"),
+    [
+        ([], 403),
+        ([(b"origin", b"https://attacker.example")], 403),
+        ([(b"origin", b"http://localhost:3000")], 204),
+        ([(b"referer", b"http://localhost:3000/setup")], 204),
+    ],
+)
+def test_state_changing_requests_reject_missing_or_untrusted_origin(
+    headers, expected_status
+):
+    request = Request(
+        {
+            "type": "http",
+            "http_version": "1.1",
+            "method": "POST",
+            "scheme": "http",
+            "path": "/api/cases",
+            "raw_path": b"/api/cases",
+            "query_string": b"",
+            "headers": headers,
+            "server": ("testserver", 80),
+            "client": ("127.0.0.1", 1234),
+        }
+    )
+
+    async def next_handler(_request):
+        return Response(status_code=204)
+
+    response = asyncio.run(protect_state_changing_requests(request, next_handler))
+
+    assert response.status_code == expected_status
 
 
 def test_auth_email_index_migrates_legacy_unique_index(monkeypatch):
