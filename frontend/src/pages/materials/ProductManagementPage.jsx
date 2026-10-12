@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { Loader2, Pencil, Plus, Trash2, Upload } from "lucide-react";
 import { BackLink } from "@/components/common/Bits";
 import { ConfirmAction } from "@/components/common/ConfirmAction";
 import { DataTable } from "@/components/common/DataTable";
@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { useData } from "@/context/DataContext";
 import { createProduct, deleteProduct, fetchProducts, updateProduct } from "@/lib/api";
 import { notify, notifyError } from "@/lib/notify";
+import { ProductImportDialog } from "./ProductImportDialog";
 
 const FIELDS = [
   ["refNo", "Ref. No"],
@@ -43,7 +44,7 @@ function ProductDialog({ product, suppliers, onClose }) {
   const set = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
 
   const save = async () => {
-    if (FIELDS.some(([key]) => !form[key].trim()) || !form.supplierId) {
+    if (FIELDS.some(([key]) => key !== "measure" && !form[key].trim()) || !form.supplierId) {
       return notifyError("Complete all product fields and select a supplier");
     }
     const payload = Object.fromEntries(
@@ -102,6 +103,7 @@ export default function ProductManagementPage() {
   const queryClient = useQueryClient();
   const products = useQuery({ queryKey: ["products"], queryFn: fetchProducts });
   const [adding, setAdding] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [editing, setEditing] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const supplierNames = Object.fromEntries(suppliers.map((supplier) => [supplier.id, supplier.name]));
@@ -127,14 +129,19 @@ export default function ProductManagementPage() {
         title="Product Management"
         description="Create and manage products and their supplier details."
         actions={(
-          <Button onClick={() => setAdding(true)} disabled={suppliers.length === 0} data-testid="product-add-button">
-            <Plus /> Add Product
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => setImporting(true)} disabled={suppliers.length === 0} data-testid="product-import-button">
+              <Upload /> Import Excel
+            </Button>
+            <Button onClick={() => setAdding(true)} disabled={suppliers.length === 0} data-testid="product-add-button">
+              <Plus /> Add Product
+            </Button>
+          </div>
         )}
       >
         {suppliers.length === 0 && (
           <p role="status" className="mb-4 rounded-md border border-border p-3 text-sm text-muted-foreground">
-            Add a supplier before creating products.
+            Add a supplier before creating or importing products.
           </p>
         )}
         {products.isLoading ? (
@@ -188,6 +195,13 @@ export default function ProductManagementPage() {
           />
         )}
         {adding && <ProductDialog suppliers={suppliers} onClose={() => setAdding(false)} />}
+        {importing && (
+          <ProductImportDialog
+            suppliers={suppliers}
+            existingProducts={products.data || []}
+            onClose={() => setImporting(false)}
+          />
+        )}
         {editing && <ProductDialog product={editing} suppliers={suppliers} onClose={() => setEditing(null)} />}
       </Panel>
     </>

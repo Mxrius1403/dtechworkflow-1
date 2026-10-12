@@ -69,5 +69,6 @@ export const updateSupplier = (supplierId, supplier) => api.patch(`/suppliers/${
 export const deleteSupplier = (supplierId) => api.delete(`/suppliers/${encodeURIComponent(supplierId)}`).then((r) => r.data);
 export const fetchProducts = () => api.get("/products").then((r) => r.data);
 export const createProduct = (product) => api.post("/products", product).then((r) => r.data);
+export const importProducts = (products) => api.post("/products/import", { products }).then((r) => r.data);
 export const updateProduct = (productId, product) => api.patch(`/products/${encodeURIComponent(productId)}`, product).then((r) => r.data);
 export const deleteProduct = (productId) => api.delete(`/products/${encodeURIComponent(productId)}`).then((r) => r.data);

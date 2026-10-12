@@ -22,6 +22,10 @@ class FakeCollection:
     async def insert_one(self, document):
         self.documents[document["_id"]] = document
 
+    async def insert_many(self, documents):
+        for document in documents:
+            self.documents[document["_id"]] = document
+
     async def update_one(self, query, update):
         document = self.documents.get(query["_id"])
         if document is None:
@@ -104,6 +108,65 @@ def test_products_require_an_existing_supplier(monkeypatch):
     assert error.value.status_code == 422
 
 
+def test_bulk_product_import_creates_products(monkeypatch):
+    database = FakeDatabase()
+    monkeypatch.setattr(products, "db", database)
+    body = products.ProductImport.model_validate({
+        "products": [
+            product_payload(refNo="REF-101", measure=""),
+            product_payload(refNo="REF-102", title="Second Product", measure="ml"),
+        ],
+    })
+
+    response = asyncio.run(products.import_products(body))
+
+    assert response["imported"] == 2
+    assert [product["refNo"] for product in response["products"]] == ["REF-101", "REF-102"]
+    assert len(database.collections["products"].documents) == 2
+    assert all(product["measure"] == "" for product in response["products"][:1])
+
+
+def test_bulk_product_import_rejects_duplicate_codes_and_suppliers(monkeypatch):
+    database = FakeDatabase()
+    monkeypatch.setattr(products, "db", database)
+    duplicate_body = products.ProductImport.model_validate({
+        "products": [
+            product_payload(refNo="REF-101"),
+            product_payload(refNo="ref-101"),
+        ],
+    })
+
+    with pytest.raises(HTTPException) as duplicate_error:
+        asyncio.run(products.import_products(duplicate_body))
+    assert duplicate_error.value.status_code == 409
+    assert not database.collections["products"].documents
+
+    missing_supplier_body = products.ProductImport.model_validate({
+        "products": [product_payload(supplierId="missing")],
+    })
+    with pytest.raises(HTTPException) as supplier_error:
+        asyncio.run(products.import_products(missing_supplier_body))
+    assert supplier_error.value.status_code == 422
+    assert not database.collections["products"].documents
+
+
+def test_bulk_product_import_rejects_codes_that_already_exist(monkeypatch):
+    database = FakeDatabase()
+    database.collections["products"].documents["existing"] = {
+        "_id": "existing",
+        "refNo": "REF-101",
+    }
+    monkeypatch.setattr(products, "db", database)
+    body = products.ProductImport.model_validate({
+        "products": [product_payload(refNo="ref-101")],
+    })
+
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(products.import_products(body))
+    assert error.value.status_code == 409
+    assert list(database.collections["products"].documents) == ["existing"]
+
+
 def test_product_update_and_delete_missing_product_return_404(monkeypatch):
     monkeypatch.setattr(products, "db", FakeDatabase())
     body = products.ProductCreate.model_validate(product_payload())
@@ -133,6 +196,7 @@ def test_product_management_routes_are_limited_to_managers_and_owners():
     for route in products.router.routes:
         if route.path not in (
             "/api/products",
+            "/api/products/import",
             "/api/products/{product_id}",
         ):
             continue
