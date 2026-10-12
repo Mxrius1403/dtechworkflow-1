@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { DataTable } from "@/components/common/DataTable";
 import { Field } from "@/components/common/Field";
-import { CASE_TEMPLATE_CSV, casesFromJson, downloadText, normaliseCaseImport, parseCaseCsv, validateCaseImport } from "@/lib/csv";
+import { CASE_TEMPLATE_CSV, casesFromJson, downloadText, MAX_CASE_IMPORTS, normaliseCaseImport, parseCaseCsv, validateCaseImport } from "@/lib/csv";
 import { importCases } from "@/lib/api";
 import { notify, notifyError } from "@/lib/notify";
 
@@ -67,7 +67,7 @@ export function CaseImportDialog({ onClose }) {
       <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto" data-testid="case-import-dialog">
         <DialogHeader>
           <DialogTitle>Import Cases</DialogTitle>
-          <DialogDescription>Upload a CSV or JSON file with case number, department, due date (currentDueDate, YYYY-MM-DD, past dates allowed), service types (separated by ;), arch and optionally status (completed stays completed, everything else becomes queue). JSON exports may also include history, timestamps and attention fields. Do not include patient information.</DialogDescription>
+          <DialogDescription>Upload a CSV or JSON file (up to {MAX_CASE_IMPORTS} cases). Firebase exports are supported: deleted cases are skipped, missing due dates use scheduledDate or receivedDate, and missing service types or arch default to None. Completed cases stay completed; other statuses become queue.</DialogDescription>
         </DialogHeader>
         <Button variant="outline" className="w-fit" onClick={() => downloadText("dtworkflow-cases-template.csv", CASE_TEMPLATE_CSV)} data-testid="case-template-download"><Download /> Download CSV Template</Button>
         <Field label="Case file"><Input type="file" accept=".csv,.json,text/csv,application/json" onChange={(e) => read(e.target.files?.[0])} data-testid="case-import-file" /></Field>

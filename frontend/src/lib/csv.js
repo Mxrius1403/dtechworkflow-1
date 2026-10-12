@@ -50,6 +50,7 @@ export const normaliseClinicImport = (rows) => (Array.isArray(rows) ? rows : [])
 
 export const CASE_TEMPLATE_CSV =
   "code,department,currentDueDate,serviceTypes,arch,status\nCASE-1001,prosthesis,2026-10-20,Repair;Finish,Upper,queue\n";
+export const MAX_CASE_IMPORTS = 5000;
 const CASE_ALIASES = {
   code: "code", casenumber: "code", case: "code", department: "department",
   currentduedate: "currentDueDate", duedate: "currentDueDate", productiondate: "currentDueDate", date: "currentDueDate",
@@ -69,11 +70,25 @@ export function parseCaseCsv(text) {
   return rows.map((values) => Object.fromEntries(headers.map((h, i) => [CASE_ALIASES[h], String(values[i] ?? "").trim()]).filter(([k]) => k)));
 }
 
+const isFirebaseCase = (x) => x && typeof x === "object" && "code" in x
+  && ("receivedDate" in x || "queueEnteredAt" in x);
+
 /** Accepts an array, a single case object, or an object keyed by case id. */
 export function casesFromJson(data) {
-  if (Array.isArray(data)) return data;
-  if (data && typeof data === "object") return "code" in data ? [data] : Object.values(data);
-  return [];
+  const rows = Array.isArray(data)
+    ? data
+    : data && typeof data === "object"
+      ? ("code" in data ? [data] : Object.values(data))
+      : [];
+  const firebaseExport = rows.some(isFirebaseCase);
+  return rows
+    .filter((x) => !firebaseExport || x?.deleted !== true)
+    .map((x) => firebaseExport && isFirebaseCase(x) ? {
+      ...x,
+      currentDueDate: x.currentDueDate || x.scheduledDate || x.receivedDate,
+      serviceTypes: x.serviceTypes?.length ? x.serviceTypes : ["None"],
+      arch: x.arch || "None",
+    } : x);
 }
 
 export const normaliseCaseImport = (rows) => (Array.isArray(rows) ? rows : []).map((x) => {
@@ -83,7 +98,7 @@ export const normaliseCaseImport = (rows) => (Array.isArray(rows) ? rows : []).m
   return {
     code: String(x.code || "").trim(),
     department: LEGACY_DEPARTMENTS[department] || department,
-    currentDueDate: String(x.currentDueDate || x.productionDate || "").trim(),
+    currentDueDate: String(x.currentDueDate || x.productionDate || x.scheduledDate || x.receivedDate || "").trim(),
     scheduledDate: x.scheduledDate ? String(x.scheduledDate).trim() : undefined,
     originalScheduledDate: x.originalScheduledDate ? String(x.originalScheduledDate).trim() : undefined,
     status: String(x.status || "").trim().toLowerCase() === "completed" ? "completed" : "queue",
@@ -113,7 +128,7 @@ export function validateCaseImport(rows) {
     if (!CASE_ARCHES.includes(c.arch)) errors.push(`${row}: arch must be Upper, Lower, Upper & Lower or None`);
   });
   if (!rows.length) errors.push("The file contains no case records");
-  if (rows.length > 500) errors.push("A maximum of 500 cases can be imported at once");
+  if (rows.length > MAX_CASE_IMPORTS) errors.push(`A maximum of ${MAX_CASE_IMPORTS} cases can be imported at once`);
   return errors;
 }
 

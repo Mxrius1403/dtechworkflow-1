@@ -859,6 +859,15 @@ def test_import_requires_a_due_date():
         receiving.ImportCases(cases=[{**LEGACY_CASE, "currentDueDate": None}])
 
 
+def test_import_accepts_more_than_500_cases():
+    cases = [
+        {**LEGACY_CASE, "code": f"CASE-{index}"}
+        for index in range(501)
+    ]
+
+    assert len(receiving.ImportCases(cases=cases).cases) == 501
+
+
 def test_import_route_requires_manager_or_owner():
     route = next(r for r in receiving.router.routes if r.path == "/api/receiving/cases/import")
     dep = route.dependant.dependencies[-1].call

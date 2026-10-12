@@ -49,7 +49,7 @@ class ReceiveCase(BaseModel):
         return self
 
 
-MAX_IMPORT_CASES = 500
+MAX_IMPORT_CASES = 5000
 LEGACY_DEPARTMENTS = {"denture": "prosthesis"}
 
 
