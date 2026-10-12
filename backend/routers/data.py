@@ -12,6 +12,7 @@ router = APIRouter(
     tags=["data"],
     dependencies=[Depends(current_account)],
 )
+MANAGER_ROLES = ("owner", "manager")
 
 
 async def read_collection(
@@ -107,10 +108,16 @@ async def all_data(account: dict = Depends(current_account)) -> dict:
     """Everything the authenticated app screens need."""
     await archive_stale_routes()
     names = list(PUBLIC_COLLECTIONS.items())
-    include_login_email = account.get("role") in ("owner", "manager")
+    can_read_reports = account.get("role") in MANAGER_ROLES
+    if not can_read_reports:
+        names = [
+            (api_name, collection)
+            for api_name, collection in names
+            if api_name != "reports"
+        ]
     rows = await asyncio.gather(
         *(
-            read_collection(collection, include_login_email=include_login_email)
+            read_collection(collection, include_login_email=can_read_reports)
             for _, collection in names
         )
     )
@@ -130,9 +137,11 @@ async def one_collection(name: str, account: dict = Depends(current_account)):
         return await read_settings()
     if name not in PUBLIC_COLLECTIONS:
         raise HTTPException(status_code=404, detail=f"Unknown collection '{name}'")
+    if name == "reports" and account.get("role") not in MANAGER_ROLES:
+        raise HTTPException(status_code=403, detail="Insufficient permissions.")
     rows = await read_collection(
         PUBLIC_COLLECTIONS[name],
-        include_login_email=account.get("role") in ("owner", "manager"),
+        include_login_email=account.get("role") in MANAGER_ROLES,
     )
     if account.get("role") == "driver":
         return (await all_data(account))[name]
