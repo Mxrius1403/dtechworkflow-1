@@ -428,8 +428,9 @@ async def create_route(
     )
     for clinic_id, items in grouped.items():
         clinic = await require_clinic(clinic_id)
+        # Each delivery gets its own stop so the driver can complete them one by one.
         for deliveries, collections in (
-            (items["deliveries"], []),
+            *(([delivery], []) for delivery in items["deliveries"]),
             ([], items["collections"]),
         ):
             if not deliveries and not collections:
