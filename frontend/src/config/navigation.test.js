@@ -96,3 +96,15 @@ test("management sections do not match unrelated paths", () => {
   expect(isNavItemActive(delivery, "/drivers-extra")).toBe(false);
   expect(isNavItemActive(tooth, "/tooth-orders-archive")).toBe(false);
 });
+
+test("only owners and managers can open and see the Inbox", () => {
+  const inbox = pageForPath("/inbox");
+  for (const user of [{ isManager: true, isOwner: false }, { isManager: true, isOwner: true }]) {
+    expect(canOpen(inbox, user)).toBe(true);
+    expect(navItemsFor(user).some(({ path }) => path === "/inbox")).toBe(true);
+  }
+  for (const user of [{ isManager: false, isOwner: false }, { isManager: false, isOwner: false, isDriver: true }]) {
+    expect(canOpen(inbox, user)).toBe(false);
+    expect(navItemsFor(user).some(({ path }) => path === "/inbox")).toBe(false);
+  }
+});

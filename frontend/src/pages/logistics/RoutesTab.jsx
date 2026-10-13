@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/common/DataTable";
 import { Panel } from "@/components/common/Panel";
@@ -10,7 +11,8 @@ import { RouteDialog } from "./RouteDialog";
 
 export function RoutesTab() {
   const { routes, byId } = useData();
-  const [openId, setOpenId] = useState(null);
+  const [searchParams] = useSearchParams();
+  const [openId, setOpenId] = useState(() => searchParams.get("open"));
   const activeRoutes = routes.filter((r) => !r.archived);
   const archivedRoutes = routes
     .filter((r) => r.archived)

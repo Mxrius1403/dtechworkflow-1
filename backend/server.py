@@ -10,11 +10,13 @@ from starlette.middleware.cors import CORSMiddleware
 from core.collections import AUTH_USERS
 from core.config import CORS_ORIGINS, HOST, PORT
 from core.database import client, db
+from core.inbox import ensure_inbox_indexes
 from core.security import has_allowed_request_origin, validate_security_config
 from routers import (
     auth,
     catalog,
     data,
+    inbox,
     logistics,
     material_orders,
     products,
@@ -60,6 +62,7 @@ async def lifespan(_: FastAPI):
             {"$unset": {"department": ""}},
         )
     await ensure_auth_email_index()
+    await ensure_inbox_indexes(db)
     await receiving.expire_completed_cases()
     expiry_task = asyncio.create_task(
         receiving.completed_case_expiry_loop(),
@@ -99,6 +102,7 @@ for module in (
     auth,
     data,
     catalog,
+    inbox,
     logistics,
     material_orders,
     products,

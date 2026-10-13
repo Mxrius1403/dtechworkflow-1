@@ -4,6 +4,7 @@ from zoneinfo import ZoneInfo
 
 from core.config import TIMEZONE
 from core.database import db
+from core.inbox import notify_managers
 from core.order_ids import allocate_order_id
 from core.security import current_account, require_roles
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -64,6 +65,15 @@ async def submit_tooth_order(
         "status": "pending",
     }
     await db["tooth_orders"].insert_one(order)
+    await notify_managers(
+        db,
+        kind="tooth_order_created",
+        title=f"New tooth order {order['_id']}",
+        body=f"{account['name']} ordered {order['total']} teeth.",
+        target="toothOrder",
+        target_id=order["_id"],
+        actor=account,
+    )
     order["id"] = order.pop("_id")
     return order
 

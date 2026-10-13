@@ -1,5 +1,5 @@
 import {
-  BarChart3, Boxes, Building2, Car, ClipboardList, Inbox, KeyRound, LayoutDashboard, MapPin, Package, Route, Search, ShoppingCart, Store, Truck, Users,
+  BarChart3, Bell, Boxes, Building2, Car, ClipboardList, Inbox, KeyRound, LayoutDashboard, MapPin, Package, Route, Search, ShoppingCart, Store, Truck, Users,
 } from "lucide-react";
 
 const manager = (u) => u.isManager || u.isOwner;
@@ -16,6 +16,7 @@ const materialsLabel = (u) => (manager(u) ? "Material Management" : "Order Mater
 export const PAGES = [
   { path: "/owner-control", label: "Ownership & Managers", icon: KeyRound, access: (u) => u.isOwner, nav: (u) => u.isOwner },
   { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard, access: always, nav: always },
+  { path: "/inbox", label: "Inbox", icon: Bell, access: manager, nav: manager },
   { path: "/receiving", label: "Receiving", title: "Receiving Station", icon: Inbox, access: always, nav: always },
   { path: "/routes", label: "Routes", icon: MapPin, access: () => true, nav: driver },
   { path: "/logistics", label: "Create Route", icon: Route, access: manager },

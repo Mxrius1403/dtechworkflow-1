@@ -5,6 +5,7 @@ from datetime import date, datetime, timezone
 from typing import Literal
 
 from core.case_history import log_case_event
+from core.inbox import notify_managers
 from core.collections import (
     AUTH_USERS,
     CLINIC_CONTACTS,
@@ -16,7 +17,14 @@ from core.models import BaseDocument
 from core.security import current_account, hash_password, require_roles
 from email_validator import EmailNotValidError, validate_email
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    field_validator,
+    model_validator,
+)
 from pymongo import ReturnDocument
 from pymongo.errors import DuplicateKeyError
 
@@ -640,6 +648,122 @@ class StopCheck(BaseModel):
     checked: bool
 
 
+# Reasons a driver can give for a stop they could not complete.
+STOP_PROBLEM_REASONS = {
+    "clinic_closed": "Clinic closed",
+    "nobody_available": "Nobody available to receive",
+    "not_ready": "Collection not ready",
+    "no_access": "Could not reach the clinic",
+    "out_of_time": "Ran out of time",
+    "other": "Other",
+}
+
+
+class StopProblem(BaseModel):
+    reason: Literal[tuple(STOP_PROBLEM_REASONS)]
+    note: str = Field(default="", max_length=200)
+
+    @field_validator("note")
+    @classmethod
+    def strip_note(cls, value: str) -> str:
+        return value.strip()
+
+    @model_validator(mode="after")
+    def require_note_for_other(self):
+        if self.reason == "other" and not self.note:
+            raise ValueError("Describe the problem.")
+        return self
+
+    def describe(self) -> str:
+        label = STOP_PROBLEM_REASONS[self.reason]
+        if self.reason == "other":
+            return self.note or label
+        return f"{label}: {self.note}" if self.note else label
+
+
+class RouteFinish(BaseModel):
+    problems: dict[str, StopProblem] = Field(default_factory=dict, max_length=500)
+
+
+def stop_problem_record(problem: StopProblem) -> dict:
+    return {**problem.model_dump(), "label": problem.describe(), "at": now_iso()}
+
+
+def plural(count: int, word: str) -> str:
+    return f"{count} {word}{'' if count == 1 else 's'}"
+
+
+def duration_text(started_at: str | None, completed_at: str | None) -> str:
+    try:
+        minutes = round(
+            (
+                datetime.fromisoformat(str(completed_at).replace("Z", "+00:00"))
+                - datetime.fromisoformat(str(started_at).replace("Z", "+00:00"))
+            ).total_seconds()
+            / 60
+        )
+    except ValueError:
+        return ""
+    if minutes < 0:
+        return ""
+    hours, rest = divmod(minutes, 60)
+    return f"{hours} h {rest} min" if hours else f"{rest} min"
+
+
+def stop_case_codes(stop: dict) -> list[str]:
+    return [
+        str(d["caseNumber"]) for d in stop.get("deliveries") or [] if d.get("caseNumber")
+    ]
+
+
+def route_finish_message(
+    route: dict, stops: list[dict], clinic_names: dict[str, str], completed_at: str
+) -> tuple[str, str, str]:
+    """Return (severity, title, body) for the manager inbox."""
+    route_id = route["_id"]
+    done = [s for s in stops if s.get("status") == "completed"]
+    open_stops = [s for s in stops if s.get("status") != "completed"]
+    delivered = sum(len(stop_case_codes(s)) for s in done)
+    collected = sum(1 for s in done if s.get("collections"))
+    duration = duration_text(route.get("startedAt"), completed_at)
+    work = f"{plural(delivered, 'case')} delivered, {plural(collected, 'collection')}"
+    if not open_stops:
+        took = f" in {duration}" if duration else ""
+        return (
+            "success",
+            f"Route {route_id} completed",
+            f"All {plural(len(stops), 'stop')} done{took}. {work}.",
+        )
+    lines = []
+    for stop in open_stops:
+        clinic = clinic_names.get(stop.get("clinicId"), stop.get("clinicId", "?"))
+        reason = (stop.get("problem") or {}).get("label") or "no reason given"
+        codes = stop_case_codes(stop)
+        cases = f" (cases {', '.join(codes)})" if codes else (
+            " (collection)" if stop.get("collections") else ""
+        )
+        lines.append(f"{clinic}{cases}: {reason}")
+    not_delivered = sum(len(stop_case_codes(s)) for s in open_stops)
+    return (
+        "warning",
+        f"Route {route_id} finished with {plural(len(open_stops), 'open stop')}",
+        f"{len(done)} of {plural(len(stops), 'stop')} done, {work}. "
+        f"Not done: {'; '.join(lines)}. "
+        + (
+            f"{plural(not_delivered, 'case')} set to Not Delivered. "
+            if not_delivered
+            else ""
+        )
+        + "Open the route to reassign the unfinished stops.",
+    )
+
+
+async def clinic_names_for(stops: list[dict]) -> dict[str, str]:
+    ids = list({s.get("clinicId") for s in stops if s.get("clinicId")})
+    clinics = await db["clinics"].find({"_id": {"$in": ids}}).to_list(None)
+    return {c["_id"]: c.get("name") or c["_id"] for c in clinics}
+
+
 @router.post("/routes/{route_id}/start", dependencies=[DRIVERS])
 async def start_route(
     route_id: str, actor: dict = Depends(current_account)
@@ -657,6 +781,19 @@ async def start_route(
     )
     for stop in stops:
         await set_stop_delivery_status(stop, route, "out_for_delivery", actor)
+    clinics = {s.get("clinicId") for s in stops}
+    await notify_managers(
+        db,
+        kind="route_started",
+        title=f"Route {route_id} started",
+        body=(
+            f"{plural(len(stops), 'stop')} at {plural(len(clinics), 'clinic')}, "
+            f"{plural(sum(len(stop_case_codes(s)) for s in stops), 'case')} out for delivery."
+        ),
+        target="route",
+        target_id=route_id,
+        actor=actor,
+    )
     return {"id": route_id, "status": "started"}
 
 
@@ -671,30 +808,83 @@ async def check_route_stop(
     if route.get("status") != "started":
         raise HTTPException(status_code=409, detail="Start the route first.")
     stop_status = "completed" if body.checked else "pending"
+    update = {
+        "$set": {
+            "status": stop_status,
+            "arrived": body.checked,
+            "deliveryCompleted": body.checked,
+            "collectionCompleted": body.checked,
+        }
+    }
+    if body.checked:
+        # A completed stop no longer has an open problem.
+        update["$unset"] = {"problem": ""}
     result = await db["stops"].update_one(
-        {"_id": stop_id, "routeId": route_id},
-        {
-            "$set": {
-                "status": stop_status,
-                "arrived": body.checked,
-                "deliveryCompleted": body.checked,
-                "collectionCompleted": body.checked,
-            }
-        },
+        {"_id": stop_id, "routeId": route_id}, update
     )
     if not result.matched_count:
         raise HTTPException(status_code=404, detail="Route stop not found.")
     return {"id": stop_id, "routeId": route_id, "status": stop_status}
 
 
+@router.post("/routes/{route_id}/stops/{stop_id}/problem", dependencies=[DRIVERS])
+async def report_stop_problem(
+    route_id: str,
+    stop_id: str,
+    body: StopProblem,
+    actor: dict = Depends(current_account),
+) -> dict:
+    """The driver cannot complete a stop: tell the managers straight away."""
+    route = await own_route(route_id, actor)
+    if route.get("status") != "started":
+        raise HTTPException(status_code=409, detail="Start the route first.")
+    stop = await db["stops"].find_one({"_id": stop_id, "routeId": route_id})
+    if not stop:
+        raise HTTPException(status_code=404, detail="Route stop not found.")
+    if stop.get("status") == "completed":
+        raise HTTPException(status_code=409, detail="This stop is already done.")
+    problem = stop_problem_record(body)
+    await db["stops"].update_one({"_id": stop_id}, {"$set": {"problem": problem}})
+    await log_stop_case_events(
+        stop, route, f"Driver reported a problem: {problem['label']}", actor
+    )
+    clinic = (await clinic_names_for([stop])).get(stop.get("clinicId"), stop.get("clinicId", "?"))
+    codes = stop_case_codes(stop)
+    await notify_managers(
+        db,
+        kind="route_stop_problem",
+        title=f"Problem at {clinic} (route {route_id})",
+        body=(
+            f"{problem['label']}."
+            + (f" Cases on this stop: {', '.join(codes)}." if codes else "")
+            + (" Collection stop." if stop.get("collections") else "")
+        ),
+        target="route",
+        target_id=route_id,
+        actor=actor,
+        severity="warning",
+    )
+    return {"id": stop_id, "routeId": route_id, "problem": problem}
+
+
 @router.post("/routes/{route_id}/finish", dependencies=[DRIVERS])
 async def finish_route(
-    route_id: str, actor: dict = Depends(current_account)
+    route_id: str,
+    body: RouteFinish | None = None,
+    actor: dict = Depends(current_account),
 ) -> dict:
     route = await own_route(route_id, actor)
     if route.get("status") != "started":
         raise HTTPException(status_code=409, detail="This route is not in progress.")
     stops = await db["stops"].find({"routeId": route_id}).to_list(None)
+    problems = body.problems if body else {}
+    for stop in stops:
+        problem = problems.get(stop["_id"])
+        if problem and stop.get("status") != "completed":
+            stop["problem"] = stop_problem_record(problem)
+            await db["stops"].update_one(
+                {"_id": stop["_id"]}, {"$set": {"problem": stop["problem"]}}
+            )
     timestamp = now_iso()
     await db["routes"].update_one(
         {"_id": route_id},
@@ -705,6 +895,19 @@ async def finish_route(
         await set_stop_delivery_status(
             stop, route, "delivered" if done else "not_delivered", actor
         )
+    severity, title, message = route_finish_message(
+        route, stops, await clinic_names_for(stops), timestamp
+    )
+    await notify_managers(
+        db,
+        kind="route_finished",
+        title=title,
+        body=message,
+        target="route",
+        target_id=route_id,
+        actor=actor,
+        severity=severity,
+    )
     return {"id": route_id, "status": "completed"}
 
 

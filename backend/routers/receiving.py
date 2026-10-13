@@ -9,6 +9,7 @@ from core.case_history import log_case_event
 from core.collections import AUTH_USERS, CASE_HISTORY
 from core.config import TIMEZONE
 from core.database import db
+from core.inbox import notify_managers
 from core.models import BaseDocument
 from core.production_calendar import is_production_day
 from core.workflow_constants import ARCH_OPTIONS, SERVICE_TYPES
@@ -138,6 +139,9 @@ class UpdateCase(BaseModel):
                 second=0, microsecond=0, tzinfo=None
             )
         return self
+
+
+ATTENTION_LABELS = {"on_hold": "On Hold", "need_information": "Need Information"}
 
 
 class UpdateAttention(BaseModel):
@@ -990,6 +994,21 @@ async def update_case_attention(
         account,
         timestamp,
     )
+    if (
+        body.attentionStatus != "active"
+        and existing.get("attentionStatus") != body.attentionStatus
+    ):
+        label = ATTENTION_LABELS[body.attentionStatus]
+        await notify_managers(
+            db,
+            kind="case_attention",
+            title=f"Case {case.get('code', case_id)} set to {label}",
+            body=body.attentionNote,
+            target="case",
+            target_id=case_id,
+            actor=account,
+            severity="warning",
+        )
     return BaseDocument.from_mongo(case).to_api()
 
 

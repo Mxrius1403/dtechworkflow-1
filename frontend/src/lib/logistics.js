@@ -94,3 +94,16 @@ export const draftStopCount = (collections, deliveries) =>
 
 export const mapsUrl = (clinic) =>
   `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent([clinic?.address, clinic?.eircode].filter(Boolean).join(", "))}`;
+
+/** Reasons a driver can give for a stop they could not complete. Keys match the backend. */
+export const STOP_PROBLEM_REASONS = [
+  ["clinic_closed", "Clinic closed"],
+  ["nobody_available", "Nobody available to receive"],
+  ["not_ready", "Collection not ready"],
+  ["no_access", "Could not reach the clinic"],
+  ["out_of_time", "Ran out of time"],
+  ["other", "Other"],
+];
+
+export const stopProblemValid = (problem) =>
+  Boolean(problem?.reason) && (problem.reason !== "other" || Boolean(problem.note?.trim()));

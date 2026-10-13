@@ -1,14 +1,17 @@
 import { useState } from "react";
-import { Menu, MonitorPlay, UserCog } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Bell, Menu, MonitorPlay, UserCog } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useSession } from "@/context/SessionContext";
+import { useInbox } from "@/hooks/use-inbox";
 import { niceToday } from "@/lib/format";
 import { AccountDialog } from "./AccountDialog";
 import { Sidebar } from "./Sidebar";
 
 export function TopBar({ title, onTvMode }) {
   const { user } = useSession();
+  const { unread } = useInbox();
   const [menu, setMenu] = useState(false);
   const [account, setAccount] = useState(false);
   return (
@@ -22,6 +25,14 @@ export function TopBar({ title, onTvMode }) {
       </div>
       {(user.isManager || user.role === "technician") && (
         <div className="flex shrink-0 gap-2">
+          {user.isManager && (
+            <Button asChild variant="outline" size="sm" className="relative" data-testid="inbox-button">
+              <Link to="/inbox" aria-label={unread ? `Inbox, ${unread} unread` : "Inbox"}>
+                <Bell /> <span className="hidden sm:inline">Inbox</span>
+                {unread > 0 && <span className="absolute -right-2 -top-2 min-w-[1.25rem] rounded-full bg-rose-600 px-1.5 text-center font-mono text-[11px] font-bold leading-5 text-white" data-testid="inbox-button-unread">{unread > 99 ? "99+" : unread}</span>}
+              </Link>
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={onTvMode} className="hidden sm:inline-flex" data-testid="tv-mode-button"><MonitorPlay /> TV Mode</Button>
           <Button variant="outline" size="sm" onClick={() => setAccount(true)} data-testid="account-button"><UserCog /> <span className="hidden sm:inline">Account</span></Button>
         </div>

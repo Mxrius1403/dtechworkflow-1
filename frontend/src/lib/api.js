@@ -56,7 +56,8 @@ export const addRouteStop = (routeId, stop) => api.post(`/routes/${routeId}/stop
 export const transferRouteStop = (routeId, stopId, driverId, routeDate) => api.patch(`/routes/${routeId}/stops/${stopId}/transfer`, { driverId, routeDate }).then((r) => r.data);
 export const deleteRouteStop = (routeId, stopId) => api.delete(`/routes/${routeId}/stops/${stopId}`).then((r) => r.data);
 export const startRoute = (routeId) => api.post(`/routes/${routeId}/start`).then((r) => r.data);
-export const finishRoute = (routeId) => api.post(`/routes/${routeId}/finish`).then((r) => r.data);
+export const finishRoute = (routeId, problems = {}) => api.post(`/routes/${routeId}/finish`, { problems }).then((r) => r.data);
+export const reportStopProblem = (routeId, stopId, problem) => api.post(`/routes/${routeId}/stops/${stopId}/problem`, problem).then((r) => r.data);
 export const checkRouteStop = (routeId, stopId, checked) => api.patch(`/routes/${routeId}/stops/${stopId}/check`, { checked }).then((r) => r.data);
 export const reassignUnfinishedStops = (routeId, driverId, routeDate) => api.post(`/routes/${routeId}/reassign-unfinished`, { driverId, routeDate }).then((r) => r.data);
 export const archiveRoute = (routeId) => api.post(`/routes/${routeId}/archive`).then((r) => r.data);
@@ -75,3 +76,7 @@ export const createProduct = (product) => api.post("/products", product).then((r
 export const importProducts = (products) => api.post("/products/import", { products }).then((r) => r.data);
 export const updateProduct = (productId, product) => api.patch(`/products/${encodeURIComponent(productId)}`, product).then((r) => r.data);
 export const deleteProduct = (productId) => api.delete(`/products/${encodeURIComponent(productId)}`).then((r) => r.data);
+export const fetchInbox = () => api.get("/inbox").then((r) => r.data);
+export const setInboxMessageRead = (messageId, read) => api.patch(`/inbox/${encodeURIComponent(messageId)}`, { read }).then((r) => r.data);
+export const markAllInboxRead = () => api.post("/inbox/read-all").then((r) => r.data);
+export const deleteInboxMessage = (messageId) => api.delete(`/inbox/${encodeURIComponent(messageId)}`).then((r) => r.data);

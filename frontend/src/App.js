@@ -15,6 +15,7 @@ import CompletionReviewPage from "@/pages/CompletionReviewPage";
 import DashboardPage from "@/pages/dashboard/DashboardPage";
 import DeliveryManagementPage from "@/pages/logistics/DeliveryManagementPage";
 import DriversPage from "@/pages/drivers/DriversPage";
+import InboxPage from "@/pages/InboxPage";
 import MaterialsPage from "@/pages/materials/MaterialsPage";
 import OrderMaterialsPage from "@/pages/materials/OrderMaterialsPage";
 import ProductManagementPage from "@/pages/materials/ProductManagementPage";
@@ -36,6 +37,7 @@ import RoutesPage from "@/pages/logistics/RoutesPage";
 // URL -> page component. Who may open each URL is defined in config/navigation.js.
 const SCREENS = [
   ["/dashboard", DashboardPage],
+  ["/inbox", InboxPage],
   ["/receiving", ReceivingPage],
   ["/delivery-management", DeliveryManagementPage],
   ["/drivers", DriversPage],

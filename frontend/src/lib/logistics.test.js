@@ -52,3 +52,17 @@ test("groups every clinic's stops together with deliveries before collections", 
     { clinicId: "C2", stops: [otherClinic] },
   ]);
 });
+
+describe("stopProblemValid", () => {
+  const { stopProblemValid, STOP_PROBLEM_REASONS } = require("./logistics");
+  test("needs a reason, and a note for Other", () => {
+    expect(stopProblemValid({ reason: "", note: "" })).toBe(false);
+    expect(stopProblemValid({ reason: "clinic_closed", note: "" })).toBe(true);
+    expect(stopProblemValid({ reason: "other", note: "  " })).toBe(false);
+    expect(stopProblemValid({ reason: "other", note: "Gate locked" })).toBe(true);
+    expect(stopProblemValid(undefined)).toBe(false);
+  });
+  test("reason keys match the backend", () => {
+    expect(STOP_PROBLEM_REASONS.map(([key]) => key)).toEqual(["clinic_closed", "nobody_available", "not_ready", "no_access", "out_of_time", "other"]);
+  });
+});

@@ -40,7 +40,7 @@ function MaterialOrderListPanel({ title, description, orders, manager, completed
     <Panel title={title} description={description} actions={<CountPill testId={completed ? "completed-material-orders-count" : "material-orders-count"}>{orders.length}</CountPill>}>
       <div className="grid gap-2">
         {orders.map((o) => (
-          <div key={o.id} className="flex flex-wrap items-start justify-between gap-3 rounded-lg border p-3" data-testid={`material-order-${o.id}`}>
+          <div key={o.id} id={`order-${o.id}`} className="flex scroll-mt-24 flex-wrap items-start justify-between gap-3 rounded-lg border p-3 transition-shadow" data-testid={`material-order-${o.id}`}>
             <div className="min-w-0 space-y-1">
               <p className="flex flex-wrap items-center gap-2">
                 <span className="font-mono font-bold text-primary">{o.id}</span>

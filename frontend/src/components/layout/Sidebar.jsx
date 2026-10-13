@@ -3,6 +3,7 @@ import { LogOut } from "lucide-react";
 import { APP_NAME, LOGO } from "@/config/constants";
 import { isNavItemActive, navItemsFor } from "@/config/navigation";
 import { useSession } from "@/context/SessionContext";
+import { useInbox } from "@/hooks/use-inbox";
 import { cn } from "@/lib/utils";
 
 const roleName = (u) => (u.isOwner ? "Owner" : u.isManager ? "Manager" : u.isDriver ? "Driver" : "Technician");
@@ -10,6 +11,7 @@ const roleName = (u) => (u.isOwner ? "Owner" : u.isManager ? "Manager" : u.isDri
 export function Sidebar({ onNavigate }) {
   const { user, signOut } = useSession();
   const { pathname } = useLocation();
+  const { unread } = useInbox();
   return (
     <div className="flex h-full flex-col gap-5 p-4">
       <div className="flex items-center gap-2 px-1">
@@ -35,6 +37,9 @@ export function Sidebar({ onNavigate }) {
             data-testid={`nav-${path.slice(1)}`}
           >
             <Icon className="h-4 w-4" /> {label}
+            {path === "/inbox" && unread > 0 && (
+              <span className="ml-auto rounded-full bg-rose-600 px-2 py-0.5 font-mono text-[11px] font-bold text-white" data-testid="nav-inbox-unread">{unread}</span>
+            )}
           </NavLink>
         ))}
       </nav>

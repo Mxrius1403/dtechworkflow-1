@@ -6,6 +6,7 @@ import { notify, notifyError } from "@/lib/notify";
 import { Muted } from "@/components/common/Bits";
 import { Panel } from "@/components/common/Panel";
 import { RouteStopRow } from "./RouteStopRow";
+import { FinishRouteDialog, ReportProblemDialog } from "./StopProblemDialogs";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { useData } from "@/context/DataContext";
 import { useSession } from "@/context/SessionContext";
@@ -17,6 +18,7 @@ export function DriverRoutes() {
   const { routes, byId } = useData();
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
+  const [dialog, setDialog] = useState(null);
   const run = async (action, message) => {
     setBusy(true);
     try {
@@ -56,9 +58,9 @@ export function DriverRoutes() {
                   <Button size="sm" disabled={busy || !stops.length} onClick={() => run(() => startRoute(route.id), "Route started")} data-testid={`route-start-${route.id}`}>Start Route</Button>
                 )}
                 {route.status === "started" && (
-                  <Button size="sm" disabled={busy} onClick={() => {
-                    if (!todo.length || window.confirm(`${todo.length} stop(s) are not checked and their cases will be set to Not Delivered. Finish the route?`)) run(() => finishRoute(route.id), "Route finished");
-                  }} data-testid={`route-finish-${route.id}`}>Finish Route</Button>
+                  <Button size="sm" disabled={busy} onClick={() => (
+                    todo.length ? setDialog({ type: "finish", route, stops: todo }) : run(() => finishRoute(route.id), "Route finished. The managers have been told.")
+                  )} data-testid={`route-finish-${route.id}`}>Finish Route</Button>
                 )}
               </div>
             }
@@ -70,6 +72,7 @@ export function DriverRoutes() {
                   {group.stops.map(({ stop, index }) => (
                     <RouteStopRow key={stop.id} index={index} route={route} stop={stop} readOnly
                       onCheck={route.status === "started" ? (checked) => run(() => checkRouteStop(route.id, stop.id, checked)) : undefined}
+                      onReportProblem={route.status === "started" ? () => setDialog({ type: "problem", route, stop }) : undefined}
                       checkDisabled={busy} />
                   ))}
                 </section>
@@ -79,6 +82,8 @@ export function DriverRoutes() {
           </Panel>
         );
       })}
+      {dialog?.type === "problem" && <ReportProblemDialog route={dialog.route} stop={dialog.stop} onClose={() => setDialog(null)} />}
+      {dialog?.type === "finish" && <FinishRouteDialog route={dialog.route} openStops={dialog.stops} onClose={() => setDialog(null)} />}
     </div>
   );
 }

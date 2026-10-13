@@ -4,6 +4,7 @@ from zoneinfo import ZoneInfo
 
 from core.config import TIMEZONE
 from core.database import db
+from core.inbox import notify_managers
 from core.order_ids import allocate_order_id
 from core.security import current_account, require_roles
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -102,6 +103,18 @@ async def submit_material_order(
         "status": "pending",
     }
     await db["material_orders"].insert_one(order)
+    await notify_managers(
+        db,
+        kind="material_order_created",
+        title=f"New material order {order['_id']}",
+        body=(
+            f"{account['name']} requested {order['totalItems']} "
+            f"{'item' if order['totalItems'] == 1 else 'items'}."
+        ),
+        target="materialOrder",
+        target_id=order["_id"],
+        actor=account,
+    )
     order["id"] = order.pop("_id")
     return order
 

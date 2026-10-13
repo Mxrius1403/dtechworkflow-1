@@ -7,6 +7,7 @@ import { ConfirmAction } from "@/components/common/ConfirmAction";
 import { Panel } from "@/components/common/Panel";
 import { CountPill } from "@/components/common/StatusBadge";
 import { useData } from "@/context/DataContext";
+import { useScrollToHash } from "@/hooks/use-scroll-to-hash";
 import { deleteToothOrder, updateToothOrderStatus } from "@/lib/api";
 import { notify, notifyError } from "@/lib/notify";
 import { printHtml, toothOrderPdfHtml } from "@/lib/print";
@@ -19,6 +20,7 @@ export default function ToothOrdersPage() {
   const orders = [...toothOrders].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
   const openOrders = orders.filter((order) => order.status !== "done");
   const completedOrders = orders.filter((order) => order.status === "done");
+  useScrollToHash(orders.length > 0);
   useEffect(() => {
     const refresh = window.setInterval(
       () => queryClient.invalidateQueries({ queryKey: ["data"] }),
@@ -50,7 +52,7 @@ export default function ToothOrdersPage() {
   const renderOrders = (items, completed = false) => (
     <div className="grid gap-2">
       {items.map((o) => (
-        <div key={o.id} className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-l-4 border-l-indigo-500 p-3" data-testid={`tooth-order-row-${o.id}`}>
+        <div key={o.id} id={`order-${o.id}`} className="flex scroll-mt-24 flex-wrap items-start justify-between gap-3 rounded-lg border border-l-4 border-l-indigo-500 p-3 transition-shadow" data-testid={`tooth-order-row-${o.id}`}>
           <div className="min-w-0 space-y-1.5">
             <p className="font-mono font-bold text-primary">{o.id}</p>
             <p className="text-xs text-muted-foreground">Ordered by {o.technician} ({o.technicianId}) • {o.date} {o.time} • {o.total} teeth</p>
