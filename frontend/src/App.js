@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom
 import { Toaster } from "@/components/ui/sonner";
 import { AppShell } from "@/components/layout/AppShell";
 import { FullScreenMessage } from "@/components/common/FullScreenMessage";
+import { ScrollToTopButton } from "@/components/common/ScrollToTopButton";
 import { canOpen, homePath, pageForPath } from "@/config/navigation";
 import { DataProvider } from "@/context/DataContext";
 import { SessionProvider, useSession } from "@/context/SessionContext";
@@ -99,6 +100,7 @@ export default function App() {
           </Route>
         </Routes>
       </SessionProvider>
+      <ScrollToTopButton />
       <Toaster position="top-right" richColors closeButton />
     </BrowserRouter>
   );
