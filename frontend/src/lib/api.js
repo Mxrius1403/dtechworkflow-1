@@ -44,9 +44,11 @@ export const updateCaseOverdueReason = (caseId, reason) => api.patch(`/receiving
 export const saveReport = (report) => api.post("/reports", report).then((r) => r.data);
 export const deleteReport = (reportId) => api.delete(`/reports/${encodeURIComponent(reportId)}`).then((r) => r.data);
 export const createToothOrder = (order) => api.post("/tooth-orders", order).then((r) => r.data);
+export const updateToothOrder = (orderId, order) => api.put(`/tooth-orders/${encodeURIComponent(orderId)}`, order).then((r) => r.data);
 export const updateToothOrderStatus = (orderId, status) => api.patch(`/tooth-orders/${encodeURIComponent(orderId)}/status`, { status }).then((r) => r.data);
 export const deleteToothOrder = (orderId) => api.delete(`/tooth-orders/${encodeURIComponent(orderId)}`).then((r) => r.data);
 export const createMaterialOrder = (order) => api.post("/material-orders", order).then((r) => r.data);
+export const updateMaterialOrder = (orderId, order) => api.put(`/material-orders/${encodeURIComponent(orderId)}`, order).then((r) => r.data);
 export const updateMaterialOrderStatus = (orderId, status) => api.patch(`/material-orders/${encodeURIComponent(orderId)}/status`, { status }).then((r) => r.data);
 export const deleteMaterialOrder = (orderId) => api.delete(`/material-orders/${encodeURIComponent(orderId)}`).then((r) => r.data);
 export const createLogisticsRoute = (route) => api.post("/routes", route).then((r) => r.data);

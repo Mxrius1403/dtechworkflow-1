@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import { Check, FileText, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Check, FileText, Pencil, Trash2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { BackLink, Muted } from "@/components/common/Bits";
@@ -10,10 +10,12 @@ import { useData } from "@/context/DataContext";
 import { deleteToothOrder, updateToothOrderStatus } from "@/lib/api";
 import { notify, notifyError } from "@/lib/notify";
 import { printHtml, toothOrderPdfHtml } from "@/lib/print";
+import { ToothOrderEditDialog } from "./ToothOrderEditDialog";
 
 export default function ToothOrdersPage() {
   const { toothOrders } = useData();
   const queryClient = useQueryClient();
+  const [editing, setEditing] = useState(null);
   const orders = [...toothOrders].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
   const openOrders = orders.filter((order) => order.status !== "done");
   const completedOrders = orders.filter((order) => order.status === "done");
@@ -55,9 +57,13 @@ export default function ToothOrdersPage() {
             <div className="flex flex-wrap gap-1.5">
               {o.items.map((i, n) => <span key={n} className="rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium">{i.tooth} • {i.shade} × {i.qty}</span>)}
             </div>
+            {o.editedBy && <p className="text-xs italic text-muted-foreground">Edited by {o.editedBy}</p>}
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="outline" onClick={() => printHtml(toothOrderPdfHtml(o))} data-testid={`tooth-order-pdf-${o.id}`}><FileText /> PDF</Button>
+            {!completed && (
+              <Button size="sm" variant="outline" onClick={() => setEditing(o)} data-testid={`tooth-order-edit-${o.id}`}><Pencil /> Edit</Button>
+            )}
             {!completed && (
               <Button size="sm" onClick={() => markOrderDone(o.id)} data-testid={`tooth-order-done-${o.id}`}><Check /> Mark done</Button>
             )}
@@ -82,6 +88,7 @@ export default function ToothOrdersPage() {
           {renderOrders(completedOrders, true)}
         </Panel>
       </div>
+      {editing && <ToothOrderEditDialog order={editing} onClose={() => setEditing(null)} />}
     </>
   );
 }
