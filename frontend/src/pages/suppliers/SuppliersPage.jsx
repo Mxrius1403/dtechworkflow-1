@@ -85,7 +85,7 @@ export default function SuppliersPage() {
 
   return (
     <>
-      <BackLink to="/materials">Material Management</BackLink>
+      <BackLink to="/materials" className="text-base">Material Management</BackLink>
       <Panel
         title="Suppliers"
         description="Manage supplier names and contact details."

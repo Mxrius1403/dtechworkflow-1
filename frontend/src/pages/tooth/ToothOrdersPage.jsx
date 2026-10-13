@@ -73,7 +73,7 @@ export default function ToothOrdersPage() {
 
   return (
     <>
-      <BackLink to="/tooth-management">Tooth Management</BackLink>
+      <BackLink to="/tooth-management" className="text-base">Tooth Management</BackLink>
       <div className="grid gap-5">
         <Panel title="Tooth Order Requests" description="Open the professional PDF to send the request to the supplier. Mark requests as done when they have been handled." actions={<CountPill testId="tooth-orders-count">{openOrders.length}</CountPill>}>
           {renderOrders(openOrders)}

@@ -4,7 +4,7 @@ import { OrderTds } from "./OrderTds";
 export default function OrderMaterialsPage() {
   return (
     <>
-      <BackLink to="/materials">Material Management</BackLink>
+      <BackLink to="/materials" className="text-base">Material Management</BackLink>
       <OrderTds />
     </>
   );

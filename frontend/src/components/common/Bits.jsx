@@ -2,9 +2,9 @@ import { Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export function BackLink({ to, children, testId = "back-link" }) {
+export function BackLink({ to, children, testId = "back-link", className = "" }) {
   return (
-    <Button asChild variant="ghost" size="sm" className="-ml-2 mb-1 text-muted-foreground" data-testid={testId}>
+    <Button asChild variant="ghost" size="sm" className={`-ml-2 mb-1 text-muted-foreground ${className}`} data-testid={testId}>
       <Link to={to}><ArrowLeft /> {children}</Link>
     </Button>
   );

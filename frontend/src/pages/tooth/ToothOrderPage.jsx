@@ -59,7 +59,7 @@ export default function ToothOrderPage() {
 
   return (
     <>
-      {user.isManager && <BackLink to="/tooth-management">Tooth Management</BackLink>}
+      {user.isManager && <BackLink to="/tooth-management" className="text-base">Tooth Management</BackLink>}
       <div className="grid items-start gap-5 lg:grid-cols-[1fr_360px]">
         <Panel title="New Order Tooth" description="Select a tooth, then choose its shade and quantity.">
           {catalog.toothGroups.map((g) => <ToothGroup key={g.name} group={g} items={items} onPick={setPicking} />)}

@@ -16,7 +16,7 @@ export function MaterialRequests() {
   }, [queryClient]);
   return (
     <>
-      <BackLink to="/materials">Material Management</BackLink>
+      <BackLink to="/materials" className="text-base">Material Management</BackLink>
       <MaterialOrderList
         manager
         title="Material Order Requests"
