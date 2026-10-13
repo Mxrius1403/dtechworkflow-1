@@ -1,4 +1,4 @@
-import { calendarDaysBetween, dateKey, isToday, timeOf, today } from "./format";
+import { calendarDaysBetween, dateKey, isToday, nice, timeOf, today } from "./format";
 
 export const DEPARTMENTS = ["prosthesis", "ortho", "digital"];
 export const departmentKey = (department) =>
@@ -10,6 +10,12 @@ export const departmentName = (department) => {
 export const caseDepartment = (c) => departmentKey(c.department);
 
 export const scheduledKey = (c) => c.currentDueDate || c.scheduledDate || c.receivedDate || "";
+export const dueSortKey = (c) => `${scheduledKey(c)} ${c.currentDueTime || "99:99"}`;
+export const dueLabel = (c) => {
+  const key = scheduledKey(c);
+  if (!key) return "";
+  return c.currentDueTime ? `${nice(key)}, ${c.currentDueTime}` : nice(key);
+};
 
 export function originalScheduledKey(c) {
   const missed = Object.keys(c.missedScheduleDates || {}).sort();

@@ -10,7 +10,7 @@ import { Panel } from "@/components/common/Panel";
 import { ScanBar } from "@/components/common/ScanBar";
 import { DEPARTMENT_STYLE } from "@/config/statuses";
 import { useData } from "@/context/DataContext";
-import { DEPARTMENTS, caseDepartment, casePlace, departmentName, receivingOutcome, scheduledKey } from "@/lib/cases";
+import { DEPARTMENTS, caseDepartment, casePlace, departmentName, dueSortKey, receivingOutcome } from "@/lib/cases";
 import { createReceivedCase, removeReceivedCase, restoreReceivedCase, updateCaseAttention, updateReceivedCase } from "@/lib/api";
 import { nice } from "@/lib/format";
 import { notify, notifyError } from "@/lib/notify";
@@ -95,7 +95,7 @@ export default function ReceivingPage() {
         caseId: draft.caseId || null,
       });
       await queryClient.invalidateQueries({ queryKey: ["data"] });
-      notify(`Case ${draft.code} due by ${nice(details.productionDate)}`);
+      notify(`Case ${draft.code} due by ${nice(details.productionDate)}, ${details.dueTime}`);
       setSelectedCaseId(createdCase.id);
       setDraft(null);
       return true;
@@ -126,9 +126,9 @@ export default function ReceivingPage() {
         const name = departmentName(dep);
         const byStatus = {
           queue: cases.filter((c) => !c.deleted && c.status === "queue" && caseDepartment(c) === dep)
-            .sort((a, b) => scheduledKey(a).localeCompare(scheduledKey(b))),
+            .sort((a, b) => dueSortKey(a).localeCompare(dueSortKey(b))),
           production: cases.filter((c) => !c.deleted && c.status === "production" && caseDepartment(c) === dep)
-            .sort((a, b) => scheduledKey(a).localeCompare(scheduledKey(b))),
+            .sort((a, b) => dueSortKey(a).localeCompare(dueSortKey(b))),
           completed: cases.filter((c) => !c.deleted && c.status === "completed" && caseDepartment(c) === dep)
             .sort((a, b) => String(b.finishedAt || b.updatedAt || "").localeCompare(String(a.finishedAt || a.updatedAt || ""))),
         };

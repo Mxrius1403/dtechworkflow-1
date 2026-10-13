@@ -8,7 +8,7 @@ import { ConfirmAction } from "@/components/common/ConfirmAction";
 import { Field, NativeSelect, Options } from "@/components/common/Field";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { useData } from "@/context/DataContext";
-import { attentionLabel, caseDepartment, DELIVERY_STATUSES, deliveryStatusLabel, scheduledKey, serviceLabel } from "@/lib/cases";
+import { attentionLabel, caseDepartment, DELIVERY_STATUSES, deliveryStatusLabel, dueLabel, serviceLabel } from "@/lib/cases";
 import { deleteReceivedCase, fetchCaseHistory, updateReceivedCase } from "@/lib/api";
 import { dateTimeOf, localInputValue, nice } from "@/lib/format";
 import { notify, notifyError } from "@/lib/notify";
@@ -16,7 +16,7 @@ import { notify, notifyError } from "@/lib/notify";
 function DetailBox({ c }) {
   return (
     <div className="rounded-lg border bg-muted/50 p-3 text-sm leading-relaxed" data-testid="case-detail-box">
-      <p><b>Scheduled:</b> {nice(scheduledKey(c))}</p>
+      <p><b>Scheduled:</b> {dueLabel(c) || "-"}</p>
       <p><b>Service:</b> {serviceLabel(c)}</p>
       <p><b>Attention:</b> {attentionLabel(c) || "Active"}{c.attentionNote && ` — ${c.attentionNote}`}</p>
       <p><b>Delivery Status:</b> {deliveryStatusLabel(c)}</p>

@@ -1,8 +1,7 @@
 import { MoreVertical } from "lucide-react";
 import { DEPARTMENT_STYLE } from "@/config/statuses";
 import { useData } from "@/context/DataContext";
-import { caseDepartment, caseWho, departmentName, scheduledKey, serviceLabel } from "@/lib/cases";
-import { nice } from "@/lib/format";
+import { caseDepartment, caseWho, departmentName, dueLabel, serviceLabel } from "@/lib/cases";
 import { cn } from "@/lib/utils";
 import { CaseFlags } from "./CaseFlags";
 
@@ -24,7 +23,7 @@ export function CaseCard({ c, onClick, actions, showWho = true, compact }) {
             <CaseFlags c={c} />
           </div>
           <p className="whitespace-normal break-words text-xs text-muted-foreground" title={serviceLabel(c)}>
-            {serviceLabel(c)}{scheduledKey(c) && ` • Due ${nice(scheduledKey(c))}`}
+            {serviceLabel(c)}{dueLabel(c) && ` • Due ${dueLabel(c)}`}
           </p>
           {showWho && !compact && <p className="whitespace-normal break-words text-xs text-foreground/70">{caseWho(c, techName)}</p>}
         </div>

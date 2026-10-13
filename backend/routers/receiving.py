@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Literal
 from zoneinfo import ZoneInfo
 
@@ -30,6 +30,7 @@ class ReceiveCase(BaseModel):
     )
     department: Literal["prosthesis", "ortho", "digital"]
     productionDate: date
+    dueTime: time
     serviceTypes: list[str] = Field(
         default_factory=list, max_length=len(SERVICE_TYPES)
     )
@@ -38,6 +39,7 @@ class ReceiveCase(BaseModel):
 
     @model_validator(mode="after")
     def validate_work_details(self):
+        self.dueTime = self.dueTime.replace(second=0, microsecond=0, tzinfo=None)
         if any(item not in SERVICE_TYPES for item in self.serviceTypes) or (
             "None" in self.serviceTypes and len(self.serviceTypes) > 1
         ):
@@ -155,6 +157,18 @@ def _receiving_day() -> date:
     return datetime.now(ZoneInfo(TIMEZONE)).date()
 
 
+def _receiving_time() -> time:
+    return datetime.now(ZoneInfo(TIMEZONE)).time().replace(tzinfo=None)
+
+
+def _due_time(body: ReceiveCase) -> str:
+    return body.dueTime.strftime("%H:%M") if body.dueTime else ""
+
+
+def _due_label(body: ReceiveCase) -> str:
+    return f"{body.productionDate.isoformat()} {_due_time(body)}".strip()
+
+
 def _now() -> tuple[str, date, str]:
     local_now = datetime.now(ZoneInfo(TIMEZONE))
     timestamp = (
@@ -237,10 +251,14 @@ async def receiving_account(account: dict = Depends(current_account)) -> dict:
     raise HTTPException(status_code=403, detail="Insufficient permissions.")
 
 
-def _validate_production_date(production_date: date) -> None:
+def _validate_production_date(production_date: date, due_time: time) -> None:
     if production_date < _receiving_day():
         raise HTTPException(
             status_code=422, detail="Production date cannot be in the past."
+        )
+    if production_date == _receiving_day() and due_time <= _receiving_time():
+        raise HTTPException(
+            status_code=422, detail="Due time cannot be in the past."
         )
     if not is_production_day(production_date):
         raise HTTPException(
@@ -263,6 +281,7 @@ def _new_case(body: ReceiveCase, account: dict) -> dict:
         "scheduledDate": body.productionDate.isoformat(),
         "originalScheduledDate": body.productionDate.isoformat(),
         "currentDueDate": body.productionDate.isoformat(),
+        "currentDueTime": _due_time(body),
         "missedScheduleDates": {},
         "receivedDate": received_date.isoformat(),
         "receivedAt": timestamp,
@@ -296,7 +315,7 @@ def _new_case(body: ReceiveCase, account: dict) -> dict:
                 "at": timestamp,
                 "action": (
                     f"Received and scheduled for "
-                    f"{body.productionDate.isoformat()}"
+                    f"{_due_label(body)}"
                 ),
                 "by": display_name,
             }
@@ -305,7 +324,7 @@ def _new_case(body: ReceiveCase, account: dict) -> dict:
 
 
 async def _create_or_reenter(body: ReceiveCase, account: dict) -> dict:
-    _validate_production_date(body.productionDate)
+    _validate_production_date(body.productionDate, body.dueTime)
 
     if body.caseId:
         existing = await db["cases"].find_one({"_id": body.caseId})
@@ -332,6 +351,7 @@ async def _create_or_reenter(body: ReceiveCase, account: dict) -> dict:
                 "scheduledDate",
                 "originalScheduledDate",
                 "currentDueDate",
+                "currentDueTime",
                 "overdue",
                 "status",
                 "finishedAt",
@@ -347,6 +367,7 @@ async def _create_or_reenter(body: ReceiveCase, account: dict) -> dict:
                 "scheduledDate": body.productionDate.isoformat(),
                 "originalScheduledDate": body.productionDate.isoformat(),
                 "currentDueDate": body.productionDate.isoformat(),
+                "currentDueTime": _due_time(body),
                 "missedScheduleDates": {},
                 "receivedDate": received_date.isoformat(),
                 "receivedAt": timestamp,
@@ -378,7 +399,7 @@ async def _create_or_reenter(body: ReceiveCase, account: dict) -> dict:
                 "history": {
                     "at": timestamp,
                     "action": (
-                        f"Re-entered for {body.productionDate.isoformat()}; "
+                        f"Re-entered for {_due_label(body)}; "
                         "previous cycle archived"
                     ),
                     "by": display_name,
@@ -412,7 +433,7 @@ async def _create_or_reenter(body: ReceiveCase, account: dict) -> dict:
             )
         await _log(
             case,
-            f"Re-entered for {body.productionDate.isoformat()} "
+            f"Re-entered for {_due_label(body)} "
             f"({body.department}, {', '.join(body.serviceTypes)}, "
             f"{body.arch}); previous cycle archived",
             account,
@@ -434,7 +455,7 @@ async def _create_or_reenter(body: ReceiveCase, account: dict) -> dict:
     await db["cases"].insert_one(case)
     await _log(
         case,
-        f"Received and scheduled for {body.productionDate.isoformat()} "
+        f"Received and scheduled for {_due_label(body)} "
         f"({body.department}, {', '.join(body.serviceTypes)}, {body.arch})",
         account,
         case["receivedAt"],
@@ -485,6 +506,7 @@ def _imported_case(item: ImportCase, account: dict) -> dict:
             code=item.code,
             department=item.department,
             productionDate=item.productionDate or item.currentDueDate,
+            dueTime=None,
             serviceTypes=item.serviceTypes,
             arch=item.arch,
             caseId=None,

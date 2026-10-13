@@ -1,5 +1,5 @@
 import asyncio
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -121,6 +121,7 @@ def receive_payload(**overrides):
         "code": "RCV-1001",
         "department": "prosthesis",
         "productionDate": date(2026, 10, 7),
+        "dueTime": "14:30",
         "serviceTypes": ["Repair"],
         "arch": "Upper",
     }
@@ -186,6 +187,28 @@ def test_receive_creates_scheduled_case(receiving_db):
     assert (
         receiving_db.documents[result["id"]]["currentDueDate"] == "2026-10-07"
     )
+    assert result["currentDueTime"] == "14:30"
+    assert "2026-10-07 14:30" in result["history"][0]["action"]
+
+
+def test_receive_requires_a_due_time():
+    payload = receive_payload().model_dump()
+    del payload["dueTime"]
+    with pytest.raises(ValidationError):
+        ReceiveCase(**payload)
+
+
+def test_receive_rejects_due_time_in_the_past_today(receiving_db, monkeypatch):
+    monkeypatch.setattr(receiving, "_receiving_time", lambda: time(15, 0))
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(
+            receiving.create_received_case(
+                receive_payload(productionDate=date(2026, 10, 6)),
+                {"_id": "MGR0001", "role": "manager", "name": "Manager"},
+            )
+        )
+    assert error.value.status_code == 422
+    assert error.value.detail == "Due time cannot be in the past."
 
 
 def test_receive_rejects_duplicate_case(receiving_db):

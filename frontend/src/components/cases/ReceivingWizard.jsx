@@ -3,20 +3,23 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ARCH_OPTIONS, SERVICE_TYPES } from "@/config/constants";
-import { nice, today } from "@/lib/format";
+import { localInputValue, nice, today } from "@/lib/format";
 import { nextProductionDay, productionDayInfo } from "@/lib/holidays";
 import { departmentName } from "@/lib/cases";
 import { notify, notifyError } from "@/lib/notify";
 import { cn } from "@/lib/utils";
 
+const nowTime = () => localInputValue().slice(11, 16);
+
 const chip = (on) => cn("rounded-lg border-2 px-3 py-3 text-sm font-semibold transition-colors", on ? "border-secondary bg-accent text-accent-foreground" : "border-border bg-card hover:border-secondary/50");
 
-/** Receiving wizard: service types → arch → completion due date for every department. */
+/** Receiving wizard: service types → arch → completion due date and time for every department. */
 export function ReceivingWizard({ draft, onClose, onSave }) {
   const [step, setStep] = useState("types");
   const [types, setTypes] = useState([]);
   const [arch, setArch] = useState("");
   const [date, setDate] = useState(nextProductionDay(today()));
+  const [time, setTime] = useState("");
   const [saving, setSaving] = useState(false);
   const label = `${draft.reentry ? "Re-entry" : "New case"} ${draft.code}`;
 
@@ -33,9 +36,11 @@ export function ReceivingWizard({ draft, onClose, onSave }) {
   };
   const save = async () => {
     if (!date) return notifyError("Choose a completion due date");
+    if (!time) return notifyError("Choose a completion due time");
+    if (date === today() && time <= nowTime()) return notifyError("The due time cannot be in the past");
     setSaving(true);
     try {
-      const saved = await onSave({ productionDate: date, serviceTypes: types, arch });
+      const saved = await onSave({ productionDate: date, dueTime: time, serviceTypes: types, arch });
       if (saved) onClose();
     } finally {
       setSaving(false);
@@ -61,7 +66,11 @@ export function ReceivingWizard({ draft, onClose, onSave }) {
           <label htmlFor="receiving-due-date" className="grid gap-2 text-sm font-medium">
             Completion due date
             <Input id="receiving-due-date" type="date" min={today()} value={date} onChange={(e) => pickDate(e.target.value)} data-testid="receiving-date-input" />
-            <span className="text-xs font-normal text-muted-foreground">The case must be completed by this date.</span>
+          </label>
+          <label htmlFor="receiving-due-time" className="grid gap-2 text-sm font-medium">
+            Completion due time
+            <Input id="receiving-due-time" type="time" required value={time} onChange={(e) => setTime(e.target.value)} data-testid="receiving-time-input" />
+            <span className="text-xs font-normal text-muted-foreground">The case must be completed by this date and time.</span>
           </label>
         </div>
       ),
