@@ -25,8 +25,12 @@ export function originalScheduledKey(c) {
 export function overdueSummary(c) {
   const original = originalScheduledKey(c);
   const completed = c.finishedDate || (c.finishedAt ? dateKey(c.finishedAt) : "");
-  const comparison = completed || scheduledKey(c) || today();
-  return { original, comparison, completed: Boolean(completed), days: calendarDaysBetween(original, comparison) };
+  const due = scheduledKey(c);
+  const t = today();
+  // An open case past its due date keeps counting overdue days until today.
+  const pastDue = !completed && (!due || due < t);
+  const comparison = completed || (pastDue ? t : due);
+  return { original, comparison, completed: Boolean(completed), pastDue, days: calendarDaysBetween(original, comparison) };
 }
 
 export const serviceLabel = (c) => `${(c.serviceTypes || []).join(" + ") || "Not specified"} • ${c.arch || "Arch not specified"}`;
@@ -48,6 +52,13 @@ export const caseWasOverdue = (c) => Boolean(c?.overdue || c?.wasOverdue || c?.m
 export const liveCases = (cases) => cases.filter((c) => !c.deleted);
 const isOpen = (c) => !c.deleted && c.status !== "completed" && c.status !== "removed";
 
+/** Open case that a Manager marked overdue, or whose due date is before today. */
+export const isOverdue = (c) => {
+  if (!isOpen(c)) return false;
+  const due = scheduledKey(c);
+  return Boolean(c.overdue) || (Boolean(due) && due < today());
+};
+
 export function todayCases(cases) {
   const t = today();
   return cases.filter((c) => {
@@ -64,7 +75,7 @@ export function attentionGroups(cases) {
     due: open.filter((c) => scheduledKey(c) === t),
     holds: open.filter((c) => c.attentionStatus === "on_hold"),
     info: open.filter((c) => c.attentionStatus === "need_information"),
-    overdue: open.filter((c) => c.overdue),
+    overdue: open.filter(isOverdue),
   };
 }
 

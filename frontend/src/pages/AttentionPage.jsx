@@ -6,7 +6,7 @@ import { Panel } from "@/components/common/Panel";
 import { StatCard } from "@/components/common/StatCard";
 import { CountPill } from "@/components/common/StatusBadge";
 import { useData } from "@/context/DataContext";
-import { attentionGroups, dueLabel, serviceLabel } from "@/lib/cases";
+import { attentionGroups, dueLabel, isOverdue, serviceLabel } from "@/lib/cases";
 import { cn } from "@/lib/utils";
 
 function AttentionList({ title, rows, edge, testId }) {
@@ -20,7 +20,7 @@ function AttentionList({ title, rows, edge, testId }) {
             <div className="min-w-0 flex-1">
               <p className="font-mono font-bold text-primary">{c.code}</p>
               <p className="text-xs text-muted-foreground">{serviceLabel(c)} • Due {dueLabel(c) || "-"}{c.technicianId && ` • ${techName(c.technicianId, c.technician)}`}</p>
-              {c.overdue && <OverdueSchedule c={c} />}
+              {isOverdue(c) && <OverdueSchedule c={c} />}
               {c.attentionNote && <p className="mt-1.5 text-sm">{c.attentionNote}</p>}
               {c.overdueReason ? <p className="mt-1.5 text-sm"><b>Overdue reason:</b> {c.overdueReason}</p>
                 : c.overdueReasonRequired && <p className="mt-1.5 text-sm font-semibold text-rose-700">Overdue reason required</p>}
