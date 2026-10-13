@@ -3,14 +3,13 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { ConfirmAction } from "@/components/common/ConfirmAction";
 import { Field, NativeSelect, Options } from "@/components/common/Field";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { useData } from "@/context/DataContext";
 import { attentionLabel, caseDepartment, DELIVERY_STATUSES, deliveryStatusLabel, dueLabel, serviceLabel } from "@/lib/cases";
 import { deleteReceivedCase, fetchCaseHistory, updateReceivedCase } from "@/lib/api";
-import { dateTimeOf, localInputValue, nice } from "@/lib/format";
+import { dateTimeOf, nice } from "@/lib/format";
 import { notify, notifyError } from "@/lib/notify";
 import { DueScheduleFields, dueScheduleError, initialDue } from "./DueScheduleFields";
 
@@ -53,20 +52,18 @@ function CaseHistoryDialog({ c, onClose }) {
   );
 }
 
-/** Manager correction dialog: status, department, technician and the real operational time. */
+/** Manager correction dialog: status, department, technician and scheduled due date. */
 export function CaseControlDialog({ c, canDelete, onClose, onAttention, onOverdueReason }) {
   const { users, byId } = useData();
   const queryClient = useQueryClient();
   const techs = users.filter((u) => u.role === "technician" && u.active);
-  const at = c.status === "completed" ? c.finishedAt : c.status === "production" ? c.startedAt : c.status === "removed" ? c.queueRemovedAt || c.receivedAt : c.receivedAt;
-  const [form, setForm] = useState({ department: caseDepartment(c), status: c.status, techId: c.technicianId || "", at: localInputValue(at), overdue: Boolean(c.overdue), deliveryStatus: c.deliveryStatus || "not_delivered" });
+  const [form, setForm] = useState({ department: caseDepartment(c), status: c.status, techId: c.technicianId || "", overdue: Boolean(c.overdue), deliveryStatus: c.deliveryStatus || "not_delivered" });
   const [due, setDue] = useState(initialDue(c));
   const [saving, setSaving] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const set = (key) => (e) => setForm({ ...form, [key]: e?.target ? e.target.value : e });
 
   const save = async () => {
-    if (!form.at) return notifyError("Choose a valid date and time");
     if (["production", "completed"].includes(form.status) && !byId.users[form.techId]) return notifyError("Select a responsible technician");
     const dueError = dueScheduleError(c, due);
     if (dueError) return notifyError(dueError);
@@ -76,7 +73,6 @@ export function CaseControlDialog({ c, canDelete, onClose, onAttention, onOverdu
         department: form.department,
         status: form.status,
         technicianId: form.techId,
-        operationalAt: form.at,
         overdue: form.overdue,
         deliveryStatus: form.deliveryStatus,
         dueDate: due.dueDate || null,
@@ -141,9 +137,6 @@ export function CaseControlDialog({ c, canDelete, onClose, onAttention, onOverdu
             </NativeSelect>
           </Field>
           <DueScheduleFields value={due} onChange={setDue} className="sm:col-span-2" />
-          <Field label="Operational date and time" hint="Use the real time the case changed status. Reports use this value." className="sm:col-span-2">
-            <Input type="datetime-local" value={form.at} onChange={set("at")} data-testid="case-operational-input" />
-          </Field>
           <label className="flex items-center gap-2 text-sm font-medium sm:col-span-2">
             <Checkbox checked={form.overdue} onCheckedChange={set("overdue")} data-testid="case-overdue-checkbox" /> Mark as overdue
           </label>
