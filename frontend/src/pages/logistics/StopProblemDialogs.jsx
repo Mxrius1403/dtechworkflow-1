@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -8,6 +7,7 @@ import { useData } from "@/context/DataContext";
 import { finishRoute, reportStopProblem } from "@/lib/api";
 import { STOP_PROBLEM_REASONS, stopJobs, stopProblemValid } from "@/lib/logistics";
 import { notify, notifyError } from "@/lib/notify";
+import { useRouteCache } from "./routeCache";
 
 const NOTE_MAX = 200;
 const EMPTY = { reason: "", note: "" };
@@ -28,14 +28,16 @@ function StopProblemFields({ value, onChange, testId }) {
   );
 }
 
+// Closes as soon as the server has saved; the full reload carries on in the background.
 function useSubmit(onClose) {
-  const queryClient = useQueryClient();
+  const cache = useRouteCache();
   const [saving, setSaving] = useState(false);
-  const submit = async (request, message, failure) => {
+  const submit = async (request, message, failure, apply) => {
     setSaving(true);
     try {
-      await request();
-      await queryClient.invalidateQueries({ queryKey: ["data"] });
+      const result = await request();
+      apply(cache, result);
+      cache.refresh();
       notify(message);
       onClose();
     } catch (error) {
@@ -58,7 +60,8 @@ export function ReportProblemDialog({ route, stop, onClose }) {
   const clinic = byId.clinics[stop.clinicId]?.name || stop.clinicId;
   const save = () => {
     if (!stopProblemValid(problem)) return notifyError(problem.reason ? "Describe the problem" : "Choose a reason");
-    return submit(() => reportStopProblem(route.id, stop.id, clean(problem)), "Problem reported to the managers", "Could not report the problem");
+    return submit(() => reportStopProblem(route.id, stop.id, clean(problem)), "Problem reported to the managers", "Could not report the problem",
+      (cache, result) => cache.patchStop(stop.id, { problem: result.problem }));
   };
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -87,7 +90,8 @@ export function FinishRouteDialog({ route, openStops, onClose }) {
   const save = () => {
     if (!openStops.every((s) => stopProblemValid(problems[s.id]))) return notifyError("Give a reason for every open stop");
     const payload = Object.fromEntries(Object.entries(problems).map(([id, p]) => [id, clean(p)]));
-    return submit(() => finishRoute(route.id, payload), "Route finished. The managers have been told.", "Could not finish the route");
+    return submit(() => finishRoute(route.id, payload), "Route finished. The managers have been told.", "Could not finish the route",
+      (cache) => cache.patchRoute(route.id, { status: "completed" }));
   };
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>

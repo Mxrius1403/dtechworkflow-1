@@ -63,6 +63,7 @@ async def lifespan(_: FastAPI):
         )
     await ensure_auth_email_index()
     await ensure_inbox_indexes(db)
+    await data.ensure_driver_data_indexes()
     await receiving.expire_completed_cases()
     expiry_task = asyncio.create_task(
         receiving.completed_case_expiry_loop(),
