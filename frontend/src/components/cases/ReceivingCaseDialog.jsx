@@ -9,6 +9,7 @@ import { NOTE_LIMIT } from "@/config/constants";
 import { useData } from "@/context/DataContext";
 import { caseDepartment, DELIVERY_STATUSES } from "@/lib/cases";
 import { notifyError } from "@/lib/notify";
+import { DueScheduleFields, dueScheduleError, initialDue } from "./DueScheduleFields";
 
 const ATTENTION_LABELS = {
   active: "Active",
@@ -23,12 +24,15 @@ export function ReceivingCaseDialog({ c, onClose, onSave, onAttentionSave, onRem
   const [status, setStatus] = useState(c.status);
   const [technicianId, setTechnicianId] = useState(c.technicianId || c.finishedById || "");
   const [deliveryStatus, setDeliveryStatus] = useState(c.deliveryStatus || "not_delivered");
+  const [due, setDue] = useState(initialDue(c));
   const [attentionOpen, setAttentionOpen] = useState(false);
   const [attentionStatus, setAttentionStatus] = useState(c.attentionStatus || "active");
   const [attentionNote, setAttentionNote] = useState("");
   const [saving, setSaving] = useState(false);
 
   const saveCase = async () => {
+    const dueError = dueScheduleError(c, due);
+    if (dueError) return notifyError(dueError);
     setSaving(true);
     try {
       const saved = await onSave({
@@ -36,6 +40,8 @@ export function ReceivingCaseDialog({ c, onClose, onSave, onAttentionSave, onRem
         status,
         technicianId,
         deliveryStatus,
+        dueDate: due.dueDate || null,
+        dueTime: due.dueTime || null,
       });
       if (saved) onClose();
     } finally {
@@ -116,7 +122,7 @@ export function ReceivingCaseDialog({ c, onClose, onSave, onAttentionSave, onRem
       <DialogContent className="max-w-md" data-testid={`receiving-case-dialog-${c.code}`}>
         <DialogHeader>
           <DialogTitle className="font-mono">Manage Case {c.code}</DialogTitle>
-          <DialogDescription>Update the department, workflow status and responsible technician.</DialogDescription>
+          <DialogDescription>Update the department, workflow status, scheduled due date and responsible technician.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-4">
           <Field label="Department">
@@ -144,6 +150,7 @@ export function ReceivingCaseDialog({ c, onClose, onSave, onAttentionSave, onRem
               <Options items={technicians.map((tech) => [tech.id, `${tech.id} — ${tech.name}${tech.active ? "" : " (Inactive)"}`])} />
             </NativeSelect>
           </Field>
+          <DueScheduleFields value={due} onChange={setDue} />
           <div className="rounded-lg border bg-muted/50 p-3 text-sm">
             Attention status: <b>{ATTENTION_LABELS[c.attentionStatus || "active"]}</b>
             {c.attentionNote && <p className="mt-1 text-muted-foreground">{c.attentionNote}</p>}

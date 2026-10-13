@@ -3,11 +3,12 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ARCH_OPTIONS, SERVICE_TYPES } from "@/config/constants";
-import { localInputValue, nice, today } from "@/lib/format";
-import { nextProductionDay, productionDayInfo } from "@/lib/holidays";
+import { localInputValue, today } from "@/lib/format";
+import { nextProductionDay } from "@/lib/holidays";
 import { departmentName } from "@/lib/cases";
-import { notify, notifyError } from "@/lib/notify";
+import { notifyError } from "@/lib/notify";
 import { cn } from "@/lib/utils";
+import { productionDateOrNext } from "./DueScheduleFields";
 
 const nowTime = () => localInputValue().slice(11, 16);
 
@@ -27,13 +28,7 @@ export function ReceivingWizard({ draft, onClose, onSave }) {
     if (selected.includes(t)) return selected.filter((x) => x !== t);
     return t === "None" ? ["None"] : [...selected.filter((x) => x !== "None"), t];
   });
-  const pickDate = (value) => {
-    const info = value && productionDayInfo(value);
-    if (!info || info.available) return setDate(value);
-    const next = nextProductionDay(value);
-    setDate(next);
-    notify(info.holiday ? `${info.holiday.name} is unavailable. Moved to ${nice(next)}.` : `Weekends are unavailable. Moved to ${nice(next)}.`);
-  };
+  const pickDate = (value) => setDate(productionDateOrNext(value));
   const save = async () => {
     if (!date) return notifyError("Choose a completion due date");
     if (!time) return notifyError("Choose a completion due time");

@@ -559,6 +559,103 @@ def test_update_case_saves_operational_time_and_overdue_status(receiving_db):
     assert result["overdue"] is True
 
 
+def scheduled_case(**overrides):
+    case = {
+        "_id": "CASE-1",
+        "code": "RCV-1001",
+        "department": "prosthesis",
+        "status": "queue",
+        "scheduledDate": "2026-10-07",
+        "originalScheduledDate": "2026-10-07",
+        "currentDueDate": "2026-10-07",
+        "currentDueTime": "14:30",
+        "history": [],
+    }
+    case.update(overrides)
+    return case
+
+
+def test_update_case_reschedules_due_date_and_logs_history(receiving_db):
+    receiving_db.documents["CASE-1"] = scheduled_case()
+
+    result = asyncio.run(
+        receiving.update_received_case(
+            "CASE-1",
+            receiving.UpdateCase(
+                department="prosthesis",
+                status="queue",
+                dueDate=date(2026, 10, 9),
+                dueTime="11:15",
+            ),
+            {"_id": "MGR0001", "role": "manager", "name": "Manager"},
+        )
+    )
+
+    assert result["scheduledDate"] == "2026-10-09"
+    assert result["currentDueDate"] == "2026-10-09"
+    assert result["currentDueTime"] == "11:15"
+    assert result["originalScheduledDate"] == "2026-10-07"
+    assert (
+        "rescheduled from 2026-10-07 14:30 to 2026-10-09 11:15"
+        in result["history"][-1]["action"]
+    )
+    logged = list(receiving.db.case_history.documents.values())
+    assert (
+        "scheduled due date 2026-10-07 14:30 -> 2026-10-09 11:15"
+        in logged[-1]["action"]
+    )
+
+
+def test_update_case_keeps_unchanged_past_due_date(receiving_db):
+    receiving_db.documents["CASE-1"] = scheduled_case(
+        scheduledDate="2026-10-01",
+        currentDueDate="2026-10-01",
+    )
+
+    result = asyncio.run(
+        receiving.update_received_case(
+            "CASE-1",
+            receiving.UpdateCase(
+                department="ortho",
+                status="queue",
+                dueDate=date(2026, 10, 1),
+                dueTime="14:30",
+            ),
+            {"_id": "MGR0001", "role": "manager", "name": "Manager"},
+        )
+    )
+
+    assert result["department"] == "ortho"
+    assert result["currentDueDate"] == "2026-10-01"
+    assert "rescheduled" not in result["history"][-1]["action"]
+
+
+@pytest.mark.parametrize(
+    "due_date",
+    [date(2026, 10, 5), date(2026, 10, 10)],
+    ids=["past", "saturday"],
+)
+def test_update_case_rejects_invalid_new_due_date(receiving_db, due_date):
+    receiving_db.documents["CASE-1"] = scheduled_case()
+
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(
+            receiving.update_received_case(
+                "CASE-1",
+                receiving.UpdateCase(
+                    department="prosthesis",
+                    status="queue",
+                    dueDate=due_date,
+                    dueTime="14:30",
+                ),
+                {"_id": "MGR0001", "role": "manager", "name": "Manager"},
+            )
+        )
+
+    assert error.value.status_code == 422
+    assert receiving_db.documents["CASE-1"]["currentDueDate"] == "2026-10-07"
+
+
 def test_completing_case_records_finish_and_responsible_technician(receiving_db):
     receiving_db.documents["CASE-1"] = {
         "_id": "CASE-1",

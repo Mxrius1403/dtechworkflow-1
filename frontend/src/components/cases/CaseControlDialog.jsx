@@ -12,6 +12,7 @@ import { attentionLabel, caseDepartment, DELIVERY_STATUSES, deliveryStatusLabel,
 import { deleteReceivedCase, fetchCaseHistory, updateReceivedCase } from "@/lib/api";
 import { dateTimeOf, localInputValue, nice } from "@/lib/format";
 import { notify, notifyError } from "@/lib/notify";
+import { DueScheduleFields, dueScheduleError, initialDue } from "./DueScheduleFields";
 
 function DetailBox({ c }) {
   return (
@@ -59,6 +60,7 @@ export function CaseControlDialog({ c, canDelete, onClose, onAttention, onOverdu
   const techs = users.filter((u) => u.role === "technician" && u.active);
   const at = c.status === "completed" ? c.finishedAt : c.status === "production" ? c.startedAt : c.status === "removed" ? c.queueRemovedAt || c.receivedAt : c.receivedAt;
   const [form, setForm] = useState({ department: caseDepartment(c), status: c.status, techId: c.technicianId || "", at: localInputValue(at), overdue: Boolean(c.overdue), deliveryStatus: c.deliveryStatus || "not_delivered" });
+  const [due, setDue] = useState(initialDue(c));
   const [saving, setSaving] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const set = (key) => (e) => setForm({ ...form, [key]: e?.target ? e.target.value : e });
@@ -66,6 +68,8 @@ export function CaseControlDialog({ c, canDelete, onClose, onAttention, onOverdu
   const save = async () => {
     if (!form.at) return notifyError("Choose a valid date and time");
     if (["production", "completed"].includes(form.status) && !byId.users[form.techId]) return notifyError("Select a responsible technician");
+    const dueError = dueScheduleError(c, due);
+    if (dueError) return notifyError(dueError);
     setSaving(true);
     try {
       await updateReceivedCase(c.id, {
@@ -75,6 +79,8 @@ export function CaseControlDialog({ c, canDelete, onClose, onAttention, onOverdu
         operationalAt: form.at,
         overdue: form.overdue,
         deliveryStatus: form.deliveryStatus,
+        dueDate: due.dueDate || null,
+        dueTime: due.dueTime || null,
       });
       await queryClient.invalidateQueries({ queryKey: ["data"] });
       notify(`Case ${c.code} updated`);
@@ -134,6 +140,7 @@ export function CaseControlDialog({ c, canDelete, onClose, onAttention, onOverdu
               <Options items={techs.map((t) => [t.id, `${t.id} — ${t.name}`])} />
             </NativeSelect>
           </Field>
+          <DueScheduleFields value={due} onChange={setDue} className="sm:col-span-2" />
           <Field label="Operational date and time" hint="Use the real time the case changed status. Reports use this value." className="sm:col-span-2">
             <Input type="datetime-local" value={form.at} onChange={set("at")} data-testid="case-operational-input" />
           </Field>

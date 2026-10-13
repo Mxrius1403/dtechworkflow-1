@@ -128,6 +128,16 @@ class UpdateCase(BaseModel):
     deliveryStatus: Literal[
         "not_delivered", "out_for_delivery", "delivered"
     ] | None = None
+    dueDate: date | None = None
+    dueTime: time | None = None
+
+    @model_validator(mode="after")
+    def normalise_due_time(self):
+        if self.dueTime is not None:
+            self.dueTime = self.dueTime.replace(
+                second=0, microsecond=0, tzinfo=None
+            )
+        return self
 
 
 class UpdateAttention(BaseModel):
@@ -751,6 +761,26 @@ async def update_received_case(
             detail="Select a responsible technician for this case status.",
         )
 
+    old_due_date = existing.get("currentDueDate") or existing.get("scheduledDate") or ""
+    old_due_time = existing.get("currentDueTime") or ""
+    new_due_date = body.dueDate.isoformat() if body.dueDate else old_due_date
+    new_due_time = (
+        body.dueTime.strftime("%H:%M") if body.dueTime else old_due_time
+    )
+    rescheduled = (new_due_date, new_due_time) != (old_due_date, old_due_time)
+    if rescheduled:
+        if not new_due_date or not new_due_time:
+            raise HTTPException(
+                status_code=422,
+                detail="Choose both a due date and a due time.",
+            )
+        _validate_production_date(
+            date.fromisoformat(new_due_date),
+            time.fromisoformat(new_due_time),
+        )
+    old_due_label = f"{old_due_date} {old_due_time}".strip() or "not set"
+    new_due_label = f"{new_due_date} {new_due_time}".strip()
+
     if body.operationalAt is None:
         timestamp, local_date, local_time = _now()
     else:
@@ -778,6 +808,16 @@ async def update_received_case(
         changes["overdue"] = body.overdue
     if body.deliveryStatus is not None:
         changes["deliveryStatus"] = body.deliveryStatus
+    if rescheduled:
+        # originalScheduledDate stays untouched so overdue days still count
+        # from the first promised date.
+        changes.update(
+            scheduledDate=new_due_date,
+            currentDueDate=new_due_date,
+            currentDueTime=new_due_time,
+        )
+        if not existing.get("originalScheduledDate") and old_due_date:
+            changes["originalScheduledDate"] = old_due_date
     if body.operationalAt is not None:
         if body.status == "queue":
             changes.update(
@@ -856,6 +896,10 @@ async def update_received_case(
                 f"{label} {str(old).replace('_', ' ')} -> "
                 f"{str(new).replace('_', ' ')}"
             )
+    if rescheduled:
+        differences.append(
+            f"scheduled due date {old_due_label} -> {new_due_label}"
+        )
     if body.operationalAt is not None:
         differences.append(f"operational time set to {timestamp}")
     case = await db["cases"].find_one_and_update(
@@ -869,6 +913,12 @@ async def update_received_case(
                         f"Receiving updated: {body.department}, "
                         f"{body.status.replace('_', ' ')}; technician "
                         f"{changes['technician'] or 'unassigned'}"
+                        + (
+                            f"; rescheduled from {old_due_label} "
+                            f"to {new_due_label}"
+                            if rescheduled
+                            else ""
+                        )
                     ),
                     "by": display_name,
                 }
