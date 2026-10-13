@@ -53,6 +53,7 @@ export function toothOrderPdfHtml(o) {
 
 export function materialOrderPdfHtml(o) {
   const department = o.department ? `<br><b>Department:</b> ${esc(departmentName(o.department))}` : "";
-  const meta = `<div class="box"><b>Requested by:</b> ${esc(o.requestedBy)} (${esc(o.requestedById)})${department}<br><b>Date:</b> ${esc(o.date)} ${esc(o.time)}<br><b>Total quantity:</b> ${Number(o.totalItems || 0)}${o.notes ? `<br><b>Notes:</b> ${esc(o.notes)}` : ""}</div>`;
-  return page(o.id, "TDS Material Order", esc(o.id), meta + table(["Code", "Description", "Brand", "Pack", "Qty"], (o.items || []).map((i) => `<tr><td>${esc(i.code)}</td><td>${esc(i.description)}</td><td>${esc(i.brand)}</td><td>${esc(i.pack)}</td><td>${Number(i.qty || 0)}</td></tr>`)));
+  const meta = `<div class="box"><b>Requested by:</b> ${esc(o.requestedBy)} (${esc(o.requestedById)})${department}<br><b>Date:</b> ${esc(o.date)} ${esc(o.time)}<br><b>Total quantity:</b> ${Number(o.totalItems || 0)}</div>`;
+  const notes = o.notes ? `<div class="box" style="border-left:5px solid #0097a7"><h2 style="margin:0 0 8px;font-size:16px">Notes</h2><div style="font-size:15px;line-height:1.5;white-space:pre-wrap">${esc(o.notes)}</div></div>` : "";
+  return page(o.id, "TDS Material Order", esc(o.id), meta + table(["Code", "Description", "Brand", "Pack", "Qty"], (o.items || []).map((i) => `<tr><td>${esc(i.code)}</td><td>${esc(i.description)}</td><td>${esc(i.brand)}</td><td>${esc(i.pack)}</td><td>${Number(i.qty || 0)}</td></tr>`)) + notes);
 }
