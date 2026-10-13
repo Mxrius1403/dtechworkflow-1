@@ -9,6 +9,7 @@ import { DataProvider } from "@/context/DataContext";
 import { SessionProvider, useSession } from "@/context/SessionContext";
 import AttentionPage from "@/pages/AttentionPage";
 import CaseSearchPage from "@/pages/CaseSearchPage";
+import ChangePasswordPage from "@/pages/ChangePasswordPage";
 import ClinicsPage from "@/pages/clinics/ClinicsPage";
 import CompletionReviewPage from "@/pages/CompletionReviewPage";
 import DashboardPage from "@/pages/dashboard/DashboardPage";
@@ -73,6 +74,7 @@ function ProtectedDataLayout() {
   if (loading) return <FullScreenMessage title="Dental Tech Daily" text="Checking your sign-in…" loading />;
   if (error) return <FullScreenMessage title="Sign-in unavailable" text="The authentication service could not be reached. Check the connection and retry." action={{ label: "Retry", onClick: () => window.location.reload() }} />;
   if (!user) return <Navigate to="/" replace />;
+  if (user.mustChangePassword) return <ChangePasswordPage />;
   return <DataProvider><Outlet /></DataProvider>;
 }
 

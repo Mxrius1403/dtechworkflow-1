@@ -25,6 +25,11 @@ _DUMMY_PASSWORD_HASH = bcrypt.hashpw(b"not-a-real-password", bcrypt.gensalt(roun
 _LOGIN_FAILURE_WINDOW_SECONDS = 15 * 60
 _MAX_LOGIN_FAILURES = 5
 _login_failures: dict[str, list[float]] = {}
+# Accounts whose password was set by an owner or manager may only reach these
+# endpoints until they have chosen their own password.
+PASSWORD_CHANGE_ALLOWED_PATHS = frozenset(
+    {"/api/auth/me", "/api/auth/me/password", "/api/auth/refresh"}
+)
 
 
 def validate_security_config() -> None:
@@ -111,6 +116,7 @@ def public_account(account: dict[str, Any]) -> dict[str, Any]:
         "isOwner": account["role"] == "owner",
         "isManager": account["role"] in ("owner", "manager"),
         "isDriver": account["role"] == "driver",
+        "mustChangePassword": bool(account.get("mustChangePassword")),
     }
 
 
@@ -125,6 +131,14 @@ async def current_account(request: Request) -> dict[str, Any]:
     if not account or account.get("authVersion", 0) != claims["ver"]:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required."
+        )
+    if (
+        account.get("mustChangePassword")
+        and request.url.path not in PASSWORD_CHANGE_ALLOWED_PATHS
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Change your password to continue.",
         )
     return account
 

@@ -942,6 +942,7 @@ async def create_driver(
             "role": "driver",
             "active": body.active,
             "authVersion": 0,
+            "mustChangePassword": True,
             "createdAt": now_iso(),
             "createdBy": str(creator["_id"]),
         }
@@ -1051,6 +1052,7 @@ async def update_driver(
             changes["email"] = email
         if body.password:
             changes["passwordHash"] = hash_password(body.password)
+            changes["mustChangePassword"] = True
         update = {"$set": changes}
         if body.password or not body.active or (email and email != account.get("email")):
             update["$inc"] = {"authVersion": 1}
@@ -1071,6 +1073,7 @@ async def update_driver(
                     "role": "driver",
                     "active": body.active,
                     "authVersion": 0,
+                    "mustChangePassword": True,
                     "createdAt": now_iso(),
                 }
             )

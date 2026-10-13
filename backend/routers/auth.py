@@ -85,6 +85,12 @@ class AccountProfileUpdate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
 
 
+class PasswordChange(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    password: str = Field(min_length=12, max_length=72)
+
+
 class OwnershipTransfer(BaseModel):
     manager_id: str = Field(validation_alias="managerId", min_length=1, max_length=100)
 
@@ -288,6 +294,52 @@ async def update_my_profile(
     return {"user": public_account(updated_account)}
 
 
+@router.post(
+    "/me/password",
+    dependencies=[Depends(require_allowed_origin)],
+)
+async def change_my_password(
+    body: PasswordChange,
+    response: Response,
+    account: dict = Depends(current_account),
+) -> dict:
+    if len(body.password.encode("utf-8")) > 72:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Password must be no longer than 72 UTF-8 bytes.",
+        )
+    if verify_password(body.password, account.get("passwordHash", "")):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Choose a password that is different from your current one.",
+        )
+
+    account_id = str(account["_id"])
+    result = await db[AUTH_USERS].update_one(
+        {
+            "_id": account_id,
+            "active": True,
+            "deleted": {"$ne": True},
+            "authVersion": account.get("authVersion", 0),
+        },
+        {
+            "$set": {"passwordHash": hash_password(body.password)},
+            "$unset": {"mustChangePassword": ""},
+            "$inc": {"authVersion": 1},
+        },
+    )
+    if result.matched_count != 1:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Your account has changed. Sign in again and retry.",
+        )
+
+    updated_account = await db[AUTH_USERS].find_one({"_id": account_id})
+    token = create_session_token(account_id, updated_account.get("authVersion", 0))
+    set_session_cookie(response, token)
+    return {"user": public_account(updated_account)}
+
+
 @router.post("/refresh", dependencies=[Depends(require_allowed_origin)])
 async def refresh_session(
     response: Response, account: dict = Depends(current_account)
@@ -322,6 +374,7 @@ async def create_technician(
         "role": "technician",
         "active": True,
         "authVersion": 0,
+        "mustChangePassword": True,
         "createdAt": datetime.now(timezone.utc).isoformat(),
         "createdBy": str(creator["_id"]),
     }
@@ -401,6 +454,7 @@ async def update_technician_profile(
                 detail="Password must be no longer than 72 UTF-8 bytes.",
             )
         changes["passwordHash"] = hash_password(body.password)
+        changes["mustChangePassword"] = True
 
     try:
         result = await db[AUTH_USERS].update_one(
@@ -507,6 +561,7 @@ async def create_manager(
         "department": None,
         "active": True,
         "authVersion": 0,
+        "mustChangePassword": True,
         "createdAt": datetime.now(timezone.utc).isoformat(),
         "createdBy": str(owner["_id"]),
     }
@@ -578,6 +633,7 @@ async def update_manager_profile(
                 detail="Password must be no longer than 72 UTF-8 bytes.",
             )
         changes["passwordHash"] = hash_password(body.password)
+        changes["mustChangePassword"] = True
 
     try:
         result = await db[AUTH_USERS].update_one(
