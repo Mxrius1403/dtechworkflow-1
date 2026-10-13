@@ -90,10 +90,22 @@ async def read_settings() -> dict:
     return BaseDocument.from_mongo(doc).to_api() if doc else {}
 
 
-async def read_suppliers() -> list[dict]:
+async def read_suppliers(include_contact: bool = False) -> list[dict]:
     docs = await db["suppliers"].find().to_list(10_000)
     return [
-        {"id": str(doc["_id"]), "name": doc["name"]}
+        {
+            "id": str(doc["_id"]),
+            "name": doc["name"],
+            **(
+                {
+                    key: doc[key]
+                    for key in ("email", "address")
+                    if doc.get(key)
+                }
+                if include_contact
+                else {}
+            ),
+        }
         for doc in docs
         if doc.get("name")
     ]
@@ -152,7 +164,7 @@ async def all_data(account: dict = Depends(current_account)) -> dict:
     rows = await asyncio.gather(
         *(
             (
-                read_suppliers()
+                read_suppliers(include_contact=can_read_reports)
                 if api_name == "suppliers"
                 else read_collection(
                     collection, include_login_email=can_read_reports
@@ -182,7 +194,9 @@ async def one_collection(name: str, account: dict = Depends(current_account)):
     if account.get("role") == "driver":
         return (await all_data(account))[name]
     if name == "suppliers":
-        return await read_suppliers()
+        return await read_suppliers(
+            include_contact=account.get("role") in MANAGER_ROLES
+        )
     rows = await read_collection(
         PUBLIC_COLLECTIONS[name],
         include_login_email=account.get("role") in MANAGER_ROLES,

@@ -44,30 +44,81 @@ def test_supplier_name_is_required_and_trimmed():
     )
 
 
+def test_supplier_contact_fields_are_optional_and_normalized():
+    supplier = suppliers.SupplierCreate.model_validate({
+        "name": "Supplier",
+        "email": "  contact@example.com ",
+        "address": "  1 Main Street  ",
+    })
+    assert supplier.email == "contact@example.com"
+    assert supplier.address == "1 Main Street"
+
+    empty_contact = suppliers.SupplierCreate.model_validate({
+        "name": "Supplier",
+        "email": " ",
+        "address": " ",
+    })
+    assert empty_contact.email is None
+    assert empty_contact.address is None
+
+    with pytest.raises(ValidationError):
+        suppliers.SupplierCreate.model_validate({
+            "name": "Supplier",
+            "email": "not-an-email",
+        })
+
+
 def test_create_and_delete_supplier(monkeypatch):
     database = FakeDatabase()
     monkeypatch.setattr(suppliers, "db", database)
 
     created = asyncio.run(
         suppliers.create_supplier(
-            suppliers.SupplierCreate.model_validate({"name": "Supplier Ltd"})
+            suppliers.SupplierCreate.model_validate({
+                "name": "Supplier Ltd",
+                "email": "contact@example.com",
+                "address": "1 Main Street",
+            })
         )
     )
     assert created["name"] == "Supplier Ltd"
-    assert set(created) == {"id", "name"}
+    assert set(created) == {"id", "name", "email", "address"}
     assert database.collection.documents[created["id"]] == {
         "_id": created["id"],
         "name": "Supplier Ltd",
+        "email": "contact@example.com",
+        "address": "1 Main Street",
     }
 
     updated = asyncio.run(
         suppliers.update_supplier(
             created["id"],
-            suppliers.SupplierCreate.model_validate({"name": "Updated Supplier"}),
+            suppliers.SupplierCreate.model_validate({
+                "name": "Updated Supplier",
+                "email": "updated@example.com",
+                "address": "2 Main Street",
+            }),
         )
     )
-    assert updated == {"id": created["id"], "name": "Updated Supplier"}
+    assert updated == {
+        "id": created["id"],
+        "name": "Updated Supplier",
+        "email": "updated@example.com",
+        "address": "2 Main Street",
+    }
     assert database.collection.documents[created["id"]]["name"] == "Updated Supplier"
+    assert database.collection.documents[created["id"]]["email"] == "updated@example.com"
+    assert database.collection.documents[created["id"]]["address"] == "2 Main Street"
+
+    renamed = asyncio.run(
+        suppliers.update_supplier(
+            created["id"],
+            suppliers.SupplierCreate.model_validate({"name": "Renamed Supplier"}),
+        )
+    )
+    assert renamed == {"id": created["id"], "name": "Renamed Supplier"}
+    assert database.collection.documents[created["id"]]["email"] == "updated@example.com"
+    assert database.collection.documents[created["id"]]["address"] == "2 Main Street"
 
     deleted = asyncio.run(suppliers.delete_supplier(created["id"]))
     assert deleted == {"id": created["id"], "deleted": True}

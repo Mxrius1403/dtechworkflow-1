@@ -16,13 +16,20 @@ import { notify, notifyError } from "@/lib/notify";
 function SupplierDialog({ supplier, onClose }) {
   const queryClient = useQueryClient();
   const [name, setName] = useState(supplier?.name || "");
+  const [email, setEmail] = useState(supplier?.email || "");
+  const [address, setAddress] = useState(supplier?.address || "");
   const [saving, setSaving] = useState(false);
   const save = async () => {
     if (!name.trim()) return notifyError("Enter a supplier name");
     setSaving(true);
     try {
-      if (supplier) await updateSupplier(supplier.id, { name: name.trim() });
-      else await createSupplier({ name: name.trim() });
+      const details = {
+        name: name.trim(),
+        email: email.trim() || null,
+        address: address.trim() || null,
+      };
+      if (supplier) await updateSupplier(supplier.id, details);
+      else await createSupplier(details);
       await queryClient.invalidateQueries({ queryKey: ["data"] });
       notify(supplier ? "Supplier updated" : "Supplier added");
       onClose();
@@ -35,10 +42,16 @@ function SupplierDialog({ supplier, onClose }) {
   };
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md" data-testid="supplier-dialog">
+      <DialogContent className="max-w-lg" data-testid="supplier-dialog">
         <DialogHeader><DialogTitle>{supplier ? "Edit Supplier" : "Add Supplier"}</DialogTitle></DialogHeader>
         <Field label="Name">
           <Input autoFocus value={name} onChange={(event) => setName(event.target.value)} data-testid="supplier-name-input" />
+        </Field>
+        <Field label="Email">
+          <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} data-testid="supplier-email-input" />
+        </Field>
+        <Field label="Address">
+          <Input value={address} onChange={(event) => setAddress(event.target.value)} data-testid="supplier-address-input" />
         </Field>
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={onClose} disabled={saving} data-testid="supplier-cancel">Cancel</Button>
@@ -75,7 +88,7 @@ export default function SuppliersPage() {
       <BackLink to="/materials">Material Management</BackLink>
       <Panel
         title="Suppliers"
-        description="Manage the supplier names used by the lab."
+        description="Manage supplier names and contact details."
         actions={<Button onClick={() => setAdding(true)} data-testid="supplier-add-button"><Plus /> Add Supplier</Button>}
       >
         <DataTable
@@ -85,6 +98,8 @@ export default function SuppliersPage() {
           empty="No suppliers yet."
           columns={[
             { key: "name", header: "Name" },
+            { key: "email", header: "Email", render: (supplier) => supplier.email || "—" },
+            { key: "address", header: "Address", render: (supplier) => supplier.address || "—" },
             {
               key: "edit",
               header: "",

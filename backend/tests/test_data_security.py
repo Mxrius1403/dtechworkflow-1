@@ -13,7 +13,7 @@ def test_all_data_omits_reports_for_non_managers(monkeypatch, role):
     async def read_collection(collection, include_login_email=False):
         return [{"collection": collection}] if collection == "saved_reports" else []
 
-    async def read_suppliers():
+    async def read_suppliers(include_contact=False):
         return []
 
     async def read_settings():
@@ -31,14 +31,22 @@ def test_all_data_omits_reports_for_non_managers(monkeypatch, role):
 
 @pytest.mark.parametrize("role", ["owner", "manager"])
 def test_all_data_includes_reports_for_managers(monkeypatch, role):
+    supplier_rows = [{
+        "id": "supplier-1",
+        "name": "Supplier",
+        "email": "contact@example.com",
+        "address": "1 Main Street",
+    }]
+
     async def no_op():
         return None
 
     async def read_collection(collection, include_login_email=False):
         return [{"collection": collection}] if collection == "saved_reports" else []
 
-    async def read_suppliers():
-        return []
+    async def read_suppliers(include_contact=False):
+        assert include_contact
+        return supplier_rows
 
     async def read_settings():
         return {}
@@ -51,6 +59,7 @@ def test_all_data_includes_reports_for_managers(monkeypatch, role):
     payload = asyncio.run(data.all_data({"role": role, "_id": "account-1"}))
 
     assert payload["reports"] == [{"collection": "saved_reports"}]
+    assert payload["suppliers"] == supplier_rows
 
 
 def test_all_data_limits_technicians_to_allowed_collections(monkeypatch):
@@ -63,7 +72,7 @@ def test_all_data_limits_technicians_to_allowed_collections(monkeypatch):
         read_collections.append(collection)
         return [{"collection": collection}]
 
-    async def read_suppliers():
+    async def read_suppliers(include_contact=False):
         return [{"id": "supplier-1", "name": "Supplier"}]
 
     async def read_settings():
@@ -91,7 +100,8 @@ def test_all_data_limits_technicians_to_allowed_collections(monkeypatch):
 
 
 def test_one_collection_returns_only_supplier_names_to_technicians(monkeypatch):
-    async def read_suppliers():
+    async def read_suppliers(include_contact=False):
+        assert not include_contact
         return [{"id": "supplier-1", "name": "Supplier"}]
 
     async def read_collection(*args, **kwargs):
@@ -107,6 +117,32 @@ def test_one_collection_returns_only_supplier_names_to_technicians(monkeypatch):
     )
 
     assert result == [{"id": "supplier-1", "name": "Supplier"}]
+
+
+def test_one_collection_returns_supplier_contact_to_managers(monkeypatch):
+    async def read_suppliers(include_contact=False):
+        assert include_contact
+        return [{
+            "id": "supplier-1",
+            "name": "Supplier",
+            "email": "contact@example.com",
+            "address": "1 Main Street",
+        }]
+
+    monkeypatch.setattr(data, "read_suppliers", read_suppliers)
+
+    result = asyncio.run(
+        data.one_collection(
+            "suppliers", {"role": "manager", "_id": "manager-1"}
+        )
+    )
+
+    assert result == [{
+        "id": "supplier-1",
+        "name": "Supplier",
+        "email": "contact@example.com",
+        "address": "1 Main Street",
+    }]
 
 
 def test_driver_payload_limits_clinics_to_assigned_routes():
