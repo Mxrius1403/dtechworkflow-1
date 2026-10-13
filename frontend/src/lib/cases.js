@@ -42,8 +42,8 @@ export const deliveryStatusLabel = (c) =>
 export const attentionLabel = (c) =>
   c.attentionStatus === "on_hold" ? "On Hold" : c.attentionStatus === "need_information" ? "Need Information" : "";
 
-export const caseWasOverdue = (c) =>
-  Boolean(c?.overdue || c?.wasOverdue || (c?.history || []).some((h) => String(h?.action || "").toLowerCase().includes("marked overdue")));
+/** markedOverdue: set by the server when the case history has a legacy "marked overdue" entry. */
+export const caseWasOverdue = (c) => Boolean(c?.overdue || c?.wasOverdue || c?.markedOverdue);
 
 export const liveCases = (cases) => cases.filter((c) => !c.deleted);
 const isOpen = (c) => !c.deleted && c.status !== "completed" && c.status !== "removed";
@@ -103,17 +103,6 @@ export const normaliseCaseCode = (value) =>
 const sortStamp = (c) => String(c.updatedAt || c.startedAt || c.receivedAt || c.finishedAt || c.createdAt || "");
 const latestFirst = (rows) => [...rows].sort((a, b) => sortStamp(b).localeCompare(sortStamp(a)));
 const matchingCode = (cases, code) => cases.filter((c) => !c.deleted && normaliseCaseCode(c.code) === code);
-
-export function caseSearchRows(cases, query = "") {
-  const search = query.trim().toLowerCase();
-  return latestFirst(cases.filter((c) => {
-    if (!search) return true;
-    return [
-      c.code, c.status, c.status === "removed" ? "Removed from Queue" : "", c.department, c.technician, c.finishedBy,
-      c.technicianId, c.finishedById,
-    ].some((value) => String(value || "").toLowerCase().includes(search));
-  }));
-}
 
 export function chooseScanCase(cases, techId) {
   const rows = latestFirst(cases);

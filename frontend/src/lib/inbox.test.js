@@ -16,6 +16,10 @@ test.each([
   expect(inboxDestination(message, byId)).toEqual(expected);
 });
 
+test("opens cases that are not in the active data, e.g. removed from the queue", () => {
+  expect(inboxDestination({ target: "case", targetId: "C9" }, byId)).toEqual({ caseId: "C9" });
+});
+
 test("returns null when the entry was deleted or the target is unknown", () => {
   expect(inboxDestination({ target: "toothOrder", targetId: "TO9" }, byId)).toBeNull();
   expect(inboxDestination({ target: "unknown", targetId: "X" }, byId)).toBeNull();

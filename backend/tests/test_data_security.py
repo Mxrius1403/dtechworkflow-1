@@ -5,6 +5,10 @@ from fastapi import HTTPException
 from routers import data
 
 
+async def read_active_cases(_database):
+    return [{"id": "case-1", "status": "queue"}]
+
+
 @pytest.mark.parametrize("role", ["technician", "driver"])
 def test_all_data_omits_reports_for_non_managers(monkeypatch, role):
     async def no_op():
@@ -21,6 +25,7 @@ def test_all_data_omits_reports_for_non_managers(monkeypatch, role):
 
     monkeypatch.setattr(data, "archive_stale_routes", no_op)
     monkeypatch.setattr(data, "read_collection", read_collection)
+    monkeypatch.setattr(data, "read_active_cases", read_active_cases)
     monkeypatch.setattr(data, "read_suppliers", read_suppliers)
     monkeypatch.setattr(data, "read_settings", read_settings)
 
@@ -53,6 +58,7 @@ def test_all_data_includes_reports_for_managers(monkeypatch, role):
 
     monkeypatch.setattr(data, "archive_stale_routes", no_op)
     monkeypatch.setattr(data, "read_collection", read_collection)
+    monkeypatch.setattr(data, "read_active_cases", read_active_cases)
     monkeypatch.setattr(data, "read_suppliers", read_suppliers)
     monkeypatch.setattr(data, "read_settings", read_settings)
 
@@ -80,6 +86,7 @@ def test_all_data_limits_technicians_to_allowed_collections(monkeypatch):
 
     monkeypatch.setattr(data, "archive_stale_routes", no_op)
     monkeypatch.setattr(data, "read_collection", read_collection)
+    monkeypatch.setattr(data, "read_active_cases", read_active_cases)
     monkeypatch.setattr(data, "read_suppliers", read_suppliers)
     monkeypatch.setattr(data, "read_settings", read_settings)
 
@@ -87,11 +94,11 @@ def test_all_data_limits_technicians_to_allowed_collections(monkeypatch):
 
     assert set(read_collections) == {
         "users",
-        "cases",
         "tooth_orders",
         "material_orders",
         "notifications",
     }
+    assert payload["cases"] == [{"id": "case-1", "status": "queue"}]
     assert payload["users"] == [{"collection": "users"}]
     assert payload["suppliers"] == [{"id": "supplier-1", "name": "Supplier"}]
     assert "clinics" not in payload
@@ -226,6 +233,19 @@ def test_driver_collection_endpoint_returns_scoped_clinics(monkeypatch):
     )
 
     assert result == [{"id": "clinic-1"}]
+
+
+@pytest.mark.parametrize("role", ["owner", "manager", "technician"])
+def test_cases_collection_returns_only_active_cases(monkeypatch, role):
+    async def read_collection(*args, **kwargs):
+        pytest.fail("Cases must not be read as a whole collection.")
+
+    monkeypatch.setattr(data, "read_collection", read_collection)
+    monkeypatch.setattr(data, "read_active_cases", read_active_cases)
+
+    result = asyncio.run(data.one_collection("cases", {"role": role, "_id": "account-1"}))
+
+    assert result == [{"id": "case-1", "status": "queue"}]
 
 
 @pytest.mark.parametrize(

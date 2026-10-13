@@ -1,6 +1,7 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
 
+from core.cases import read_active_cases
 from core.collections import AUTH_USERS, PUBLIC_COLLECTIONS, SETTINGS
 from core.database import db
 from core.models import BaseDocument
@@ -165,9 +166,18 @@ async def archive_stale_routes() -> None:
     )
 
 
+def read_api_collection(api_name: str, collection: str, can_read_reports: bool):
+    if api_name == "suppliers":
+        return read_suppliers(include_contact=can_read_reports)
+    if api_name == "cases":
+        return read_active_cases(db)
+    return read_collection(collection, include_login_email=can_read_reports)
+
+
 @router.get("")
 async def all_data(account: dict = Depends(current_account)) -> dict:
-    """Everything the authenticated app screens need."""
+    """Everything the authenticated app screens need. Cases are limited to the
+    active working set; older ones are read through /api/cases."""
     allowed = allowed_collections(account)
     await archive_stale_routes()
     if account.get("role") == "driver":
@@ -184,13 +194,7 @@ async def all_data(account: dict = Depends(current_account)) -> dict:
     can_read_reports = account.get("role") in MANAGER_ROLES
     rows = await asyncio.gather(
         *(
-            (
-                read_suppliers(include_contact=can_read_reports)
-                if api_name == "suppliers"
-                else read_collection(
-                    collection, include_login_email=can_read_reports
-                )
-            )
+            read_api_collection(api_name, collection, can_read_reports)
             for api_name, collection in names
         )
     )
@@ -212,13 +216,8 @@ async def one_collection(name: str, account: dict = Depends(current_account)):
         raise HTTPException(status_code=403, detail="Insufficient permissions.")
     if account.get("role") == "driver":
         return (await all_data(account))[name]
-    if name == "suppliers":
-        return await read_suppliers(
-            include_contact=account.get("role") in MANAGER_ROLES
-        )
-    rows = await read_collection(
-        PUBLIC_COLLECTIONS[name],
-        include_login_email=account.get("role") in MANAGER_ROLES,
+    rows = await read_api_collection(
+        name, PUBLIC_COLLECTIONS[name], account.get("role") in MANAGER_ROLES
     )
     if name == "materialOrders":
         return visible_material_orders(rows, account)

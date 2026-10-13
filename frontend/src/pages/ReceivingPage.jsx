@@ -10,8 +10,8 @@ import { Panel } from "@/components/common/Panel";
 import { ScanBar } from "@/components/common/ScanBar";
 import { DEPARTMENT_STYLE } from "@/config/statuses";
 import { useData } from "@/context/DataContext";
-import { DEPARTMENTS, caseDepartment, casePlace, departmentName, dueSortKey, receivingOutcome } from "@/lib/cases";
-import { createReceivedCase, removeReceivedCase, restoreReceivedCase, updateCaseAttention, updateReceivedCase } from "@/lib/api";
+import { DEPARTMENTS, caseDepartment, casePlace, departmentName, dueSortKey, normaliseCaseCode, receivingOutcome } from "@/lib/cases";
+import { createReceivedCase, fetchCasesByCode, removeReceivedCase, restoreReceivedCase, updateCaseAttention, updateReceivedCase } from "@/lib/api";
 import { nice } from "@/lib/format";
 import { notify, notifyError } from "@/lib/notify";
 import { cn } from "@/lib/utils";
@@ -61,8 +61,16 @@ export default function ReceivingPage() {
     }
   };
 
-  const receive = (department) => (value) => {
-    const result = receivingOutcome(cases, value);
+  const receive = (department) => async (value) => {
+    // Removed cases are not in the active data, so the scanned number is looked up on the server.
+    const code = normaliseCaseCode(value);
+    let matches = [];
+    try {
+      if (code) matches = await fetchCasesByCode(code);
+    } catch {
+      return notifyError("Could not check the case number. Try again.");
+    }
+    const result = receivingOutcome(matches, value);
     if (result.kind === "error") return notifyError(result.message);
     if (result.kind === "new") return setDraft({ code: result.code, department, reentry: false });
     setPrompt({ ...result, department });

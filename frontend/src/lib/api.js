@@ -30,6 +30,10 @@ export const deleteManager = (managerId) => api.delete(`/auth/managers/${encodeU
 export const transferOwnership = (managerId) => api.post("/auth/ownership/transfer", { managerId }).then((r) => r.data.user);
 export const fetchAllData = () => api.get("/data").then((r) => r.data);
 export const fetchCases = () => api.get("/data/cases").then((r) => r.data);
+export const fetchCasePage = (params) => api.get("/cases", { params }).then((r) => r.data);
+export const fetchCasesByCode = (code) => fetchCasePage({ code, pageSize: 100 }).then((page) => page.cases);
+export const fetchCase = (caseId) => api.get(`/cases/${encodeURIComponent(caseId)}`).then((r) => r.data);
+export const fetchFinishedCases = (from, to) => api.get("/cases/finished", { params: { from, to } }).then((r) => r.data.cases);
 export const fetchCatalog = () => api.get("/catalog").then((r) => r.data);
 export const fetchClinicContact = (clinicId) => api.get(`/clinics/${clinicId}/contact`).then((r) => r.data);
 export const createReceivedCase = (receivedCase) => api.post("/receiving/cases", receivedCase).then((r) => r.data);

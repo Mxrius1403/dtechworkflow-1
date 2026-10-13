@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import RequestResponseEndpoint
 from starlette.middleware.cors import CORSMiddleware
 
+from core.cases import ensure_case_indexes
 from core.collections import AUTH_USERS
 from core.config import CORS_ORIGINS, HOST, PORT
 from core.database import client, db
@@ -14,6 +15,7 @@ from core.inbox import ensure_inbox_indexes
 from core.security import has_allowed_request_origin, validate_security_config
 from routers import (
     auth,
+    cases,
     catalog,
     data,
     inbox,
@@ -63,6 +65,7 @@ async def lifespan(_: FastAPI):
         )
     await ensure_auth_email_index()
     await ensure_inbox_indexes(db)
+    await ensure_case_indexes(db)
     await data.ensure_driver_data_indexes()
     await receiving.expire_completed_cases()
     expiry_task = asyncio.create_task(
@@ -101,6 +104,7 @@ async def protect_state_changing_requests(
 
 for module in (
     auth,
+    cases,
     data,
     catalog,
     inbox,

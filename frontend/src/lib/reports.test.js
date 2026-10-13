@@ -1,4 +1,4 @@
-import { buildReport } from "./reports";
+import { buildReport, reportWindow } from "./reports";
 
 const period = { from: "2026-10-05", to: "2026-10-11" };
 
@@ -86,4 +86,9 @@ test("builds a report from confirmed production in the selected period", () => {
     overdue: 0,
     cases: [],
   });
+});
+
+test("the report window adds the previous period of the same length", () => {
+  expect(reportWindow("2026-10-05", "2026-10-11")).toEqual({ dayCount: 7, prevFrom: "2026-09-28", prevTo: "2026-10-04" });
+  expect(reportWindow("2026-10-05", "2026-10-05")).toEqual({ dayCount: 1, prevFrom: "2026-10-04", prevTo: "2026-10-04" });
 });

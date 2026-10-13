@@ -6,16 +6,18 @@ import { Input } from "@/components/ui/input";
 import { Muted } from "@/components/common/Bits";
 import { Field } from "@/components/common/Field";
 import { Panel } from "@/components/common/Panel";
-import { fetchAllData, saveReport } from "@/lib/api";
+import { useData } from "@/context/DataContext";
+import { fetchFinishedCases, saveReport } from "@/lib/api";
 import { endOfWeekKey, monthRange, startOfWeekKey } from "@/lib/format";
 import { notify, notifyError } from "@/lib/notify";
-import { buildReport } from "@/lib/reports";
+import { buildReport, reportWindow } from "@/lib/reports";
 import { ReportPreview } from "./ReportPreview";
 import { SavedReports } from "./SavedReports";
 
 const thisWeek = () => ({ from: startOfWeekKey(), to: endOfWeekKey() });
 
 export default function ReportsPage() {
+  const { users } = useData();
   const queryClient = useQueryClient();
   const [range, setRange] = useState(thisWeek);
   const [preview, setPreview] = useState(null);
@@ -26,12 +28,10 @@ export default function ReportsPage() {
     if (!range.from || !range.to || range.from > range.to) return notifyError("Choose a valid period");
     setGenerating(true);
     try {
-      const freshData = await queryClient.fetchQuery({
-        queryKey: ["data"],
-        queryFn: fetchAllData,
-        staleTime: 0,
-      });
-      setPreview(buildReport(freshData, range.from, range.to));
+      // The report compares with the previous period of the same length, so load both.
+      const { prevFrom } = reportWindow(range.from, range.to);
+      const cases = await fetchFinishedCases(prevFrom, range.to);
+      setPreview(buildReport({ cases, users }, range.from, range.to));
     } catch (error) {
       const detail = error.response?.data?.detail;
       notifyError(typeof detail === "string" ? detail : "Could not refresh report data");
