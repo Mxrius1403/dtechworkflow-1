@@ -8,6 +8,7 @@ test("technicians open Receiving and Case Search from the sidebar", () => {
   }
   expect(canOpen(pageForPath("/case-management"), technician)).toBe(false);
   expect(navItemsFor(technician).some(({ path }) => path === "/case-management")).toBe(false);
+  expect(canOpen(pageForPath("/service-types"), technician)).toBe(false);
 });
 
 test.each([
@@ -24,6 +25,7 @@ test.each([
 
 const managerPages = [
   "/case-management",
+  "/service-types",
   "/drivers",
   "/clinics",
   "/suppliers",
@@ -61,7 +63,7 @@ test.each([
   for (const path of managerNavPages) {
     expect(navItemsFor(user).some(({ path: navPath }) => navPath === path)).toBe(true);
   }
-  for (const path of ["/routes", "/logistics", "/drivers", "/clinics", "/receiving", "/case-search"]) {
+  for (const path of ["/routes", "/logistics", "/drivers", "/clinics", "/receiving", "/case-search", "/service-types"]) {
     expect(navItemsFor(user).some(({ path: navPath }) => navPath === path)).toBe(false);
   }
   expect(navItemsFor(user).some(({ path }) => path === "/suppliers")).toBe(false);
@@ -88,6 +90,7 @@ test("technicians cannot see Create Route or Routes", () => {
 test.each([
   ["/receiving", "/case-management"],
   ["/case-search", "/case-management"],
+  ["/service-types", "/case-management"],
   ["/routes", "/delivery-management"],
   ["/logistics", "/delivery-management"],
   ["/drivers", "/delivery-management"],

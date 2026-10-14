@@ -25,6 +25,7 @@ import OwnerControlPage from "@/pages/OwnerControlPage";
 import ProductionCalendarPage from "@/pages/ProductionCalendarPage";
 import ReceivingPage from "@/pages/ReceivingPage";
 import ReportsPage from "@/pages/reports/ReportsPage";
+import ServiceTypesPage from "@/pages/ServiceTypesPage";
 import SignInPage from "@/pages/SignInPage";
 import SuppliersPage from "@/pages/suppliers/SuppliersPage";
 import TechniciansPage from "@/pages/technicians/TechniciansPage";
@@ -46,6 +47,7 @@ const SCREENS = [
   ["/clinics", ClinicsPage],
   ["/suppliers", SuppliersPage],
   ["/case-search", CaseSearchPage],
+  ["/service-types", ServiceTypesPage],
   ["/tooth-management", ToothManagementPage],
   ["/tooth-order", ToothOrderPage],
   ["/tooth-orders", ToothOrdersPage],

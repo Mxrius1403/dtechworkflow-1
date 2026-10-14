@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from datetime import date, datetime, time, timedelta, timezone
-from typing import Literal
+from typing import Annotated, Literal
 from zoneinfo import ZoneInfo
 
 from bson import ObjectId
@@ -12,10 +12,17 @@ from core.database import db
 from core.inbox import notify_managers
 from core.models import BaseDocument
 from core.production_calendar import is_production_day
-from core.workflow_constants import ARCH_OPTIONS, SERVICE_TYPES
 from core.security import current_account, require_roles
+from core.service_types import (
+    SERVICE_TYPE_NAME_LIMIT,
+    check_service_selection,
+    configured_service_names,
+    match_service_types,
+    read_service_types,
+)
+from core.workflow_constants import ARCH_OPTIONS
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, StringConstraints, model_validator
 from pymongo import ReturnDocument
 
 logger = logging.getLogger(__name__)
@@ -23,6 +30,9 @@ logger = logging.getLogger(__name__)
 COMPLETED_CASE_RETENTION = timedelta(days=10)
 
 router = APIRouter(prefix="/api/receiving", tags=["receiving"])
+
+MAX_CASE_SERVICE_TYPES = 100
+ServiceTypeName = Annotated[str, StringConstraints(max_length=SERVICE_TYPE_NAME_LIMIT)]
 
 
 class ReceiveCase(BaseModel):
@@ -32,8 +42,8 @@ class ReceiveCase(BaseModel):
     department: Literal["prosthesis", "ortho", "digital"]
     productionDate: date
     dueTime: time
-    serviceTypes: list[str] = Field(
-        default_factory=list, max_length=len(SERVICE_TYPES)
+    serviceTypes: list[ServiceTypeName] = Field(
+        default_factory=list, max_length=MAX_CASE_SERVICE_TYPES
     )
     arch: str = ""
     caseId: str | None = Field(default=None, min_length=1, max_length=100)
@@ -41,14 +51,11 @@ class ReceiveCase(BaseModel):
     @model_validator(mode="after")
     def validate_work_details(self):
         self.dueTime = self.dueTime.replace(second=0, microsecond=0, tzinfo=None)
-        if any(item not in SERVICE_TYPES for item in self.serviceTypes) or (
-            "None" in self.serviceTypes and len(self.serviceTypes) > 1
-        ):
-            raise ValueError("Select valid service types.")
         if not self.serviceTypes or self.arch not in ARCH_OPTIONS:
             raise ValueError(
                 "Select at least one service type and a valid arch."
             )
+        self.serviceTypes = check_service_selection(self.serviceTypes)
         return self
 
 
@@ -72,8 +79,8 @@ class ImportCase(BaseModel):
     scheduledDate: date | None = None
     originalScheduledDate: date | None = None
     status: Literal["queue", "completed"] = "queue"
-    serviceTypes: list[str] = Field(
-        default_factory=list, max_length=len(SERVICE_TYPES)
+    serviceTypes: list[ServiceTypeName] = Field(
+        default_factory=list, max_length=MAX_CASE_SERVICE_TYPES
     )
     arch: str = ""
     attentionStatus: Literal["active", "on_hold", "need_information"] = "active"
@@ -103,14 +110,11 @@ class ImportCase(BaseModel):
 
     @model_validator(mode="after")
     def validate_import(self):
-        if any(item not in SERVICE_TYPES for item in self.serviceTypes) or (
-            "None" in self.serviceTypes and len(self.serviceTypes) > 1
-        ):
-            raise ValueError("Select valid service types.")
         if not self.serviceTypes or self.arch not in ARCH_OPTIONS:
             raise ValueError(
                 "Select at least one service type and a valid arch."
             )
+        self.serviceTypes = check_service_selection(self.serviceTypes)
         if not (self.currentDueDate or self.productionDate):
             raise ValueError("currentDueDate is required.")
         return self
@@ -337,8 +341,19 @@ def _new_case(body: ReceiveCase, account: dict) -> dict:
     }
 
 
+async def _known_service_types(department: str, selected: list[str]) -> list[str]:
+    configured = [item["name"] for item in await read_service_types(db, department)]
+    try:
+        return match_service_types(configured, department, selected)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from None
+
+
 async def _create_or_reenter(body: ReceiveCase, account: dict) -> dict:
     _validate_production_date(body.productionDate, body.dueTime)
+    body.serviceTypes = await _known_service_types(
+        body.department, body.serviceTypes
+    )
 
     if body.caseId:
         existing = await db["cases"].find_one({"_id": body.caseId})
@@ -556,7 +571,16 @@ async def import_cases(
 ) -> dict:
     errors = []
     seen = set()
+    configured = await configured_service_names(db)
     for index, item in enumerate(body.cases, start=2):
+        try:
+            item.serviceTypes = match_service_types(
+                configured.get(item.department, []),
+                item.department,
+                item.serviceTypes,
+            )
+        except ValueError as error:
+            errors.append(f"Row {index}: {error}")
         key = item.code.lower()
         if key in seen or await db["cases"].find_one(
             {"code": item.code, "deleted": {"$ne": True}}

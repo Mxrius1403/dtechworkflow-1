@@ -13,6 +13,7 @@ from core.config import CORS_ORIGINS, HOST, PORT
 from core.database import client, db
 from core.inbox import ensure_inbox_indexes
 from core.security import has_allowed_request_origin, validate_security_config
+from core.service_types import ensure_service_type_indexes
 from routers import (
     auth,
     cases,
@@ -24,6 +25,7 @@ from routers import (
     products,
     receiving,
     reports,
+    service_types,
     suppliers,
     tooth_orders,
 )
@@ -66,6 +68,7 @@ async def lifespan(_: FastAPI):
     await ensure_auth_email_index()
     await ensure_inbox_indexes(db)
     await ensure_case_indexes(db)
+    await ensure_service_type_indexes(db)
     await data.ensure_driver_data_indexes()
     await receiving.expire_completed_cases()
     expiry_task = asyncio.create_task(
@@ -113,6 +116,7 @@ for module in (
     products,
     receiving,
     reports,
+    service_types,
     suppliers,
     tooth_orders,
 ):

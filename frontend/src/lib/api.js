@@ -45,6 +45,10 @@ export const updateReceivedCase = (caseId, changes) => api.patch(`/receiving/cas
 export const fetchCaseHistory = (caseId) => api.get(`/receiving/cases/${encodeURIComponent(caseId)}/history`).then((r) => r.data);
 export const updateCaseAttention = (caseId, attention) => api.patch(`/receiving/cases/${encodeURIComponent(caseId)}/attention`, attention).then((r) => r.data);
 export const updateCaseOverdueReason = (caseId, reason) => api.patch(`/receiving/cases/${encodeURIComponent(caseId)}/overdue-reason`, { reason }).then((r) => r.data);
+export const fetchServiceTypes = () => api.get("/service-types").then((r) => r.data);
+export const createServiceType = (serviceType) => api.post("/service-types", serviceType).then((r) => r.data);
+export const renameServiceType = (serviceTypeId, name) => api.patch(`/service-types/${encodeURIComponent(serviceTypeId)}`, { name }).then((r) => r.data);
+export const deleteServiceType = (serviceTypeId) => api.delete(`/service-types/${encodeURIComponent(serviceTypeId)}`).then((r) => r.data);
 export const saveReport = (report) => api.post("/reports", report).then((r) => r.data);
 export const deleteReport = (reportId) => api.delete(`/reports/${encodeURIComponent(reportId)}`).then((r) => r.data);
 export const createToothOrder = (order) => api.post("/tooth-orders", order).then((r) => r.data);

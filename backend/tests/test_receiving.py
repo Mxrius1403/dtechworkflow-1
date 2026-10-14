@@ -97,16 +97,32 @@ class FakeCases:
         return document
 
 
+SET_UP_SERVICE_TYPES = [
+    {
+        "_id": f"{department}-{name}",
+        "department": department,
+        "name": name,
+        "nameKey": name.casefold(),
+        "createdAt": f"2026-10-01T00:00:0{index}Z",
+    }
+    for department in ("prosthesis", "ortho", "digital")
+    for index, name in enumerate(("Repair", "Try In"))
+]
+
+
 class FakeDatabase:
     def __init__(self, cases):
         self.cases = cases
         self.users = cases.users
         self.auth_users = cases.auth_users
         self.case_history = FakeCases()
+        self.service_types = FakeCases(SET_UP_SERVICE_TYPES)
 
     def __getitem__(self, name):
         if name == "case_history":
             return self.case_history
+        if name == "service_types":
+            return self.service_types
         if name == "cases":
             return self.cases
         if name == "users":
@@ -446,10 +462,8 @@ def test_deleted_case_number_can_be_received_again(receiving_db):
     "overrides",
     [
         {"serviceTypes": [], "arch": ""},
-        {
-            "serviceTypes": ["Invalid"],
-            "arch": "Upper",
-        },
+        {"serviceTypes": ["Repair", "repair"], "arch": "Upper"},
+        {"serviceTypes": ["Repair", " "], "arch": "Upper"},
         {"department": "digital", "serviceTypes": ["Repair"], "arch": ""},
         {"department": "ortho", "serviceTypes": [], "arch": ""},
     ],
@@ -457,6 +471,62 @@ def test_deleted_case_number_can_be_received_again(receiving_db):
 def test_receive_rejects_invalid_work_details(overrides):
     with pytest.raises(ValidationError):
         receive_payload(**overrides)
+
+
+def test_receive_rejects_service_type_that_is_not_set_up(receiving_db):
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(
+            receiving.create_received_case(
+                receive_payload(serviceTypes=["Repair", "Bite"]), MANAGER
+            )
+        )
+
+    assert error.value.status_code == 422
+    assert error.value.detail == "Service type 'Bite' is not set up for Prosthesis."
+    assert receiving_db.documents == {}
+
+
+def test_receive_rejects_service_type_from_another_department(receiving_db):
+    receiving.db.service_types.documents["ortho-Bite"] = {
+        "_id": "ortho-Bite", "department": "ortho", "name": "Bite", "nameKey": "bite",
+    }
+
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(
+            receiving.create_received_case(
+                receive_payload(serviceTypes=["Bite"]), MANAGER
+            )
+        )
+    assert error.value.status_code == 422
+
+    result = asyncio.run(
+        receiving.create_received_case(
+            receive_payload(department="ortho", serviceTypes=["Bite"]), MANAGER
+        )
+    )
+    assert result["serviceTypes"] == ["Bite"]
+
+
+def test_receive_stores_service_types_as_set_up(receiving_db):
+    result = asyncio.run(
+        receiving.create_received_case(
+            receive_payload(serviceTypes=["try  in", "REPAIR"]), MANAGER
+        )
+    )
+
+    assert result["serviceTypes"] == ["Try In", "Repair"]
+
+
+def test_receive_accepts_none_before_any_service_type_is_set_up(receiving_db):
+    receiving.db.service_types.documents.clear()
+
+    result = asyncio.run(
+        receiving.create_received_case(
+            receive_payload(serviceTypes=["none"], arch="None"), MANAGER
+        )
+    )
+
+    assert result["serviceTypes"] == ["None"]
 
 
 def test_legacy_department_value_is_no_longer_accepted():
@@ -972,6 +1042,29 @@ def test_import_maps_status_to_queue_or_completed(receiving_db):
     ]
     result = asyncio.run(receiving.import_cases(receiving.ImportCases(cases=cases), MANAGER))
     assert [c["status"] for c in result["cases"]] == ["queue", "completed", "queue"]
+
+
+def test_import_rejects_service_types_that_are_not_set_up(receiving_db):
+    body = receiving.ImportCases(cases=[
+        {**LEGACY_CASE, "code": "IMP-1"},
+        {**LEGACY_CASE, "code": "IMP-2", "department": "digital", "serviceTypes": ["Finish"]},
+    ])
+
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(receiving.import_cases(body, MANAGER))
+
+    assert error.value.status_code == 422
+    assert error.value.detail == "Row 3: Service type 'Finish' is not set up for Digital."
+    assert receiving_db.documents == {}
+
+
+def test_import_accepts_none_before_any_service_type_is_set_up(receiving_db):
+    receiving.db.service_types.documents.clear()
+    body = receiving.ImportCases(cases=[{**LEGACY_CASE, "serviceTypes": ["None"]}])
+
+    result = asyncio.run(receiving.import_cases(body, MANAGER))
+
+    assert result["cases"][0]["serviceTypes"] == ["None"]
 
 
 def test_import_requires_a_due_date():

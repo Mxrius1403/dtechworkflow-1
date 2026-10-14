@@ -1,12 +1,15 @@
 import { useState } from "react";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { ARCH_OPTIONS, SERVICE_TYPES } from "@/config/constants";
+import { ARCH_OPTIONS, NO_SERVICE_TYPE } from "@/config/constants";
+import { useServiceTypes } from "@/hooks/use-service-types";
 import { localInputValue, today } from "@/lib/format";
 import { nextProductionDay } from "@/lib/holidays";
 import { departmentName } from "@/lib/cases";
 import { notifyError } from "@/lib/notify";
+import { serviceTypeOptions } from "@/lib/serviceTypes";
 import { cn } from "@/lib/utils";
 import { productionDateOrNext } from "./DueScheduleFields";
 
@@ -22,11 +25,13 @@ export function ReceivingWizard({ draft, onClose, onSave }) {
   const [date, setDate] = useState(nextProductionDay(today()));
   const [time, setTime] = useState("");
   const [saving, setSaving] = useState(false);
+  const serviceTypes = useServiceTypes();
+  const options = serviceTypeOptions(serviceTypes.byDepartment, draft.department);
   const label = `${draft.reentry ? "Re-entry" : "New case"} ${draft.code}`;
 
   const toggle = (t) => setTypes((selected) => {
     if (selected.includes(t)) return selected.filter((x) => x !== t);
-    return t === "None" ? ["None"] : [...selected.filter((x) => x !== "None"), t];
+    return t === NO_SERVICE_TYPE ? [NO_SERVICE_TYPE] : [...selected.filter((x) => x !== NO_SERVICE_TYPE), t];
   });
   const pickDate = (value) => setDate(productionDateOrNext(value));
   const save = async () => {
@@ -45,7 +50,19 @@ export function ReceivingWizard({ draft, onClose, onSave }) {
   const steps = {
     types: {
       title: `${label} — Service Type`, description: "Select one or more. A single case can contain multiple stages.",
-      body: <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{SERVICE_TYPES.map((t) => <button key={t} className={chip(types.includes(t))} onClick={() => toggle(t)} data-testid={`service-type-${t.toLowerCase().replace(/\s/g, "-")}`}>{t}</button>)}</div>,
+      body: serviceTypes.data ? (
+        <div className="grid gap-3">
+          <div className="grid max-h-[50vh] grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3">{options.map((t) => <button key={t} className={chip(types.includes(t))} onClick={() => toggle(t)} data-testid={`service-type-${t.toLowerCase().replace(/\s/g, "-")}`}>{t}</button>)}</div>
+          {options.length === 1 && <p className="text-xs text-muted-foreground" data-testid="service-types-empty">No service types are set up for {departmentName(draft.department)} yet, so only None can be chosen. Managers add them in Case Management under Service Types.</p>}
+        </div>
+      ) : serviceTypes.isError ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-destructive/30 p-3 text-sm" role="alert" data-testid="service-types-error">
+          Service types could not be loaded.
+          <Button size="sm" variant="outline" onClick={() => serviceTypes.refetch()}>Try Again</Button>
+        </div>
+      ) : (
+        <p className="flex items-center gap-2 py-6 text-sm text-muted-foreground" role="status"><Loader2 className="h-4 w-4 animate-spin" /> Loading service types…</p>
+      ),
       next: () => (types.length ? setStep("arch") : notifyError("Select at least one service type")), nextLabel: "Next",
     },
     arch: {

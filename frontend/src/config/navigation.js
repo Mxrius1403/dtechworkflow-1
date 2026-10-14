@@ -1,5 +1,5 @@
 import {
-  BarChart3, Bell, Boxes, Building2, Car, ClipboardList, FolderOpen, Inbox, KeyRound, LayoutDashboard, MapPin, Package, Route, Search, ShoppingCart, Store, Truck, Users,
+  BarChart3, Bell, Boxes, Building2, Car, ClipboardList, FolderOpen, Inbox, KeyRound, LayoutDashboard, MapPin, Package, Route, Search, ShoppingCart, Store, Tags, Truck, Users,
 } from "lucide-react";
 
 const manager = (u) => u.isManager || u.isOwner;
@@ -17,7 +17,7 @@ export const PAGES = [
   { path: "/owner-control", label: "Ownership & Managers", icon: KeyRound, access: (u) => u.isOwner, nav: (u) => u.isOwner },
   { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard, access: always, nav: always },
   { path: "/inbox", label: "Inbox", icon: Bell, access: manager, nav: manager },
-  { path: "/case-management", label: "Case Management", icon: FolderOpen, access: manager, nav: manager, activePaths: ["/receiving", "/case-search"] },
+  { path: "/case-management", label: "Case Management", icon: FolderOpen, access: manager, nav: manager, activePaths: ["/receiving", "/case-search", "/service-types"] },
   { path: "/receiving", label: "Receiving", title: "Receiving Station", icon: Inbox, access: always, nav: technician },
   { path: "/routes", label: "Routes", icon: MapPin, access: () => true, nav: driver },
   { path: "/logistics", label: "Create Route", icon: Route, access: manager },
@@ -25,6 +25,7 @@ export const PAGES = [
   { path: "/clinics", label: "Clinics", icon: Building2, access: manager },
   { path: "/suppliers", label: "Suppliers", icon: Store, access: manager },
   { path: "/case-search", label: "Case Search", icon: Search, access: always, nav: technician },
+  { path: "/service-types", label: "Service Types", icon: Tags, access: manager },
   { path: "/delivery-management", label: "Delivery Management", icon: Truck, access: manager, nav: manager, activePaths: ["/routes", "/logistics", "/drivers", "/clinics"] },
   { path: "/tooth-management", label: "Tooth Management", icon: ClipboardList, access: manager, nav: manager, activePaths: ["/tooth-order", "/tooth-orders"] },
   { path: "/tooth-order", label: "Order Tooth", icon: ClipboardList, access: always, nav: technician },

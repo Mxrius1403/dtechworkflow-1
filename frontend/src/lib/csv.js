@@ -1,4 +1,6 @@
-import { ARCH_OPTIONS, SERVICE_TYPES } from "../config/constants";
+import { ARCH_OPTIONS, NO_SERVICE_TYPE } from "../config/constants";
+import { departmentName } from "./cases";
+import { matchServiceType, serviceTypeKey, serviceTypeOptions } from "./serviceTypes";
 
 const CLINIC_ALIASES = {
   clinicname: "name", name: "name", address: "address", eircode: "eircode", postcode: "eircode", email: "email",
@@ -58,7 +60,6 @@ const CASE_ALIASES = {
 };
 const CASE_DEPARTMENTS = ["prosthesis", "ortho", "digital"];
 const LEGACY_DEPARTMENTS = { denture: "prosthesis" };
-const CASE_SERVICES = SERVICE_TYPES;
 const CASE_ARCHES = ARCH_OPTIONS;
 const matchOption = (options, value) => options.find((o) => o.toLowerCase() === String(value).trim().toLowerCase());
 const isDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v));
@@ -91,18 +92,21 @@ export function casesFromJson(data) {
     } : x);
 }
 
-export const normaliseCaseImport = (rows) => (Array.isArray(rows) ? rows : []).map((x) => {
+/** `serviceTypes`: names set up per department, so they are spelled as set up. */
+export const normaliseCaseImport = (rows, serviceTypes = {}) => (Array.isArray(rows) ? rows : []).map((x) => {
   const services = Array.isArray(x.serviceTypes) ? x.serviceTypes : String(x.serviceTypes || "").split(/[;|]/);
-  const department = String(x.department || "").trim().toLowerCase();
+  const rawDepartment = String(x.department || "").trim().toLowerCase();
+  const department = LEGACY_DEPARTMENTS[rawDepartment] || rawDepartment;
+  const options = serviceTypeOptions(serviceTypes, department);
   const history = x.history && typeof x.history === "object" ? x.history : undefined;
   return {
     code: String(x.code || "").trim(),
-    department: LEGACY_DEPARTMENTS[department] || department,
+    department,
     currentDueDate: String(x.currentDueDate || x.productionDate || x.scheduledDate || x.receivedDate || "").trim(),
     scheduledDate: x.scheduledDate ? String(x.scheduledDate).trim() : undefined,
     originalScheduledDate: x.originalScheduledDate ? String(x.originalScheduledDate).trim() : undefined,
     status: String(x.status || "").trim().toLowerCase() === "completed" ? "completed" : "queue",
-    serviceTypes: services.map((s) => matchOption(CASE_SERVICES, s) || String(s).trim()).filter(Boolean),
+    serviceTypes: services.map((s) => matchServiceType(options, s) || String(s).trim()).filter(Boolean),
     arch: matchOption(CASE_ARCHES, x.arch || "") || String(x.arch || "").trim(),
     attentionStatus: x.attentionStatus || undefined,
     attentionNote: x.attentionNote || undefined,
@@ -114,7 +118,8 @@ export const normaliseCaseImport = (rows) => (Array.isArray(rows) ? rows : []).m
   };
 });
 
-export function validateCaseImport(rows) {
+/** `serviceTypes`: names set up per department; None is always accepted. */
+export function validateCaseImport(rows, serviceTypes = {}) {
   const errors = [];
   const seen = new Set();
   rows.forEach((c, i) => {
@@ -124,7 +129,13 @@ export function validateCaseImport(rows) {
     seen.add(c.code.toLowerCase());
     if (!CASE_DEPARTMENTS.includes(c.department)) errors.push(`${row}: department must be prosthesis, ortho or digital`);
     if (!isDate(c.currentDueDate)) errors.push(`${row}: currentDueDate must be YYYY-MM-DD`);
-    if (!c.serviceTypes.length || c.serviceTypes.some((s) => !CASE_SERVICES.includes(s)) || (c.serviceTypes.includes("None") && c.serviceTypes.length > 1)) errors.push(`${row}: invalid service types`);
+    const keys = c.serviceTypes.map(serviceTypeKey);
+    if (!keys.length || new Set(keys).size !== keys.length || (c.serviceTypes.includes(NO_SERVICE_TYPE) && keys.length > 1)) errors.push(`${row}: invalid service types`);
+    const options = serviceTypeOptions(serviceTypes, c.department);
+    const unknown = c.serviceTypes.filter((s) => !options.includes(s));
+    if (unknown.length && CASE_DEPARTMENTS.includes(c.department)) {
+      errors.push(`${row}: ${unknown.join(", ")} ${unknown.length === 1 ? "is not a service type" : "are not service types"} for ${departmentName(c.department)}`);
+    }
     if (!CASE_ARCHES.includes(c.arch)) errors.push(`${row}: arch must be Upper, Lower, Upper & Lower or None`);
   });
   if (!rows.length) errors.push("The file contains no case records");
