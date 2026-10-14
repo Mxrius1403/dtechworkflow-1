@@ -109,7 +109,7 @@ export default function OwnerControlPage() {
       >
         {managersQuery.isLoading ? (
           <Muted>Loading managers…</Muted>
-        ) : managersQuery.isError ? (
+        ) : managersQuery.isError && !managersQuery.data ? (
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-destructive">Could not load manager accounts.</p>
             <Button variant="outline" size="sm" onClick={() => managersQuery.refetch()}>Retry</Button>

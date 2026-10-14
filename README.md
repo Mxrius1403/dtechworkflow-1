@@ -54,6 +54,7 @@ backend/
 │   ├── database.py        Mongo client (Motor)
 │   ├── models.py          BaseDocument: Mongo `_id` <-> API `id`
 │   ├── cases.py           Active case set, case list projection and case indexes
+│   ├── changes.py         Change counters per area, bumped after every successful write
 │   ├── collections.py     API name -> Mongo collection (one place to expose data)
 │   ├── production_calendar.py  Irish public holidays and production-day rules
 │   └── security.py        Password hashing, signed sessions and auth dependencies
@@ -61,6 +62,7 @@ backend/
 │   ├── auth.py            Login/logout/current user + manager and technician account administration
 │   ├── data.py            GET /api/data (everything the screens share) and /api/data/{name}
 │   ├── cases.py           GET /api/cases: case search, single cases and report periods
+│   ├── changes.py         GET /api/changes: what changed, so open screens reload it
 │   ├── catalog.py         GET /api/catalog (TDS materials + tooth groups)
 │   └── logistics.py       Authenticated logistics/clinic/driver writes
 └── data/                  Static JSON: materials.json, tooth_groups.json
@@ -72,7 +74,7 @@ frontend/src/
 │   ├── statuses.js        Every status label + colour (badges follow automatically)
 │   └── constants.js       App name, logo, service types, activities, suppliers
 ├── context/
-│   ├── DataContext.js     Loads /api/data + /api/catalog once; lookups via byId
+│   ├── DataContext.js     Loads /api/data + /api/catalog, keeps them live; lookups via byId
 │   └── SessionContext.js  Cookie-backed authentication session
 ├── lib/                   Plain business rules, no React (easy to unit test)
 │   ├── cases.js           Case status, scan/receiving rules, overdue, history
@@ -127,6 +129,9 @@ Design tokens (colours, radius, fonts) are CSS variables in `frontend/src/index.
 ### Expose a new collection
 Add `"apiName": "mongo_collection"` to `PUBLIC_COLLECTIONS` in `backend/core/collections.py`. It then appears in `GET /api/data` and in `useData()` on the frontend.
 
+### Keep screens up to date
+Open screens ask `GET /api/changes` every 10 seconds, and straight away when the tab comes back into view, and reload only the areas that changed. Every successful `POST`/`PUT`/`PATCH`/`DELETE` under `/api` is counted automatically, so new endpoints need nothing extra; writes outside a request (background jobs) call `record_change` from `backend/core/changes.py`. A screen with its own query outside `/api/data` adds its query key to `QUERIES_BY_AREA` in `frontend/src/hooks/use-live-updates.js`, and its endpoint prefix to `_AREA_BY_PREFIX` when it should not reload all data. The intervals live in `frontend/src/lib/liveUpdates.js`.
+
 ---
 
 ## 4. API
@@ -142,6 +147,7 @@ Add `"apiName": "mongo_collection"` to `PUBLIC_COLLECTIONS` in `backend/core/col
 | POST | `/api/auth/technicians` | **Owner or manager.** Create a technician account |
 | PATCH | `/api/auth/technicians/{id}` | **Owner or manager.** Enable or disable technician sign-in |
 | DELETE | `/api/auth/technicians/{id}` | **Owner or manager.** Archive an inactive technician account; keep its history |
+| GET | `/api/changes` | **Authenticated.** Change counters `{data, cases, inbox, products, serviceTypes}`; a counter moves after every successful write in its area |
 | GET | `/api/data` | **Authenticated.** All collections in one response + `settings`. `cases` holds only active cases (queue, production, completed) without their embedded history |
 | GET | `/api/data/{name}` | **Authenticated.** One collection (e.g. `routes`, `cases`) or `settings` |
 | GET | `/api/cases` | **Any staff account.** Every case incl. removed ones, newest first, paged: `q` (text search), `code` (exact case number), `technicianId`, `page`, `pageSize` (max. 100). Returns `{cases, total, page, pageSize}` |

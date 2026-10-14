@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 
 from bson import ObjectId
 from core.case_history import log_case_event
+from core.changes import record_change
 from core.collections import AUTH_USERS, CASE_HISTORY
 from core.config import TIMEZONE
 from core.database import db
@@ -241,6 +242,7 @@ async def expire_completed_cases(now: datetime | None = None) -> int:
             timestamp,
         )
     if result.modified_count:
+        await record_change(db, "cases")
         logger.info(
             "Automatically removed %s completed cases from the Receiving queue",
             result.modified_count,

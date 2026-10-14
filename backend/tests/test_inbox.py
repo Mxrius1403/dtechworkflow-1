@@ -120,6 +120,22 @@ def test_notify_managers_reaches_active_managers_except_actor():
     assert messages[0]["target"] == "toothOrder"
 
 
+def test_notify_managers_tells_open_screens_about_new_messages(monkeypatch):
+    areas = []
+
+    async def record_change(_database, area):
+        areas.append(area)
+
+    monkeypatch.setattr(inbox_core, "record_change", record_change)
+    deliver(FakeDatabase(USERS), {"_id": "TECH", "name": "Tech"})
+    assert areas == ["inbox"]
+
+    areas.clear()
+    only_the_actor = FakeDatabase([{"_id": "OWNER", "role": "owner", "active": True}])
+    deliver(only_the_actor, {"_id": "OWNER", "name": "Owner"})
+    assert areas == []
+
+
 def test_notify_managers_never_fails_the_caller():
     class BrokenDatabase:
         def __getitem__(self, name):

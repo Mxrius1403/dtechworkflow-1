@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Loader2, Search } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -35,13 +35,6 @@ export function OrderTds() {
   const { user } = useSession();
   const queryClient = useQueryClient();
   const productsQuery = useQuery({ queryKey: ["products"], queryFn: fetchProducts });
-  useEffect(() => {
-    const refresh = window.setInterval(
-      () => queryClient.invalidateQueries({ queryKey: ["data"] }),
-      15000,
-    );
-    return () => window.clearInterval(refresh);
-  }, [queryClient]);
   const products = productsQuery.data || EMPTY_PRODUCTS;
   const supplierNames = useMemo(
     () => Object.fromEntries(suppliers.map((supplier) => [supplier.id, supplier.name])),
@@ -105,7 +98,7 @@ export function OrderTds() {
           </Panel>
           {productsQuery.isLoading ? (
             <Panel title="Products"><Loader2 className="mx-auto my-8 h-5 w-5 animate-spin text-secondary" /></Panel>
-          ) : productsQuery.isError ? (
+          ) : productsQuery.isError && !productsQuery.data ? (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-destructive/30 p-3 text-sm" role="alert">
               <span>Could not load products.</span>
               <Button variant="outline" size="sm" onClick={() => productsQuery.refetch()}>Retry</Button>

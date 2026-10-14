@@ -6,6 +6,29 @@ const backendUrl = (process.env.REACT_APP_BACKEND_URL || defaultBackendUrl).repl
 export const API_BASE = `${backendUrl}/api`;
 const api = axios.create({ baseURL: API_BASE, withCredentials: true });
 
+// Writes still on their way to the server. Live updates wait for them, so a reload
+// cannot briefly undo a change the screen already shows.
+let pendingWrites = 0;
+const isWrite = (config) => !["get", "head", "options"].includes(String(config?.method || "get").toLowerCase());
+const settle = (config) => {
+  if (isWrite(config)) pendingWrites = Math.max(0, pendingWrites - 1);
+};
+api.interceptors.request.use((config) => {
+  if (isWrite(config)) pendingWrites += 1;
+  return config;
+});
+api.interceptors.response.use(
+  (response) => {
+    settle(response.config);
+    return response;
+  },
+  (error) => {
+    settle(error.config);
+    return Promise.reject(error);
+  },
+);
+export const hasPendingWrites = () => pendingWrites > 0;
+
 export const fetchCurrentUser = () => api.get("/auth/me").then((r) => r.data.user);
 export const updateMyProfile = (details) => api.patch("/auth/me/profile", details).then((r) => r.data.user);
 export const changeMyPassword = (password) => api.post("/auth/me/password", { password }).then((r) => r.data.user);
@@ -28,6 +51,7 @@ export const updateManager = (managerId, details) => api.patch(`/auth/managers/$
 export const updateManagerStatus = (managerId, active) => api.patch(`/auth/managers/${encodeURIComponent(managerId)}`, { active }).then((r) => r.data.user);
 export const deleteManager = (managerId) => api.delete(`/auth/managers/${encodeURIComponent(managerId)}`).then((r) => r.data);
 export const transferOwnership = (managerId) => api.post("/auth/ownership/transfer", { managerId }).then((r) => r.data.user);
+export const fetchChanges = () => api.get("/changes").then((r) => r.data);
 export const fetchAllData = () => api.get("/data").then((r) => r.data);
 export const fetchCases = () => api.get("/data/cases").then((r) => r.data);
 export const fetchCasePage = (params) => api.get("/cases", { params }).then((r) => r.data);

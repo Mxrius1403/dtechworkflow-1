@@ -1,5 +1,3 @@
-import { useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { useData } from "@/context/DataContext";
 import { BackLink } from "@/components/common/Bits";
 import { useScrollToHash } from "@/hooks/use-scroll-to-hash";
@@ -7,15 +5,7 @@ import { MaterialOrderList } from "./MaterialOrderList";
 
 export function MaterialRequests() {
   const { materialOrders } = useData();
-  const queryClient = useQueryClient();
   useScrollToHash(materialOrders.length > 0);
-  useEffect(() => {
-    const refresh = window.setInterval(
-      () => queryClient.invalidateQueries({ queryKey: ["data"] }),
-      15000,
-    );
-    return () => window.clearInterval(refresh);
-  }, [queryClient]);
   return (
     <>
       <BackLink to="/materials" className="text-base">Material Management</BackLink>

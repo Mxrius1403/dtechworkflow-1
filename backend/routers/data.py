@@ -2,6 +2,7 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 
 from core.cases import read_active_cases
+from core.changes import record_change
 from core.collections import AUTH_USERS, PUBLIC_COLLECTIONS, SETTINGS
 from core.database import db
 from core.models import BaseDocument
@@ -156,7 +157,7 @@ ROUTE_ARCHIVE_AFTER = timedelta(days=10)
 async def archive_stale_routes() -> None:
     now = datetime.now(timezone.utc)
     cutoff = (now - ROUTE_ARCHIVE_AFTER).isoformat()
-    await db["routes"].update_many(
+    result = await db["routes"].update_many(
         {
             "status": "completed",
             "archived": {"$ne": True},
@@ -164,6 +165,8 @@ async def archive_stale_routes() -> None:
         },
         {"$set": {"archived": True, "archivedAt": now.isoformat()}},
     )
+    if result.modified_count:
+        await record_change(db, "data")
 
 
 def read_api_collection(api_name: str, collection: str, can_read_reports: bool):

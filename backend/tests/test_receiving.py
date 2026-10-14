@@ -755,7 +755,13 @@ def test_completing_case_records_finish_and_responsible_technician(receiving_db)
     assert result["finishedBy"] == "Liam O'Connor"
 
 
-def test_completed_cases_are_removed_after_ten_days(receiving_db):
+def test_completed_cases_are_removed_after_ten_days(receiving_db, monkeypatch):
+    areas = []
+
+    async def record_change(_database, area):
+        areas.append(area)
+
+    monkeypatch.setattr(receiving, "record_change", record_change)
     now = datetime(2026, 10, 16, 12, tzinfo=timezone.utc)
     cutoff = (now - timedelta(days=10)).isoformat(timespec="milliseconds").replace(
         "+00:00", "Z"
@@ -801,6 +807,7 @@ def test_completed_cases_are_removed_after_ten_days(receiving_db):
 
     expired = receiving_db.documents["EXPIRED"]
     assert modified == 1
+    assert areas == ["cases"]
     assert expired["status"] == "removed"
     assert expired["removedFromQueue"] is True
     assert expired["autoRemovedFromQueue"] is True
