@@ -1,9 +1,9 @@
-import { AlertTriangle, ArrowRightLeft, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowRightLeft, StickyNote, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmAction } from "@/components/common/ConfirmAction";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { useData } from "@/context/DataContext";
-import { ACTIVE_ROUTE_STATUSES, stopJobs } from "@/lib/logistics";
+import { ACTIVE_ROUTE_STATUSES, stopJobs, stopNotes } from "@/lib/logistics";
 
 export function RouteStopRow({ index, route, stop, deleting, onTransfer, onDelete, onCheck, onReportProblem, checkDisabled = false, readOnly = false }) {
   const { byId } = useData();
@@ -36,6 +36,11 @@ export function RouteStopRow({ index, route, stop, deleting, onTransfer, onDelet
             <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
               {clinic.eircode} <StatusBadge kind="stop" value={stop.status} testId={`stop-status-${stop.id}`} />
             </p>
+            {stopNotes(stop).map((note, i) => (
+              <p key={i} className="mt-1.5 flex items-start gap-1.5 whitespace-pre-wrap break-words rounded-md bg-muted px-2 py-1 text-xs text-foreground" data-testid={`stop-note-${stop.id}-${i}`}>
+                <StickyNote className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" /> {note}
+              </p>
+            ))}
             {problem && (
               <p className="mt-1.5 flex items-start gap-1.5 rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-900" data-testid={`stop-problem-${stop.id}`}>
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {problem.label}

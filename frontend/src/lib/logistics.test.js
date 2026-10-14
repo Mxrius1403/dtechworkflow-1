@@ -1,4 +1,4 @@
-import { draftStopCount, groupStopsByClinic, unroutedCases } from "./logistics";
+import { draftStopCount, groupStopsByClinic, stopNotes, unroutedCases } from "./logistics";
 
 const routesById = { R1: { id: "R1", status: "published", stopIds: ["S1"] } };
 const stops = [{
@@ -65,4 +65,9 @@ describe("stopProblemValid", () => {
   test("reason keys match the backend", () => {
     expect(STOP_PROBLEM_REASONS.map(([key]) => key)).toEqual(["clinic_closed", "nobody_available", "not_ready", "no_access", "out_of_time", "other"]);
   });
+});
+
+test("lists the collection notes of a stop and skips empty ones", () => {
+  expect(stopNotes({ collections: [{ notes: " Two boxes at reception " }, { notes: "" }, {}] })).toEqual(["Two boxes at reception"]);
+  expect(stopNotes({ deliveries: [{ caseNumber: "1001" }] })).toEqual([]);
 });
