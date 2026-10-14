@@ -1094,6 +1094,32 @@ async def create_clinic(body: ClinicSave) -> dict:
     return await save_clinic(None, body)
 
 
+@router.delete("/clinics/{clinic_id}", dependencies=[MANAGERS])
+async def delete_clinic(clinic_id: str) -> dict:
+    clinic = await db["clinics"].find_one({"_id": clinic_id})
+    if not clinic:
+        raise HTTPException(status_code=404, detail="Clinic not found.")
+    stops = await db["stops"].find({"clinicId": clinic_id}).to_list(length=None)
+    route_ids = sorted({s["routeId"] for s in stops if s.get("routeId")})
+    open_routes = await db["routes"].find(
+        {"_id": {"$in": route_ids}, "status": {"$nin": ["completed", "cancelled"]}}
+    ).to_list(length=None)
+    if open_routes:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "clinic_has_routes",
+                "routes": [
+                    {"id": r["_id"], "date": r.get("date"), "status": r.get("status")}
+                    for r in open_routes
+                ],
+            },
+        )
+    await db[CLINIC_CONTACTS].delete_one({"_id": clinic_id})
+    await db["clinics"].delete_one({"_id": clinic_id})
+    return {"id": clinic_id, "deleted": True}
+
+
 @router.post("/clinics/import", dependencies=[MANAGERS])
 async def import_clinics(body: ClinicImport) -> dict:
     imported = []
@@ -1181,10 +1207,6 @@ async def delete_driver(
     driver = await db["drivers"].find_one({"_id": driver_id})
     if not driver:
         raise HTTPException(status_code=404, detail="Driver not found.")
-    if driver.get("active") is not False:
-        raise HTTPException(
-            status_code=409, detail="Deactivate the driver before deleting."
-        )
     open_routes = await db["routes"].find(
         {"driverId": driver_id, "status": {"$nin": ["completed", "cancelled"]}}
     ).to_list(length=None)

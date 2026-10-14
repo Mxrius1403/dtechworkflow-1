@@ -54,14 +54,14 @@ export default function DriversPage() {
           { key: "status", header: "Status", render: (d) => <StatusBadge kind="account" value={d.active !== false ? "active" : "inactive"} /> },
           { key: "security", header: "Security", render: () => <StatusBadge kind="flag" value="protected" /> },
           { key: "edit", header: "", render: (d) => <Button size="sm" variant="outline" onClick={() => setEditing(d)} data-testid={`driver-edit-${d.id}`}>Edit</Button> },
-          { key: "delete", header: "", render: (d) => d.active === false ? <Button size="sm" variant="destructive" onClick={() => setDeleteTarget(d)} data-testid={`driver-delete-${d.id}`}><Trash2 /> Delete</Button> : null },
+          { key: "delete", header: "", render: (d) => <Button size="sm" variant="destructive" onClick={() => setDeleteTarget(d)} data-testid={`driver-delete-${d.id}`}><Trash2 /> Delete</Button> },
         ]} />
         {editing && <StaffDialog kind="driver" person={editing.id ? editing : null} nextId={`D${String(settings.nextDriverNumber || 1).padStart(4, "0")}`} onClose={() => setEditing(null)} />}
       </Panel>
       <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(open) => { if (!open && !saving) closeDelete(); }}>
         <AlertDialogContent data-testid="driver-delete-dialog">
           <AlertDialogHeader>
-            <AlertDialogTitle>{openRoutes ? "Driver still has open routes" : "Delete inactive driver account?"}</AlertDialogTitle>
+            <AlertDialogTitle>{openRoutes ? "Driver still has open routes" : "Delete driver account?"}</AlertDialogTitle>
             <AlertDialogDescription>
               {openRoutes
                 ? `${deleteTarget?.name} still has ${openRoutes.length} open route${openRoutes.length === 1 ? "" : "s"} (${openRoutes.map((r) => `${r.id}, ${r.date}`).join("; ")}). Deleting the driver anyway will also delete these routes.`

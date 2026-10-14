@@ -72,6 +72,7 @@ export const archiveRoute = (routeId) => api.post(`/routes/${routeId}/archive`).
 export const deleteLogisticsRoute = (routeId) => api.delete(`/routes/${routeId}`).then((r) => r.data);
 export const createClinic = (clinic) => api.post("/clinics", clinic).then((r) => r.data);
 export const updateClinic = (clinicId, clinic) => api.put(`/clinics/${clinicId}`, clinic).then((r) => r.data);
+export const deleteClinic = (clinicId) => api.delete(`/clinics/${clinicId}`).then((r) => r.data);
 export const importClinics = (clinics) => api.post("/clinics/import", { clinics }).then((r) => r.data);
 export const createDriver = (driver) => api.post("/drivers", driver).then((r) => r.data);
 export const deleteDriver = (driverId, force = false) => api.delete(`/drivers/${driverId}`, { params: { force } }).then((r) => r.data);
