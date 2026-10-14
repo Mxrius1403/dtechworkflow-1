@@ -124,7 +124,7 @@ export default function ProductManagementPage() {
 
   return (
     <>
-      <BackLink to="/materials">Material Management</BackLink>
+      <BackLink to="/materials" className="text-base">Material Management</BackLink>
       <Panel
         title="Product Management"
         description="Create and manage products and their supplier details."

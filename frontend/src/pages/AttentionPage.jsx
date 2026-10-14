@@ -6,8 +6,7 @@ import { Panel } from "@/components/common/Panel";
 import { StatCard } from "@/components/common/StatCard";
 import { CountPill } from "@/components/common/StatusBadge";
 import { useData } from "@/context/DataContext";
-import { attentionGroups, scheduledKey, serviceLabel } from "@/lib/cases";
-import { nice } from "@/lib/format";
+import { attentionGroups, dueLabel, isOverdue, serviceLabel } from "@/lib/cases";
 import { cn } from "@/lib/utils";
 
 function AttentionList({ title, rows, edge, testId }) {
@@ -20,8 +19,8 @@ function AttentionList({ title, rows, edge, testId }) {
           <div key={c.id} className={cn("flex flex-wrap items-start justify-between gap-3 rounded-lg border border-l-4 p-3", edge)} data-testid={`${testId}-row-${c.code}`}>
             <div className="min-w-0 flex-1">
               <p className="font-mono font-bold text-primary">{c.code}</p>
-              <p className="text-xs text-muted-foreground">{serviceLabel(c)} • Due {nice(scheduledKey(c))}{c.technicianId && ` • ${techName(c.technicianId, c.technician)}`}</p>
-              {c.overdue && <OverdueSchedule c={c} />}
+              <p className="text-xs text-muted-foreground">{serviceLabel(c)} • Due {dueLabel(c) || "-"}{c.technicianId && ` • ${techName(c.technicianId, c.technician)}`}</p>
+              {isOverdue(c) && <OverdueSchedule c={c} />}
               {c.attentionNote && <p className="mt-1.5 text-sm">{c.attentionNote}</p>}
               {c.overdueReason ? <p className="mt-1.5 text-sm"><b>Overdue reason:</b> {c.overdueReason}</p>
                 : c.overdueReasonRequired && <p className="mt-1.5 text-sm font-semibold text-rose-700">Overdue reason required</p>}

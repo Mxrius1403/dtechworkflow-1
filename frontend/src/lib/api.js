@@ -8,6 +8,7 @@ const api = axios.create({ baseURL: API_BASE, withCredentials: true });
 
 export const fetchCurrentUser = () => api.get("/auth/me").then((r) => r.data.user);
 export const updateMyProfile = (details) => api.patch("/auth/me/profile", details).then((r) => r.data.user);
+export const changeMyPassword = (password) => api.post("/auth/me/password", { password }).then((r) => r.data.user);
 export const refreshSession = () => api.post("/auth/refresh");
 export const fetchSetupStatus = () => api.get("/auth/setup").then((r) => r.data.required);
 export const setupOwner = ({ setupSecret, ...details }) => api.post(
@@ -29,6 +30,10 @@ export const deleteManager = (managerId) => api.delete(`/auth/managers/${encodeU
 export const transferOwnership = (managerId) => api.post("/auth/ownership/transfer", { managerId }).then((r) => r.data.user);
 export const fetchAllData = () => api.get("/data").then((r) => r.data);
 export const fetchCases = () => api.get("/data/cases").then((r) => r.data);
+export const fetchCasePage = (params) => api.get("/cases", { params }).then((r) => r.data);
+export const fetchCasesByCode = (code) => fetchCasePage({ code, pageSize: 100 }).then((page) => page.cases);
+export const fetchCase = (caseId) => api.get(`/cases/${encodeURIComponent(caseId)}`).then((r) => r.data);
+export const fetchFinishedCases = (from, to) => api.get("/cases/finished", { params: { from, to } }).then((r) => r.data.cases);
 export const fetchCatalog = () => api.get("/catalog").then((r) => r.data);
 export const fetchClinicContact = (clinicId) => api.get(`/clinics/${clinicId}/contact`).then((r) => r.data);
 export const createReceivedCase = (receivedCase) => api.post("/receiving/cases", receivedCase).then((r) => r.data);
@@ -40,12 +45,18 @@ export const updateReceivedCase = (caseId, changes) => api.patch(`/receiving/cas
 export const fetchCaseHistory = (caseId) => api.get(`/receiving/cases/${encodeURIComponent(caseId)}/history`).then((r) => r.data);
 export const updateCaseAttention = (caseId, attention) => api.patch(`/receiving/cases/${encodeURIComponent(caseId)}/attention`, attention).then((r) => r.data);
 export const updateCaseOverdueReason = (caseId, reason) => api.patch(`/receiving/cases/${encodeURIComponent(caseId)}/overdue-reason`, { reason }).then((r) => r.data);
+export const fetchServiceTypes = () => api.get("/service-types").then((r) => r.data);
+export const createServiceType = (serviceType) => api.post("/service-types", serviceType).then((r) => r.data);
+export const renameServiceType = (serviceTypeId, name) => api.patch(`/service-types/${encodeURIComponent(serviceTypeId)}`, { name }).then((r) => r.data);
+export const deleteServiceType = (serviceTypeId) => api.delete(`/service-types/${encodeURIComponent(serviceTypeId)}`).then((r) => r.data);
 export const saveReport = (report) => api.post("/reports", report).then((r) => r.data);
 export const deleteReport = (reportId) => api.delete(`/reports/${encodeURIComponent(reportId)}`).then((r) => r.data);
 export const createToothOrder = (order) => api.post("/tooth-orders", order).then((r) => r.data);
+export const updateToothOrder = (orderId, order) => api.put(`/tooth-orders/${encodeURIComponent(orderId)}`, order).then((r) => r.data);
 export const updateToothOrderStatus = (orderId, status) => api.patch(`/tooth-orders/${encodeURIComponent(orderId)}/status`, { status }).then((r) => r.data);
 export const deleteToothOrder = (orderId) => api.delete(`/tooth-orders/${encodeURIComponent(orderId)}`).then((r) => r.data);
 export const createMaterialOrder = (order) => api.post("/material-orders", order).then((r) => r.data);
+export const updateMaterialOrder = (orderId, order) => api.put(`/material-orders/${encodeURIComponent(orderId)}`, order).then((r) => r.data);
 export const updateMaterialOrderStatus = (orderId, status) => api.patch(`/material-orders/${encodeURIComponent(orderId)}/status`, { status }).then((r) => r.data);
 export const deleteMaterialOrder = (orderId) => api.delete(`/material-orders/${encodeURIComponent(orderId)}`).then((r) => r.data);
 export const createLogisticsRoute = (route) => api.post("/routes", route).then((r) => r.data);
@@ -53,7 +64,8 @@ export const addRouteStop = (routeId, stop) => api.post(`/routes/${routeId}/stop
 export const transferRouteStop = (routeId, stopId, driverId, routeDate) => api.patch(`/routes/${routeId}/stops/${stopId}/transfer`, { driverId, routeDate }).then((r) => r.data);
 export const deleteRouteStop = (routeId, stopId) => api.delete(`/routes/${routeId}/stops/${stopId}`).then((r) => r.data);
 export const startRoute = (routeId) => api.post(`/routes/${routeId}/start`).then((r) => r.data);
-export const finishRoute = (routeId) => api.post(`/routes/${routeId}/finish`).then((r) => r.data);
+export const finishRoute = (routeId, problems = {}) => api.post(`/routes/${routeId}/finish`, { problems }).then((r) => r.data);
+export const reportStopProblem = (routeId, stopId, problem) => api.post(`/routes/${routeId}/stops/${stopId}/problem`, problem).then((r) => r.data);
 export const checkRouteStop = (routeId, stopId, checked) => api.patch(`/routes/${routeId}/stops/${stopId}/check`, { checked }).then((r) => r.data);
 export const reassignUnfinishedStops = (routeId, driverId, routeDate) => api.post(`/routes/${routeId}/reassign-unfinished`, { driverId, routeDate }).then((r) => r.data);
 export const archiveRoute = (routeId) => api.post(`/routes/${routeId}/archive`).then((r) => r.data);
@@ -72,3 +84,7 @@ export const createProduct = (product) => api.post("/products", product).then((r
 export const importProducts = (products) => api.post("/products/import", { products }).then((r) => r.data);
 export const updateProduct = (productId, product) => api.patch(`/products/${encodeURIComponent(productId)}`, product).then((r) => r.data);
 export const deleteProduct = (productId) => api.delete(`/products/${encodeURIComponent(productId)}`).then((r) => r.data);
+export const fetchInbox = () => api.get("/inbox").then((r) => r.data);
+export const setInboxMessageRead = (messageId, read) => api.patch(`/inbox/${encodeURIComponent(messageId)}`, { read }).then((r) => r.data);
+export const markAllInboxRead = () => api.post("/inbox/read-all").then((r) => r.data);
+export const deleteInboxMessage = (messageId) => api.delete(`/inbox/${encodeURIComponent(messageId)}`).then((r) => r.data);

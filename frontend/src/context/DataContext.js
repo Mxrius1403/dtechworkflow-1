@@ -15,12 +15,13 @@ function shape(data, catalog) {
 
 /** Loads authenticated collections from /api/data and exposes lists + lookups by id. */
 export function DataProvider({ children }) {
-  const { signOut } = useSession();
+  const { signOut, user } = useSession();
   const data = useQuery({ queryKey: ["data"], queryFn: fetchAllData, refetchOnMount: "always" });
   const cases = useQuery({
     queryKey: ["data", "cases"],
     queryFn: fetchCases,
-    enabled: Boolean(data.data),
+    // Drivers have no access to cases; asking anyway fails and is retried for seconds.
+    enabled: Boolean(data.data) && !user?.isDriver,
     refetchInterval: 60_000,
   });
   const catalog = useQuery({ queryKey: ["catalog"], queryFn: fetchCatalog, staleTime: Infinity });

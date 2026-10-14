@@ -11,7 +11,7 @@ export default function RoutesPage() {
 
   return (
     <>
-      <BackLink to="/delivery-management">Delivery Management</BackLink>
+      <BackLink to="/delivery-management" className="text-base">Delivery Management</BackLink>
       <LogisticsStats />
       <RoutesTab />
     </>

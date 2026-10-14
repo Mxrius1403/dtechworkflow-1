@@ -5,12 +5,16 @@ from fastapi import HTTPException
 from routers import data
 
 
+async def read_active_cases(_database):
+    return [{"id": "case-1", "status": "queue"}]
+
+
 @pytest.mark.parametrize("role", ["technician", "driver"])
 def test_all_data_omits_reports_for_non_managers(monkeypatch, role):
     async def no_op():
         return None
 
-    async def read_collection(collection, include_login_email=False):
+    async def read_collection(collection, include_login_email=False, query=None):
         return [{"collection": collection}] if collection == "saved_reports" else []
 
     async def read_suppliers(include_contact=False):
@@ -21,6 +25,7 @@ def test_all_data_omits_reports_for_non_managers(monkeypatch, role):
 
     monkeypatch.setattr(data, "archive_stale_routes", no_op)
     monkeypatch.setattr(data, "read_collection", read_collection)
+    monkeypatch.setattr(data, "read_active_cases", read_active_cases)
     monkeypatch.setattr(data, "read_suppliers", read_suppliers)
     monkeypatch.setattr(data, "read_settings", read_settings)
 
@@ -53,6 +58,7 @@ def test_all_data_includes_reports_for_managers(monkeypatch, role):
 
     monkeypatch.setattr(data, "archive_stale_routes", no_op)
     monkeypatch.setattr(data, "read_collection", read_collection)
+    monkeypatch.setattr(data, "read_active_cases", read_active_cases)
     monkeypatch.setattr(data, "read_suppliers", read_suppliers)
     monkeypatch.setattr(data, "read_settings", read_settings)
 
@@ -80,6 +86,7 @@ def test_all_data_limits_technicians_to_allowed_collections(monkeypatch):
 
     monkeypatch.setattr(data, "archive_stale_routes", no_op)
     monkeypatch.setattr(data, "read_collection", read_collection)
+    monkeypatch.setattr(data, "read_active_cases", read_active_cases)
     monkeypatch.setattr(data, "read_suppliers", read_suppliers)
     monkeypatch.setattr(data, "read_settings", read_settings)
 
@@ -87,11 +94,11 @@ def test_all_data_limits_technicians_to_allowed_collections(monkeypatch):
 
     assert set(read_collections) == {
         "users",
-        "cases",
         "tooth_orders",
         "material_orders",
         "notifications",
     }
+    assert payload["cases"] == [{"id": "case-1", "status": "queue"}]
     assert payload["users"] == [{"collection": "users"}]
     assert payload["suppliers"] == [{"id": "supplier-1", "name": "Supplier"}]
     assert "clinics" not in payload
@@ -145,34 +152,69 @@ def test_one_collection_returns_supplier_contact_to_managers(monkeypatch):
     }]
 
 
-def test_driver_payload_limits_clinics_to_assigned_routes():
-    payload = {
-        "drivers": [{"id": "driver-1"}, {"id": "driver-2"}],
-        "clinics": [{"id": "clinic-1"}, {"id": "clinic-2"}],
-        "routes": [
-            {"id": "route-1", "driverId": "driver-1"},
-            {"id": "route-2", "driverId": "driver-2"},
-        ],
+def test_driver_data_reads_only_the_drivers_own_records(monkeypatch):
+    rows = {
+        "drivers": [{"id": "driver-1"}],
+        "routes": [{"id": "route-1", "driverId": "driver-1"}],
         "stops": [
-            {"id": "stop-1", "routeId": "route-1", "clinicId": "clinic-1"},
-            {"id": "stop-2", "routeId": "route-2", "clinicId": "clinic-2"},
+            {"id": "stop-1", "routeId": "route-1", "clinicId": "clinic-2"},
+            {"id": "stop-2", "routeId": "route-1", "clinicId": "clinic-1"},
         ],
-        "routePlans": [
-            {"id": "route-1", "routeId": "route-1"},
-            {"id": "route-2", "routeId": "route-2"},
-        ],
-        "cases": [{"id": "case-1"}],
+        "route_plans": [{"id": "route-1", "routeId": "route-1"}],
+        "clinics": [{"id": "clinic-1"}, {"id": "clinic-2"}],
+    }
+    queries = {}
+
+    async def read_collection(collection, include_login_email=False, query=None):
+        queries[collection] = query
+        return rows[collection]
+
+    monkeypatch.setattr(data, "read_collection", read_collection)
+
+    scoped = asyncio.run(data.driver_data({"_id": "driver-1", "role": "driver"}))
+
+    assert queries == {
+        "drivers": {"_id": "driver-1"},
+        "routes": {"driverId": "driver-1", "archived": {"$ne": True}},
+        "stops": {"routeId": {"$in": ["route-1"]}},
+        "route_plans": {"routeId": {"$in": ["route-1"]}},
+        "clinics": {"_id": {"$in": ["clinic-1", "clinic-2"]}},
+    }
+    assert scoped == {
+        "drivers": rows["drivers"],
+        "clinics": rows["clinics"],
+        "routes": rows["routes"],
+        "stops": rows["stops"],
+        "routePlans": rows["route_plans"],
     }
 
-    scoped = data.driver_payload(payload, {"_id": "driver-1", "role": "driver"})
 
-    assert scoped["drivers"] == [{"id": "driver-1"}]
-    assert scoped["clinics"] == [{"id": "clinic-1"}]
-    assert scoped["routes"] == [{"id": "route-1", "driverId": "driver-1"}]
-    assert scoped["stops"] == [
-        {"id": "stop-1", "routeId": "route-1", "clinicId": "clinic-1"}
-    ]
-    assert scoped["cases"] == []
+def test_all_data_for_drivers_skips_full_collection_reads(monkeypatch):
+    async def no_op():
+        return None
+
+    async def driver_data(account):
+        assert account["_id"] == "driver-1"
+        return {"drivers": [], "clinics": [], "routes": [], "stops": [], "routePlans": []}
+
+    async def read_collection(*args, **kwargs):
+        pytest.fail("Drivers must not read whole collections.")
+
+    async def read_settings():
+        return {"startEircode": "D06"}
+
+    monkeypatch.setattr(data, "archive_stale_routes", no_op)
+    monkeypatch.setattr(data, "driver_data", driver_data)
+    monkeypatch.setattr(data, "read_collection", read_collection)
+    monkeypatch.setattr(data, "read_settings", read_settings)
+
+    payload = asyncio.run(data.all_data({"role": "driver", "_id": "driver-1"}))
+
+    assert set(payload) == {
+        "drivers", "clinics", "routes", "stops", "routePlans", "materialOrders", "settings",
+    }
+    assert "cases" not in payload
+    assert payload["settings"] == {"startEircode": "D06"}
 
 
 def test_driver_collection_endpoint_returns_scoped_clinics(monkeypatch):
@@ -191,6 +233,19 @@ def test_driver_collection_endpoint_returns_scoped_clinics(monkeypatch):
     )
 
     assert result == [{"id": "clinic-1"}]
+
+
+@pytest.mark.parametrize("role", ["owner", "manager", "technician"])
+def test_cases_collection_returns_only_active_cases(monkeypatch, role):
+    async def read_collection(*args, **kwargs):
+        pytest.fail("Cases must not be read as a whole collection.")
+
+    monkeypatch.setattr(data, "read_collection", read_collection)
+    monkeypatch.setattr(data, "read_active_cases", read_active_cases)
+
+    result = asyncio.run(data.one_collection("cases", {"role": role, "_id": "account-1"}))
+
+    assert result == [{"id": "case-1", "status": "queue"}]
 
 
 @pytest.mark.parametrize(

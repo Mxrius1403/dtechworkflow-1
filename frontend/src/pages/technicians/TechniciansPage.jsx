@@ -9,10 +9,12 @@ import {
 } from "@/components/ui/alert-dialog";
 import { BackLink } from "@/components/common/Bits";
 import { DataTable } from "@/components/common/DataTable";
+import { Pager } from "@/components/common/Pager";
 import { Panel } from "@/components/common/Panel";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { useData } from "@/context/DataContext";
 import { useSession } from "@/context/SessionContext";
+import { useCasePages } from "@/hooks/use-cases";
 import { deleteTechnician, updateTechnicianStatus } from "@/lib/api";
 import { isToday, today } from "@/lib/format";
 import { notify, notifyError } from "@/lib/notify";
@@ -62,20 +64,21 @@ function TechCard({ u, cases, canManage, onEdit, onToggleStatus, onDelete }) {
 }
 
 function TechnicianCases({ id }) {
-  const { cases, byId } = useData();
+  const { byId } = useData();
   const u = byId.users[id];
-  const rows = cases.filter((c) => c.technicianId === id || c.finishedById === id).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+  const results = useCasePages({ technicianId: id });
   return (
     <>
       <BackLink to="/technicians">Return to Technicians</BackLink>
       <Panel title={`${u?.name || id} • ${id}`} description="All cases associated with this permanent technician ID.">
-        <DataTable dense testId="tech-cases-table" rows={rows} columns={[
+        <DataTable dense testId="tech-cases-table" rows={results.rows} empty={results.loading ? "Loading cases…" : results.error ? "Could not load cases." : undefined} columns={[
           { key: "code", header: "Case", render: (c) => <span className="font-mono font-bold">{c.code}</span> },
           { key: "status", header: "Status", render: (c) => <StatusBadge kind="case" value={c.status} /> },
           { key: "startedTime", header: "Started", render: (c) => c.startedTime || "-" },
           { key: "finishedTime", header: "Finished", render: (c) => c.finishedTime || "-" },
           { key: "delivery", header: "Delivery", render: (c) => <StatusBadge kind="flag" value={c.overdue ? "overdue" : "ontime"} /> },
         ]} />
+        <Pager page={results.page} pageSize={results.pageSize} total={results.total} onPage={results.setPage} testId="tech-cases" />
       </Panel>
     </>
   );

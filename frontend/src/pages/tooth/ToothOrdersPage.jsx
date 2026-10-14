@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import { Check, FileText, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Check, FileText, Pencil, Trash2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { BackLink, Muted } from "@/components/common/Bits";
@@ -7,16 +7,20 @@ import { ConfirmAction } from "@/components/common/ConfirmAction";
 import { Panel } from "@/components/common/Panel";
 import { CountPill } from "@/components/common/StatusBadge";
 import { useData } from "@/context/DataContext";
+import { useScrollToHash } from "@/hooks/use-scroll-to-hash";
 import { deleteToothOrder, updateToothOrderStatus } from "@/lib/api";
 import { notify, notifyError } from "@/lib/notify";
 import { printHtml, toothOrderPdfHtml } from "@/lib/print";
+import { ToothOrderEditDialog } from "./ToothOrderEditDialog";
 
 export default function ToothOrdersPage() {
   const { toothOrders } = useData();
   const queryClient = useQueryClient();
+  const [editing, setEditing] = useState(null);
   const orders = [...toothOrders].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
   const openOrders = orders.filter((order) => order.status !== "done");
   const completedOrders = orders.filter((order) => order.status === "done");
+  useScrollToHash(orders.length > 0);
   useEffect(() => {
     const refresh = window.setInterval(
       () => queryClient.invalidateQueries({ queryKey: ["data"] }),
@@ -48,16 +52,20 @@ export default function ToothOrdersPage() {
   const renderOrders = (items, completed = false) => (
     <div className="grid gap-2">
       {items.map((o) => (
-        <div key={o.id} className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-l-4 border-l-indigo-500 p-3" data-testid={`tooth-order-row-${o.id}`}>
+        <div key={o.id} id={`order-${o.id}`} className="flex scroll-mt-24 flex-wrap items-start justify-between gap-3 rounded-lg border border-l-4 border-l-indigo-500 p-3 transition-shadow" data-testid={`tooth-order-row-${o.id}`}>
           <div className="min-w-0 space-y-1.5">
             <p className="font-mono font-bold text-primary">{o.id}</p>
             <p className="text-xs text-muted-foreground">Ordered by {o.technician} ({o.technicianId}) • {o.date} {o.time} • {o.total} teeth</p>
             <div className="flex flex-wrap gap-1.5">
               {o.items.map((i, n) => <span key={n} className="rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium">{i.tooth} • {i.shade} × {i.qty}</span>)}
             </div>
+            {o.editedBy && <p className="text-xs italic text-muted-foreground">Edited by {o.editedBy}</p>}
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="outline" onClick={() => printHtml(toothOrderPdfHtml(o))} data-testid={`tooth-order-pdf-${o.id}`}><FileText /> PDF</Button>
+            {!completed && (
+              <Button size="sm" variant="outline" onClick={() => setEditing(o)} data-testid={`tooth-order-edit-${o.id}`}><Pencil /> Edit</Button>
+            )}
             {!completed && (
               <Button size="sm" onClick={() => markOrderDone(o.id)} data-testid={`tooth-order-done-${o.id}`}><Check /> Mark done</Button>
             )}
@@ -73,7 +81,7 @@ export default function ToothOrdersPage() {
 
   return (
     <>
-      <BackLink to="/tooth-management">Tooth Management</BackLink>
+      <BackLink to="/tooth-management" className="text-base">Tooth Management</BackLink>
       <div className="grid gap-5">
         <Panel title="Tooth Order Requests" description="Open the professional PDF to send the request to the supplier. Mark requests as done when they have been handled." actions={<CountPill testId="tooth-orders-count">{openOrders.length}</CountPill>}>
           {renderOrders(openOrders)}
@@ -82,6 +90,7 @@ export default function ToothOrdersPage() {
           {renderOrders(completedOrders, true)}
         </Panel>
       </div>
+      {editing && <ToothOrderEditDialog order={editing} onClose={() => setEditing(null)} />}
     </>
   );
 }

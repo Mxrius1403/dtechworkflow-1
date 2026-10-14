@@ -1,5 +1,5 @@
 import asyncio
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -97,16 +97,32 @@ class FakeCases:
         return document
 
 
+SET_UP_SERVICE_TYPES = [
+    {
+        "_id": f"{department}-{name}",
+        "department": department,
+        "name": name,
+        "nameKey": name.casefold(),
+        "createdAt": f"2026-10-01T00:00:0{index}Z",
+    }
+    for department in ("prosthesis", "ortho", "digital")
+    for index, name in enumerate(("Repair", "Try In"))
+]
+
+
 class FakeDatabase:
     def __init__(self, cases):
         self.cases = cases
         self.users = cases.users
         self.auth_users = cases.auth_users
         self.case_history = FakeCases()
+        self.service_types = FakeCases(SET_UP_SERVICE_TYPES)
 
     def __getitem__(self, name):
         if name == "case_history":
             return self.case_history
+        if name == "service_types":
+            return self.service_types
         if name == "cases":
             return self.cases
         if name == "users":
@@ -121,6 +137,7 @@ def receive_payload(**overrides):
         "code": "RCV-1001",
         "department": "prosthesis",
         "productionDate": date(2026, 10, 7),
+        "dueTime": "14:30",
         "serviceTypes": ["Repair"],
         "arch": "Upper",
     }
@@ -186,6 +203,28 @@ def test_receive_creates_scheduled_case(receiving_db):
     assert (
         receiving_db.documents[result["id"]]["currentDueDate"] == "2026-10-07"
     )
+    assert result["currentDueTime"] == "14:30"
+    assert "2026-10-07 14:30" in result["history"][0]["action"]
+
+
+def test_receive_requires_a_due_time():
+    payload = receive_payload().model_dump()
+    del payload["dueTime"]
+    with pytest.raises(ValidationError):
+        ReceiveCase(**payload)
+
+
+def test_receive_rejects_due_time_in_the_past_today(receiving_db, monkeypatch):
+    monkeypatch.setattr(receiving, "_receiving_time", lambda: time(15, 0))
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(
+            receiving.create_received_case(
+                receive_payload(productionDate=date(2026, 10, 6)),
+                {"_id": "MGR0001", "role": "manager", "name": "Manager"},
+            )
+        )
+    assert error.value.status_code == 422
+    assert error.value.detail == "Due time cannot be in the past."
 
 
 def test_receive_rejects_duplicate_case(receiving_db):
@@ -423,10 +462,8 @@ def test_deleted_case_number_can_be_received_again(receiving_db):
     "overrides",
     [
         {"serviceTypes": [], "arch": ""},
-        {
-            "serviceTypes": ["Invalid"],
-            "arch": "Upper",
-        },
+        {"serviceTypes": ["Repair", "repair"], "arch": "Upper"},
+        {"serviceTypes": ["Repair", " "], "arch": "Upper"},
         {"department": "digital", "serviceTypes": ["Repair"], "arch": ""},
         {"department": "ortho", "serviceTypes": [], "arch": ""},
     ],
@@ -434,6 +471,62 @@ def test_deleted_case_number_can_be_received_again(receiving_db):
 def test_receive_rejects_invalid_work_details(overrides):
     with pytest.raises(ValidationError):
         receive_payload(**overrides)
+
+
+def test_receive_rejects_service_type_that_is_not_set_up(receiving_db):
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(
+            receiving.create_received_case(
+                receive_payload(serviceTypes=["Repair", "Bite"]), MANAGER
+            )
+        )
+
+    assert error.value.status_code == 422
+    assert error.value.detail == "Service type 'Bite' is not set up for Prosthesis."
+    assert receiving_db.documents == {}
+
+
+def test_receive_rejects_service_type_from_another_department(receiving_db):
+    receiving.db.service_types.documents["ortho-Bite"] = {
+        "_id": "ortho-Bite", "department": "ortho", "name": "Bite", "nameKey": "bite",
+    }
+
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(
+            receiving.create_received_case(
+                receive_payload(serviceTypes=["Bite"]), MANAGER
+            )
+        )
+    assert error.value.status_code == 422
+
+    result = asyncio.run(
+        receiving.create_received_case(
+            receive_payload(department="ortho", serviceTypes=["Bite"]), MANAGER
+        )
+    )
+    assert result["serviceTypes"] == ["Bite"]
+
+
+def test_receive_stores_service_types_as_set_up(receiving_db):
+    result = asyncio.run(
+        receiving.create_received_case(
+            receive_payload(serviceTypes=["try  in", "REPAIR"]), MANAGER
+        )
+    )
+
+    assert result["serviceTypes"] == ["Try In", "Repair"]
+
+
+def test_receive_accepts_none_before_any_service_type_is_set_up(receiving_db):
+    receiving.db.service_types.documents.clear()
+
+    result = asyncio.run(
+        receiving.create_received_case(
+            receive_payload(serviceTypes=["none"], arch="None"), MANAGER
+        )
+    )
+
+    assert result["serviceTypes"] == ["None"]
 
 
 def test_legacy_department_value_is_no_longer_accepted():
@@ -534,6 +627,103 @@ def test_update_case_saves_operational_time_and_overdue_status(receiving_db):
     assert result["receivedDate"] == "2026-10-07"
     assert result["receivedTime"] == "14:30"
     assert result["overdue"] is True
+
+
+def scheduled_case(**overrides):
+    case = {
+        "_id": "CASE-1",
+        "code": "RCV-1001",
+        "department": "prosthesis",
+        "status": "queue",
+        "scheduledDate": "2026-10-07",
+        "originalScheduledDate": "2026-10-07",
+        "currentDueDate": "2026-10-07",
+        "currentDueTime": "14:30",
+        "history": [],
+    }
+    case.update(overrides)
+    return case
+
+
+def test_update_case_reschedules_due_date_and_logs_history(receiving_db):
+    receiving_db.documents["CASE-1"] = scheduled_case()
+
+    result = asyncio.run(
+        receiving.update_received_case(
+            "CASE-1",
+            receiving.UpdateCase(
+                department="prosthesis",
+                status="queue",
+                dueDate=date(2026, 10, 9),
+                dueTime="11:15",
+            ),
+            {"_id": "MGR0001", "role": "manager", "name": "Manager"},
+        )
+    )
+
+    assert result["scheduledDate"] == "2026-10-09"
+    assert result["currentDueDate"] == "2026-10-09"
+    assert result["currentDueTime"] == "11:15"
+    assert result["originalScheduledDate"] == "2026-10-07"
+    assert (
+        "rescheduled from 2026-10-07 14:30 to 2026-10-09 11:15"
+        in result["history"][-1]["action"]
+    )
+    logged = list(receiving.db.case_history.documents.values())
+    assert (
+        "scheduled due date 2026-10-07 14:30 -> 2026-10-09 11:15"
+        in logged[-1]["action"]
+    )
+
+
+def test_update_case_keeps_unchanged_past_due_date(receiving_db):
+    receiving_db.documents["CASE-1"] = scheduled_case(
+        scheduledDate="2026-10-01",
+        currentDueDate="2026-10-01",
+    )
+
+    result = asyncio.run(
+        receiving.update_received_case(
+            "CASE-1",
+            receiving.UpdateCase(
+                department="ortho",
+                status="queue",
+                dueDate=date(2026, 10, 1),
+                dueTime="14:30",
+            ),
+            {"_id": "MGR0001", "role": "manager", "name": "Manager"},
+        )
+    )
+
+    assert result["department"] == "ortho"
+    assert result["currentDueDate"] == "2026-10-01"
+    assert "rescheduled" not in result["history"][-1]["action"]
+
+
+@pytest.mark.parametrize(
+    "due_date",
+    [date(2026, 10, 5), date(2026, 10, 10)],
+    ids=["past", "saturday"],
+)
+def test_update_case_rejects_invalid_new_due_date(receiving_db, due_date):
+    receiving_db.documents["CASE-1"] = scheduled_case()
+
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(
+            receiving.update_received_case(
+                "CASE-1",
+                receiving.UpdateCase(
+                    department="prosthesis",
+                    status="queue",
+                    dueDate=due_date,
+                    dueTime="14:30",
+                ),
+                {"_id": "MGR0001", "role": "manager", "name": "Manager"},
+            )
+        )
+
+    assert error.value.status_code == 422
+    assert receiving_db.documents["CASE-1"]["currentDueDate"] == "2026-10-07"
 
 
 def test_completing_case_records_finish_and_responsible_technician(receiving_db):
@@ -852,6 +1042,29 @@ def test_import_maps_status_to_queue_or_completed(receiving_db):
     ]
     result = asyncio.run(receiving.import_cases(receiving.ImportCases(cases=cases), MANAGER))
     assert [c["status"] for c in result["cases"]] == ["queue", "completed", "queue"]
+
+
+def test_import_rejects_service_types_that_are_not_set_up(receiving_db):
+    body = receiving.ImportCases(cases=[
+        {**LEGACY_CASE, "code": "IMP-1"},
+        {**LEGACY_CASE, "code": "IMP-2", "department": "digital", "serviceTypes": ["Finish"]},
+    ])
+
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(receiving.import_cases(body, MANAGER))
+
+    assert error.value.status_code == 422
+    assert error.value.detail == "Row 3: Service type 'Finish' is not set up for Digital."
+    assert receiving_db.documents == {}
+
+
+def test_import_accepts_none_before_any_service_type_is_set_up(receiving_db):
+    receiving.db.service_types.documents.clear()
+    body = receiving.ImportCases(cases=[{**LEGACY_CASE, "serviceTypes": ["None"]}])
+
+    result = asyncio.run(receiving.import_cases(body, MANAGER))
+
+    assert result["cases"][0]["serviceTypes"] == ["None"]
 
 
 def test_import_requires_a_due_date():

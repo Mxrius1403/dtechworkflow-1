@@ -53,12 +53,14 @@ backend/
 │   ├── config.py          Environment (MONGO_URL, DB_NAME, CORS_ORIGINS) and constants
 │   ├── database.py        Mongo client (Motor)
 │   ├── models.py          BaseDocument: Mongo `_id` <-> API `id`
+│   ├── cases.py           Active case set, case list projection and case indexes
 │   ├── collections.py     API name -> Mongo collection (one place to expose data)
 │   ├── production_calendar.py  Irish public holidays and production-day rules
 │   └── security.py        Password hashing, signed sessions and auth dependencies
 ├── routers/
 │   ├── auth.py            Login/logout/current user + manager and technician account administration
-│   ├── data.py            GET /api/data (everything) and /api/data/{name}
+│   ├── data.py            GET /api/data (everything the screens share) and /api/data/{name}
+│   ├── cases.py           GET /api/cases: case search, single cases and report periods
 │   ├── catalog.py         GET /api/catalog (TDS materials + tooth groups)
 │   └── logistics.py       Authenticated logistics/clinic/driver writes
 └── data/                  Static JSON: materials.json, tooth_groups.json
@@ -140,8 +142,11 @@ Add `"apiName": "mongo_collection"` to `PUBLIC_COLLECTIONS` in `backend/core/col
 | POST | `/api/auth/technicians` | **Owner or manager.** Create a technician account |
 | PATCH | `/api/auth/technicians/{id}` | **Owner or manager.** Enable or disable technician sign-in |
 | DELETE | `/api/auth/technicians/{id}` | **Owner or manager.** Archive an inactive technician account; keep its history |
-| GET | `/api/data` | **Authenticated.** All collections in one response + `settings` |
+| GET | `/api/data` | **Authenticated.** All collections in one response + `settings`. `cases` holds only active cases (queue, production, completed) without their embedded history |
 | GET | `/api/data/{name}` | **Authenticated.** One collection (e.g. `routes`, `cases`) or `settings` |
+| GET | `/api/cases` | **Any staff account.** Every case incl. removed ones, newest first, paged: `q` (text search), `code` (exact case number), `technicianId`, `page`, `pageSize` (max. 100). Returns `{cases, total, page, pageSize}` |
+| GET | `/api/cases/{id}` | **Any staff account.** One case, also when it was removed from the queue |
+| GET | `/api/cases/finished?from=&to=` | **Owner or manager.** Cases with work finished in the period, for production reports |
 | GET | `/api/catalog` | **Authenticated.** `{materials, toothGroups}` |
 | GET | `/api/clinics/{id}/contact` | **Authenticated.** Clinic contact fields |
 | POST | `/api/tooth-orders` | **Any staff account.** Submit a tooth order for manager review |

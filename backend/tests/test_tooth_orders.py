@@ -10,6 +10,9 @@ class FakeToothOrdersCollection:
     def __init__(self):
         self.documents = {}
 
+    async def find_one(self, query):
+        return self.documents.get(query["_id"])
+
     async def insert_one(self, document):
         self.documents[document["_id"]] = document
 
@@ -138,4 +141,61 @@ def test_delete_missing_tooth_order_returns_404(monkeypatch):
     monkeypatch.setattr(tooth_orders, "db", FakeDatabase())
     with pytest.raises(HTTPException) as error:
         asyncio.run(tooth_orders.delete_tooth_order("missing"))
+    assert error.value.status_code == 404
+
+
+def test_manager_edits_tooth_order(monkeypatch):
+    database = FakeDatabase()
+    database.collection.documents["TO1"] = {
+        "_id": "TO1",
+        "technician": "Test Technician",
+        "items": [{"group": "Upper Anteriors", "tooth": "S1", "shade": "A1", "qty": 2}],
+        "total": 2,
+        "status": "pending",
+    }
+    monkeypatch.setattr(tooth_orders, "db", database)
+    body = tooth_orders.ToothOrderSubmit.model_validate(
+        {
+            "items": [
+                {"group": "Upper Anteriors", "tooth": "S1", "shade": "A2", "qty": 1},
+                {"group": "Lower Anteriors", "tooth": "L4", "shade": "B2", "qty": 3},
+            ]
+        }
+    )
+
+    result = asyncio.run(
+        tooth_orders.edit_tooth_order("TO1", body, {"_id": "MGR001", "name": "Manager"})
+    )
+    stored = database.collection.documents["TO1"]
+
+    assert result["id"] == "TO1"
+    assert stored["items"] == [item.model_dump() for item in body.items]
+    assert stored["total"] == 4
+    assert stored["technician"] == "Test Technician"
+    assert stored["status"] == "pending"
+    assert stored["editedBy"] == "Manager"
+    assert stored["editedAt"].endswith("Z")
+
+
+def test_editing_tooth_order_is_manager_only_and_404s(monkeypatch):
+    route = next(
+        route
+        for route in tooth_orders.router.routes
+        if route.path == "/api/tooth-orders/{order_id}" and "PUT" in route.methods
+    )
+    role_check = next(
+        dependency.call
+        for dependency in route.dependant.dependencies
+        if getattr(dependency.call, "__name__", None) == "check_role"
+    )
+    with pytest.raises(HTTPException) as role_error:
+        asyncio.run(role_check({"role": "technician"}))
+    assert role_error.value.status_code == 403
+
+    monkeypatch.setattr(tooth_orders, "db", FakeDatabase())
+    body = tooth_orders.ToothOrderSubmit.model_validate(
+        {"items": [{"group": "Upper Anteriors", "tooth": "S1", "shade": "A1", "qty": 1}]}
+    )
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(tooth_orders.edit_tooth_order("missing", body, {"name": "Manager"}))
     assert error.value.status_code == 404

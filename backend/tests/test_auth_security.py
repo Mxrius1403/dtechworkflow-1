@@ -15,6 +15,7 @@ from routers.auth import (
     ManagerUpdate,
     OwnerSetup,
     OwnershipTransfer,
+    PasswordChange,
     TechnicianCreate,
     TechnicianStatusUpdate,
     TechnicianUpdate,
@@ -328,6 +329,7 @@ def test_owner_creates_manager_as_separate_login_role(monkeypatch):
     assert security.verify_password("long-enough-password", account["passwordHash"])
     assert result["user"]["isManager"] is True
     assert result["user"]["isOwner"] is False
+    assert account["mustChangePassword"] is True
 
 
 def test_manager_can_create_technician_account(monkeypatch):
@@ -368,6 +370,8 @@ def test_manager_can_create_technician_account(monkeypatch):
     assert account["createdBy"] == "MGR0001"
     assert result["user"]["id"] == "DT001"
     assert result["user"]["department"] is None
+    assert account["mustChangePassword"] is True
+    assert result["user"]["mustChangePassword"] is True
 
 
 def test_technician_creation_allows_managers_and_owners_only():
@@ -530,6 +534,7 @@ def test_manager_can_change_technician_password_and_revoke_sessions(monkeypatch)
     assert not security.verify_password(
         "old-long-enough-password", account["passwordHash"]
     )
+    assert account["mustChangePassword"] is True
     assert result["user"]["id"] == "DT001"
 
 
@@ -1111,3 +1116,129 @@ def test_login_rate_limit_after_five_failed_attempts():
 
     assert error.value.status_code == 429
     security.clear_login_failures(key)
+
+
+def make_session_request(path):
+    return Request(
+        {
+            "type": "http",
+            "http_version": "1.1",
+            "method": "GET",
+            "scheme": "http",
+            "path": path,
+            "raw_path": path.encode("latin-1"),
+            "query_string": b"",
+            "headers": [(b"cookie", b"dt_session=token")],
+            "server": ("testserver", 80),
+            "client": ("127.0.0.1", 1234),
+        }
+    )
+
+
+def test_account_with_assigned_password_can_only_reach_password_change(monkeypatch):
+    account = {
+        "_id": "DT001",
+        "role": "technician",
+        "active": True,
+        "authVersion": 2,
+        "mustChangePassword": True,
+    }
+
+    class Collection:
+        async def find_one(self, _query):
+            return account
+
+    class Database:
+        def __getitem__(self, _name):
+            return Collection()
+
+    monkeypatch.setattr(security, "db", Database())
+    monkeypatch.setattr(
+        security, "decode_session_token", lambda _token: {"sub": "DT001", "ver": 2}
+    )
+
+    for path in ("/api/auth/me", "/api/auth/me/password", "/api/auth/refresh"):
+        assert asyncio.run(security.current_account(make_session_request(path)))
+
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(security.current_account(make_session_request("/api/data")))
+    assert error.value.status_code == 403
+
+    account["mustChangePassword"] = False
+    assert asyncio.run(security.current_account(make_session_request("/api/data")))
+
+
+def test_password_change_requires_twelve_characters():
+    with pytest.raises(ValidationError):
+        PasswordChange(password="too-short")
+
+
+def test_user_changes_assigned_password_and_session_is_rotated(monkeypatch):
+    new_password = "my-own-long-enough-password"
+    account = {
+        "_id": "DT001",
+        "name": "Technician",
+        "email": "tech@example.com",
+        "passwordHash": security.hash_password("assigned-long-password"),
+        "role": "technician",
+        "active": True,
+        "authVersion": 3,
+        "mustChangePassword": True,
+    }
+
+    class Collection:
+        async def update_one(self, query, update):
+            assert query["_id"] == "DT001"
+            assert query["authVersion"] == 3
+            account.update(update["$set"])
+            for field in update["$unset"]:
+                account.pop(field, None)
+            account["authVersion"] += update["$inc"]["authVersion"]
+            return type("Result", (), {"matched_count": 1})()
+
+        async def find_one(self, _query):
+            return account
+
+    class Database:
+        def __getitem__(self, name):
+            assert name == "auth_users"
+            return Collection()
+
+    token_calls = []
+    monkeypatch.setattr(auth, "db", Database())
+    monkeypatch.setattr(
+        auth,
+        "create_session_token",
+        lambda user_id, version: token_calls.append((user_id, version))
+        or "fresh-token",
+    )
+    response = Response()
+
+    result = asyncio.run(
+        auth.change_my_password(PasswordChange(password=new_password), response, account)
+    )
+
+    assert security.verify_password(new_password, account["passwordHash"])
+    assert "mustChangePassword" not in account
+    assert account["authVersion"] == 4
+    assert token_calls == [("DT001", 4)]
+    assert "dt_session=fresh-token" in response.headers["set-cookie"]
+    assert result["user"]["mustChangePassword"] is False
+
+
+def test_password_change_rejects_reusing_assigned_password():
+    account = {
+        "_id": "DT001",
+        "passwordHash": security.hash_password("assigned-long-password"),
+        "authVersion": 0,
+        "mustChangePassword": True,
+    }
+
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(
+            auth.change_my_password(
+                PasswordChange(password="assigned-long-password"), Response(), account
+            )
+        )
+
+    assert error.value.status_code == 422

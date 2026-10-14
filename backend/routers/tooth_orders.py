@@ -4,6 +4,7 @@ from zoneinfo import ZoneInfo
 
 from core.config import TIMEZONE
 from core.database import db
+from core.inbox import notify_managers
 from core.order_ids import allocate_order_id
 from core.security import current_account, require_roles
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -64,6 +65,46 @@ async def submit_tooth_order(
         "status": "pending",
     }
     await db["tooth_orders"].insert_one(order)
+    await notify_managers(
+        db,
+        kind="tooth_order_created",
+        title=f"New tooth order {order['_id']}",
+        body=f"{account['name']} ordered {order['total']} teeth.",
+        target="toothOrder",
+        target_id=order["_id"],
+        actor=account,
+    )
+    order["id"] = order.pop("_id")
+    return order
+
+
+@router.put(
+    "/{order_id}",
+    dependencies=[Depends(require_roles("owner", "manager"))],
+)
+async def edit_tooth_order(
+    order_id: str,
+    body: ToothOrderSubmit,
+    account: dict = Depends(current_account),
+) -> dict:
+    """Managers correct a request, e.g. add missing teeth or change shades."""
+    order = await db["tooth_orders"].find_one({"_id": order_id})
+    if order is None:
+        raise HTTPException(status_code=404, detail="Tooth order not found.")
+
+    local_now = datetime.now(ZoneInfo(TIMEZONE))
+    changes = {
+        "items": [item.model_dump() for item in body.items],
+        "total": sum(item.qty for item in body.items),
+        "editedBy": account["name"],
+        "editedAt": (
+            local_now.astimezone(timezone.utc)
+            .isoformat(timespec="milliseconds")
+            .replace("+00:00", "Z")
+        ),
+    }
+    await db["tooth_orders"].update_one({"_id": order_id}, {"$set": changes})
+    order.update(changes)
     order["id"] = order.pop("_id")
     return order
 

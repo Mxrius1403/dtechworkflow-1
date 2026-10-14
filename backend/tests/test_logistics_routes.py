@@ -135,7 +135,10 @@ def test_route_creates_separate_stops_for_delivery_and_collection_at_same_clinic
     body = RouteCreate(
         date=date(2026, 10, 8),
         driverId="D1",
-        deliveries=[DeliveryInput(clinicId="C1", caseNumber="6366")],
+        deliveries=[
+            DeliveryInput(clinicId="C1", caseNumber="6366"),
+            DeliveryInput(clinicId="C1", caseNumber="6367"),
+        ],
         collections=[{"clinicId": "C1", "notes": ""}],
     )
 
@@ -144,6 +147,7 @@ def test_route_creates_separate_stops_for_delivery_and_collection_at_same_clinic
     assert result == route
     assert stop_calls == [
         ("C1", [{"caseNumber": "6366"}], []),
+        ("C1", [{"caseNumber": "6367"}], []),
         ("C1", [], [{"notes": ""}]),
     ]
 

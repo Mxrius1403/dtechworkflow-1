@@ -3,16 +3,20 @@ import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom
 import { Toaster } from "@/components/ui/sonner";
 import { AppShell } from "@/components/layout/AppShell";
 import { FullScreenMessage } from "@/components/common/FullScreenMessage";
+import { ScrollToTopButton } from "@/components/common/ScrollToTopButton";
 import { canOpen, homePath, pageForPath } from "@/config/navigation";
 import { DataProvider } from "@/context/DataContext";
 import { SessionProvider, useSession } from "@/context/SessionContext";
 import AttentionPage from "@/pages/AttentionPage";
+import CaseManagementPage from "@/pages/CaseManagementPage";
 import CaseSearchPage from "@/pages/CaseSearchPage";
+import ChangePasswordPage from "@/pages/ChangePasswordPage";
 import ClinicsPage from "@/pages/clinics/ClinicsPage";
 import CompletionReviewPage from "@/pages/CompletionReviewPage";
 import DashboardPage from "@/pages/dashboard/DashboardPage";
 import DeliveryManagementPage from "@/pages/logistics/DeliveryManagementPage";
 import DriversPage from "@/pages/drivers/DriversPage";
+import InboxPage from "@/pages/InboxPage";
 import MaterialsPage from "@/pages/materials/MaterialsPage";
 import OrderMaterialsPage from "@/pages/materials/OrderMaterialsPage";
 import ProductManagementPage from "@/pages/materials/ProductManagementPage";
@@ -21,6 +25,7 @@ import OwnerControlPage from "@/pages/OwnerControlPage";
 import ProductionCalendarPage from "@/pages/ProductionCalendarPage";
 import ReceivingPage from "@/pages/ReceivingPage";
 import ReportsPage from "@/pages/reports/ReportsPage";
+import ServiceTypesPage from "@/pages/ServiceTypesPage";
 import SignInPage from "@/pages/SignInPage";
 import SuppliersPage from "@/pages/suppliers/SuppliersPage";
 import TechniciansPage from "@/pages/technicians/TechniciansPage";
@@ -34,12 +39,15 @@ import RoutesPage from "@/pages/logistics/RoutesPage";
 // URL -> page component. Who may open each URL is defined in config/navigation.js.
 const SCREENS = [
   ["/dashboard", DashboardPage],
+  ["/inbox", InboxPage],
+  ["/case-management", CaseManagementPage],
   ["/receiving", ReceivingPage],
   ["/delivery-management", DeliveryManagementPage],
   ["/drivers", DriversPage],
   ["/clinics", ClinicsPage],
   ["/suppliers", SuppliersPage],
   ["/case-search", CaseSearchPage],
+  ["/service-types", ServiceTypesPage],
   ["/tooth-management", ToothManagementPage],
   ["/tooth-order", ToothOrderPage],
   ["/tooth-orders", ToothOrdersPage],
@@ -72,6 +80,7 @@ function ProtectedDataLayout() {
   if (loading) return <FullScreenMessage title="Dental Tech Daily" text="Checking your sign-in…" loading />;
   if (error) return <FullScreenMessage title="Sign-in unavailable" text="The authentication service could not be reached. Check the connection and retry." action={{ label: "Retry", onClick: () => window.location.reload() }} />;
   if (!user) return <Navigate to="/" replace />;
+  if (user.mustChangePassword) return <ChangePasswordPage />;
   return <DataProvider><Outlet /></DataProvider>;
 }
 
@@ -99,6 +108,7 @@ export default function App() {
           </Route>
         </Routes>
       </SessionProvider>
+      <ScrollToTopButton />
       <Toaster position="top-right" richColors closeButton />
     </BrowserRouter>
   );

@@ -1,4 +1,11 @@
 """Validated workflow vocabulary shared by production API endpoints."""
 
-SERVICE_TYPES = ["Repair", "Addition", "Bite", "Special Tray", "Finish", "Try In", "None"]
+DEPARTMENTS = ("prosthesis", "ortho", "digital")
+DEPARTMENT_LABELS = {
+    "prosthesis": "Prosthesis",
+    "ortho": "Ortho",
+    "digital": "Digital",
+}
+# Always selectable, whatever service types Managers have set up.
+NO_SERVICE_TYPE = "None"
 ARCH_OPTIONS = ["Upper", "Lower", "Upper & Lower", "None"]

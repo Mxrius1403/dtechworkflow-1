@@ -1,41 +1,46 @@
 import { useState } from "react";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { ARCH_OPTIONS, SERVICE_TYPES } from "@/config/constants";
-import { nice, today } from "@/lib/format";
-import { nextProductionDay, productionDayInfo } from "@/lib/holidays";
+import { ARCH_OPTIONS, NO_SERVICE_TYPE } from "@/config/constants";
+import { useServiceTypes } from "@/hooks/use-service-types";
+import { localInputValue, today } from "@/lib/format";
+import { nextProductionDay } from "@/lib/holidays";
 import { departmentName } from "@/lib/cases";
-import { notify, notifyError } from "@/lib/notify";
+import { notifyError } from "@/lib/notify";
+import { serviceTypeOptions } from "@/lib/serviceTypes";
 import { cn } from "@/lib/utils";
+import { productionDateOrNext } from "./DueScheduleFields";
+
+const nowTime = () => localInputValue().slice(11, 16);
 
 const chip = (on) => cn("rounded-lg border-2 px-3 py-3 text-sm font-semibold transition-colors", on ? "border-secondary bg-accent text-accent-foreground" : "border-border bg-card hover:border-secondary/50");
 
-/** Receiving wizard: service types → arch → completion due date for every department. */
+/** Receiving wizard: service types → arch → completion due date and time for every department. */
 export function ReceivingWizard({ draft, onClose, onSave }) {
   const [step, setStep] = useState("types");
   const [types, setTypes] = useState([]);
   const [arch, setArch] = useState("");
   const [date, setDate] = useState(nextProductionDay(today()));
+  const [time, setTime] = useState("");
   const [saving, setSaving] = useState(false);
+  const serviceTypes = useServiceTypes();
+  const options = serviceTypeOptions(serviceTypes.byDepartment, draft.department);
   const label = `${draft.reentry ? "Re-entry" : "New case"} ${draft.code}`;
 
   const toggle = (t) => setTypes((selected) => {
     if (selected.includes(t)) return selected.filter((x) => x !== t);
-    return t === "None" ? ["None"] : [...selected.filter((x) => x !== "None"), t];
+    return t === NO_SERVICE_TYPE ? [NO_SERVICE_TYPE] : [...selected.filter((x) => x !== NO_SERVICE_TYPE), t];
   });
-  const pickDate = (value) => {
-    const info = value && productionDayInfo(value);
-    if (!info || info.available) return setDate(value);
-    const next = nextProductionDay(value);
-    setDate(next);
-    notify(info.holiday ? `${info.holiday.name} is unavailable. Moved to ${nice(next)}.` : `Weekends are unavailable. Moved to ${nice(next)}.`);
-  };
+  const pickDate = (value) => setDate(productionDateOrNext(value));
   const save = async () => {
     if (!date) return notifyError("Choose a completion due date");
+    if (!time) return notifyError("Choose a completion due time");
+    if (date === today() && time <= nowTime()) return notifyError("The due time cannot be in the past");
     setSaving(true);
     try {
-      const saved = await onSave({ productionDate: date, serviceTypes: types, arch });
+      const saved = await onSave({ productionDate: date, dueTime: time, serviceTypes: types, arch });
       if (saved) onClose();
     } finally {
       setSaving(false);
@@ -45,7 +50,19 @@ export function ReceivingWizard({ draft, onClose, onSave }) {
   const steps = {
     types: {
       title: `${label} — Service Type`, description: "Select one or more. A single case can contain multiple stages.",
-      body: <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{SERVICE_TYPES.map((t) => <button key={t} className={chip(types.includes(t))} onClick={() => toggle(t)} data-testid={`service-type-${t.toLowerCase().replace(/\s/g, "-")}`}>{t}</button>)}</div>,
+      body: serviceTypes.data ? (
+        <div className="grid gap-3">
+          <div className="grid max-h-[50vh] grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3">{options.map((t) => <button key={t} className={chip(types.includes(t))} onClick={() => toggle(t)} data-testid={`service-type-${t.toLowerCase().replace(/\s/g, "-")}`}>{t}</button>)}</div>
+          {options.length === 1 && <p className="text-xs text-muted-foreground" data-testid="service-types-empty">No service types are set up for {departmentName(draft.department)} yet, so only None can be chosen. Managers add them in Case Management under Service Types.</p>}
+        </div>
+      ) : serviceTypes.isError ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-destructive/30 p-3 text-sm" role="alert" data-testid="service-types-error">
+          Service types could not be loaded.
+          <Button size="sm" variant="outline" onClick={() => serviceTypes.refetch()}>Try Again</Button>
+        </div>
+      ) : (
+        <p className="flex items-center gap-2 py-6 text-sm text-muted-foreground" role="status"><Loader2 className="h-4 w-4 animate-spin" /> Loading service types…</p>
+      ),
       next: () => (types.length ? setStep("arch") : notifyError("Select at least one service type")), nextLabel: "Next",
     },
     arch: {
@@ -61,7 +78,11 @@ export function ReceivingWizard({ draft, onClose, onSave }) {
           <label htmlFor="receiving-due-date" className="grid gap-2 text-sm font-medium">
             Completion due date
             <Input id="receiving-due-date" type="date" min={today()} value={date} onChange={(e) => pickDate(e.target.value)} data-testid="receiving-date-input" />
-            <span className="text-xs font-normal text-muted-foreground">The case must be completed by this date.</span>
+          </label>
+          <label htmlFor="receiving-due-time" className="grid gap-2 text-sm font-medium">
+            Completion due time
+            <Input id="receiving-due-time" type="time" required value={time} onChange={(e) => setTime(e.target.value)} data-testid="receiving-time-input" />
+            <span className="text-xs font-normal text-muted-foreground">The case must be completed by this date and time.</span>
           </label>
         </div>
       ),

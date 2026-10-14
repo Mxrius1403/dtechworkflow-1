@@ -119,7 +119,7 @@ export function StaffDialog({ kind, person, nextId, onClose }) {
           )}
           {needsLogin && (
             <>
-              <Field label={person ? "New password" : "Initial password"}><Input type="password" value={form.password} onChange={set("password")} placeholder={person ? "Leave blank to keep current password" : "Minimum 12 characters"} data-testid={`${kind}-password-input`} /></Field>
+              <Field label={person ? "New password" : "Initial password"} hint="They will be asked to choose their own password at their next sign-in."><Input type="password" value={form.password} onChange={set("password")} placeholder={person ? "Leave blank to keep current password" : "Minimum 12 characters"} data-testid={`${kind}-password-input`} /></Field>
             </>
           )}
           {kind === "driver" ? (

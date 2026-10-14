@@ -30,10 +30,15 @@ export function makeFiveInsights(label, rows, previousRows, dayCount) {
   ];
 }
 
+/** The selected period and the previous period of the same length. */
+export function reportWindow(from, to) {
+  const dayCount = Math.max(1, calendarDaysBetween(from, to) + 1);
+  return { dayCount, prevFrom: addDays(from, -dayCount), prevTo: addDays(from, -1) };
+}
+
 /** Only manager-confirmed work sessions count. */
 export function buildReport({ cases, users }, from, to) {
-  const dayCount = Math.max(1, calendarDaysBetween(from, to) + 1);
-  const prevTo = addDays(from, -1), prevFrom = addDays(from, -dayCount);
+  const { dayCount, prevFrom, prevTo } = reportWindow(from, to);
   const technicians = users.filter((user) =>
     user.role === "technician" && user.loginEnabled === true && !user.deleted
   );

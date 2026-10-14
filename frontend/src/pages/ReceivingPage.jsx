@@ -5,13 +5,14 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { CaseCard } from "@/components/cases/CaseCard";
 import { ReceivingCaseDialog } from "@/components/cases/ReceivingCaseDialog";
 import { ReceivingWizard } from "@/components/cases/ReceivingWizard";
-import { Muted } from "@/components/common/Bits";
+import { BackLink, Muted } from "@/components/common/Bits";
 import { Panel } from "@/components/common/Panel";
 import { ScanBar } from "@/components/common/ScanBar";
 import { DEPARTMENT_STYLE } from "@/config/statuses";
 import { useData } from "@/context/DataContext";
-import { DEPARTMENTS, caseDepartment, casePlace, departmentName, receivingOutcome, scheduledKey } from "@/lib/cases";
-import { createReceivedCase, removeReceivedCase, restoreReceivedCase, updateCaseAttention, updateReceivedCase } from "@/lib/api";
+import { useSession } from "@/context/SessionContext";
+import { DEPARTMENTS, caseDepartment, casePlace, departmentName, dueSortKey, normaliseCaseCode, receivingOutcome } from "@/lib/cases";
+import { createReceivedCase, fetchCasesByCode, removeReceivedCase, restoreReceivedCase, updateCaseAttention, updateReceivedCase } from "@/lib/api";
 import { nice } from "@/lib/format";
 import { notify, notifyError } from "@/lib/notify";
 import { cn } from "@/lib/utils";
@@ -40,6 +41,7 @@ function ReceivingPrompt({ prompt, onClose, onConfirm, saving }) {
 
 export default function ReceivingPage() {
   const { cases } = useData();
+  const { user } = useSession();
   const queryClient = useQueryClient();
   const [prompt, setPrompt] = useState(null);
   const [draft, setDraft] = useState(null);
@@ -61,8 +63,16 @@ export default function ReceivingPage() {
     }
   };
 
-  const receive = (department) => (value) => {
-    const result = receivingOutcome(cases, value);
+  const receive = (department) => async (value) => {
+    // Removed cases are not in the active data, so the scanned number is looked up on the server.
+    const code = normaliseCaseCode(value);
+    let matches = [];
+    try {
+      if (code) matches = await fetchCasesByCode(code);
+    } catch {
+      return notifyError("Could not check the case number. Try again.");
+    }
+    const result = receivingOutcome(matches, value);
     if (result.kind === "error") return notifyError(result.message);
     if (result.kind === "new") return setDraft({ code: result.code, department, reentry: false });
     setPrompt({ ...result, department });
@@ -95,7 +105,7 @@ export default function ReceivingPage() {
         caseId: draft.caseId || null,
       });
       await queryClient.invalidateQueries({ queryKey: ["data"] });
-      notify(`Case ${draft.code} due by ${nice(details.productionDate)}`);
+      notify(`Case ${draft.code} due by ${nice(details.productionDate)}, ${details.dueTime}`);
       setSelectedCaseId(createdCase.id);
       setDraft(null);
       return true;
@@ -121,43 +131,46 @@ export default function ReceivingPage() {
   };
 
   return (
-    <div className={cn("grid min-w-0 gap-5", departments.length > 1 && "xl:grid-cols-3")}>
-      {departments.map((dep) => {
-        const name = departmentName(dep);
-        const byStatus = {
-          queue: cases.filter((c) => !c.deleted && c.status === "queue" && caseDepartment(c) === dep)
-            .sort((a, b) => scheduledKey(a).localeCompare(scheduledKey(b))),
-          production: cases.filter((c) => !c.deleted && c.status === "production" && caseDepartment(c) === dep)
-            .sort((a, b) => scheduledKey(a).localeCompare(scheduledKey(b))),
-          completed: cases.filter((c) => !c.deleted && c.status === "completed" && caseDepartment(c) === dep)
-            .sort((a, b) => String(b.finishedAt || b.updatedAt || "").localeCompare(String(a.finishedAt || a.updatedAt || ""))),
-        };
-        const sections = [["queue", "In Queue"], ["production", "In Production"], ["completed", "Completed"]];
-        return (
-          <Panel key={dep} eyebrow={<span className={DEPARTMENT_STYLE[dep].text}>{name}</span>} title={`Receive ${name}`} description="Scan new cases or open a case below to update its workflow details." className={cn("flex min-h-0 min-w-0 flex-col border-l-4", DEPARTMENT_STYLE[dep].ring)} data-testid={`receiving-${dep}`}>
-            <ScanBar placeholder={`Scan ${name.toLowerCase()} case`} buttonLabel="Receive" onScan={receive(dep)} testId={`receive-${dep}`} />
-            {sections.map(([key, label]) => (
-              <section key={key} className="mt-5 flex min-h-0 flex-1 flex-col" aria-label={`${label} ${name} cases`}>
-                <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">{label} — {name} ({byStatus[key].length})</h3>
-                <div className="grid min-h-0 min-w-0 max-h-[min(36rem,70vh)] flex-1 content-start gap-2 overflow-y-auto">
-                  {byStatus[key].map((caseItem) => <CaseCard key={caseItem.id} c={caseItem} onClick={() => setSelectedCaseId(caseItem.id)} />)}
-                  {!byStatus[key].length && <Muted>No {label.toLowerCase()} {name.toLowerCase()} cases.</Muted>}
-                </div>
-              </section>
-            ))}
-          </Panel>
-        );
-      })}
-      {prompt && <ReceivingPrompt prompt={prompt} onClose={() => setPrompt(null)} onConfirm={confirmPrompt} saving={saving} />}
-      {draft && <ReceivingWizard draft={draft} onClose={() => setDraft(null)} onSave={saveDraft} />}
-      {selectedCase && <ReceivingCaseDialog
-        key={selectedCase.id}
-        c={selectedCase}
-        onClose={() => setSelectedCaseId(null)}
-        onSave={(changes) => updateCase(selectedCase.id, changes, updateReceivedCase)}
-        onAttentionSave={(attention) => updateCase(selectedCase.id, attention, updateCaseAttention)}
-        onRemoveFromQueue={() => removeCaseFromQueue(selectedCase.id)}
-      />}
-    </div>
+    <>
+      {user.isManager && <BackLink to="/case-management" className="text-base">Case Management</BackLink>}
+      <div className={cn("grid min-w-0 gap-5", departments.length > 1 && "xl:grid-cols-3")}>
+        {departments.map((dep) => {
+          const name = departmentName(dep);
+          const byStatus = {
+            queue: cases.filter((c) => !c.deleted && c.status === "queue" && caseDepartment(c) === dep)
+              .sort((a, b) => dueSortKey(a).localeCompare(dueSortKey(b))),
+            production: cases.filter((c) => !c.deleted && c.status === "production" && caseDepartment(c) === dep)
+              .sort((a, b) => dueSortKey(a).localeCompare(dueSortKey(b))),
+            completed: cases.filter((c) => !c.deleted && c.status === "completed" && caseDepartment(c) === dep)
+              .sort((a, b) => String(b.finishedAt || b.updatedAt || "").localeCompare(String(a.finishedAt || a.updatedAt || ""))),
+          };
+          const sections = [["queue", "In Queue"], ["production", "In Production"], ["completed", "Completed"]];
+          return (
+            <Panel key={dep} eyebrow={<span className={DEPARTMENT_STYLE[dep].text}>{name}</span>} title={`Receive ${name}`} description="Scan new cases or open a case below to update its workflow details." className={cn("flex min-h-0 min-w-0 flex-col border-l-4", DEPARTMENT_STYLE[dep].ring)} data-testid={`receiving-${dep}`}>
+              <ScanBar placeholder={`Scan ${name.toLowerCase()} case`} buttonLabel="Receive" onScan={receive(dep)} testId={`receive-${dep}`} />
+              {sections.map(([key, label]) => (
+                <section key={key} className="mt-5 flex min-h-0 flex-1 flex-col" aria-label={`${label} ${name} cases`}>
+                  <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">{label} — {name} ({byStatus[key].length})</h3>
+                  <div className="grid min-h-0 min-w-0 max-h-[min(36rem,70vh)] flex-1 content-start gap-2 overflow-y-auto">
+                    {byStatus[key].map((caseItem) => <CaseCard key={caseItem.id} c={caseItem} onClick={() => setSelectedCaseId(caseItem.id)} />)}
+                    {!byStatus[key].length && <Muted>No {label.toLowerCase()} {name.toLowerCase()} cases.</Muted>}
+                  </div>
+                </section>
+              ))}
+            </Panel>
+          );
+        })}
+        {prompt && <ReceivingPrompt prompt={prompt} onClose={() => setPrompt(null)} onConfirm={confirmPrompt} saving={saving} />}
+        {draft && <ReceivingWizard draft={draft} onClose={() => setDraft(null)} onSave={saveDraft} />}
+        {selectedCase && <ReceivingCaseDialog
+          key={selectedCase.id}
+          c={selectedCase}
+          onClose={() => setSelectedCaseId(null)}
+          onSave={(changes) => updateCase(selectedCase.id, changes, updateReceivedCase)}
+          onAttentionSave={(attention) => updateCase(selectedCase.id, attention, updateCaseAttention)}
+          onRemoveFromQueue={() => removeCaseFromQueue(selectedCase.id)}
+        />}
+      </div>
+    </>
   );
 }

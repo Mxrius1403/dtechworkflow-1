@@ -211,3 +211,99 @@ def test_missing_material_order_actions_return_404(monkeypatch):
     with pytest.raises(HTTPException) as delete_error:
         asyncio.run(material_orders.delete_material_order("missing"))
     assert delete_error.value.status_code == 404
+
+
+def test_manager_edits_material_order(monkeypatch):
+    database = FakeDatabase()
+    database["products"].documents["product-2"] = {
+        "_id": "product-2",
+        "refNo": "REF-2",
+        "title": "Second material",
+        "producer": "Other",
+        "unit": "ml",
+    }
+    removed_line = {
+        "productId": "retired",
+        "code": "OLD-1",
+        "description": "Retired product",
+        "brand": "Old",
+        "pack": "",
+        "qty": 1,
+    }
+    database["material_orders"].documents["MO1"] = {
+        "_id": "MO1",
+        "requestedBy": "Test Technician",
+        "items": [removed_line, {**removed_line, "productId": "product-1", "qty": 5}],
+        "totalItems": 6,
+        "notes": "",
+        "status": "pending",
+    }
+    monkeypatch.setattr(material_orders, "db", database)
+    body = material_orders.MaterialOrderSubmit.model_validate(
+        {
+            "items": [
+                {"productId": "retired", "qty": 2},
+                {"productId": "product-2", "qty": 4},
+            ],
+            "notes": " Added the missing item ",
+        }
+    )
+
+    result = asyncio.run(
+        material_orders.edit_material_order("MO1", body, {"_id": "MGR001", "name": "Manager"})
+    )
+    stored = database["material_orders"].documents["MO1"]
+
+    assert result["id"] == "MO1"
+    assert stored["items"] == [
+        {**removed_line, "qty": 2},
+        {
+            "productId": "product-2",
+            "code": "REF-2",
+            "description": "Second material",
+            "brand": "Other",
+            "pack": "ml",
+            "qty": 4,
+        },
+    ]
+    assert stored["totalItems"] == 6
+    assert stored["notes"] == "Added the missing item"
+    assert stored["requestedBy"] == "Test Technician"
+    assert stored["status"] == "pending"
+    assert stored["editedBy"] == "Manager"
+    assert stored["editedAt"].endswith("Z")
+
+
+def test_editing_material_order_validates_order_and_products(monkeypatch):
+    database = FakeDatabase()
+    database["material_orders"].documents["MO1"] = {"_id": "MO1", "items": []}
+    monkeypatch.setattr(material_orders, "db", database)
+    account = {"_id": "MGR001", "name": "Manager"}
+
+    missing_product = material_orders.MaterialOrderSubmit.model_validate(
+        {"items": [{"productId": "missing", "qty": 1}]}
+    )
+    with pytest.raises(HTTPException) as product_error:
+        asyncio.run(material_orders.edit_material_order("MO1", missing_product, account))
+    assert product_error.value.status_code == 422
+
+    valid = material_orders.MaterialOrderSubmit.model_validate(
+        {"items": [{"productId": "product-1", "qty": 1}]}
+    )
+    with pytest.raises(HTTPException) as order_error:
+        asyncio.run(material_orders.edit_material_order("missing", valid, account))
+    assert order_error.value.status_code == 404
+
+    route = next(
+        route
+        for route in material_orders.router.routes
+        if route.path == "/api/material-orders/{order_id}" and "PUT" in route.methods
+    )
+    role_check = next(
+        dependency.call
+        for dependency in route.dependant.dependencies
+        if getattr(dependency.call, "__name__", None) == "check_role"
+    )
+    with pytest.raises(HTTPException) as role_error:
+        asyncio.run(role_check({"role": "technician"}))
+    assert role_error.value.status_code == 403

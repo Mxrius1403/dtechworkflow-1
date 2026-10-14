@@ -42,7 +42,7 @@ export default function DriversPage() {
   const rows = [...drivers].sort((a, b) => a.id.localeCompare(b.id));
   return (
     <>
-      <BackLink to="/delivery-management">Delivery Management</BackLink>
+      <BackLink to="/delivery-management" className="text-base">Delivery Management</BackLink>
       <Panel
         title="Drivers"
         description="Drivers sign in with their own account and only see the routes assigned to them."

@@ -1,4 +1,4 @@
-import { calendarDaysBetween, dateKey, isToday, timeOf, today } from "./format";
+import { calendarDaysBetween, dateKey, isToday, nice, timeOf, today } from "./format";
 
 export const DEPARTMENTS = ["prosthesis", "ortho", "digital"];
 export const departmentKey = (department) =>
@@ -10,6 +10,12 @@ export const departmentName = (department) => {
 export const caseDepartment = (c) => departmentKey(c.department);
 
 export const scheduledKey = (c) => c.currentDueDate || c.scheduledDate || c.receivedDate || "";
+export const dueSortKey = (c) => `${scheduledKey(c)} ${c.currentDueTime || "99:99"}`;
+export const dueLabel = (c) => {
+  const key = scheduledKey(c);
+  if (!key) return "";
+  return c.currentDueTime ? `${nice(key)}, ${c.currentDueTime}` : nice(key);
+};
 
 export function originalScheduledKey(c) {
   const missed = Object.keys(c.missedScheduleDates || {}).sort();
@@ -19,8 +25,12 @@ export function originalScheduledKey(c) {
 export function overdueSummary(c) {
   const original = originalScheduledKey(c);
   const completed = c.finishedDate || (c.finishedAt ? dateKey(c.finishedAt) : "");
-  const comparison = completed || scheduledKey(c) || today();
-  return { original, comparison, completed: Boolean(completed), days: calendarDaysBetween(original, comparison) };
+  const due = scheduledKey(c);
+  const t = today();
+  // An open case past its due date keeps counting overdue days until today.
+  const pastDue = !completed && (!due || due < t);
+  const comparison = completed || (pastDue ? t : due);
+  return { original, comparison, completed: Boolean(completed), pastDue, days: calendarDaysBetween(original, comparison) };
 }
 
 export const serviceLabel = (c) => `${(c.serviceTypes || []).join(" + ") || "Not specified"} • ${c.arch || "Arch not specified"}`;
@@ -36,11 +46,18 @@ export const deliveryStatusLabel = (c) =>
 export const attentionLabel = (c) =>
   c.attentionStatus === "on_hold" ? "On Hold" : c.attentionStatus === "need_information" ? "Need Information" : "";
 
-export const caseWasOverdue = (c) =>
-  Boolean(c?.overdue || c?.wasOverdue || (c?.history || []).some((h) => String(h?.action || "").toLowerCase().includes("marked overdue")));
+/** markedOverdue: set by the server when the case history has a legacy "marked overdue" entry. */
+export const caseWasOverdue = (c) => Boolean(c?.overdue || c?.wasOverdue || c?.markedOverdue);
 
 export const liveCases = (cases) => cases.filter((c) => !c.deleted);
 const isOpen = (c) => !c.deleted && c.status !== "completed" && c.status !== "removed";
+
+/** Open case that a Manager marked overdue, or whose due date is before today. */
+export const isOverdue = (c) => {
+  if (!isOpen(c)) return false;
+  const due = scheduledKey(c);
+  return Boolean(c.overdue) || (Boolean(due) && due < today());
+};
 
 export function todayCases(cases) {
   const t = today();
@@ -58,7 +75,7 @@ export function attentionGroups(cases) {
     due: open.filter((c) => scheduledKey(c) === t),
     holds: open.filter((c) => c.attentionStatus === "on_hold"),
     info: open.filter((c) => c.attentionStatus === "need_information"),
-    overdue: open.filter((c) => c.overdue),
+    overdue: open.filter(isOverdue),
   };
 }
 
@@ -97,17 +114,6 @@ export const normaliseCaseCode = (value) =>
 const sortStamp = (c) => String(c.updatedAt || c.startedAt || c.receivedAt || c.finishedAt || c.createdAt || "");
 const latestFirst = (rows) => [...rows].sort((a, b) => sortStamp(b).localeCompare(sortStamp(a)));
 const matchingCode = (cases, code) => cases.filter((c) => !c.deleted && normaliseCaseCode(c.code) === code);
-
-export function caseSearchRows(cases, query = "") {
-  const search = query.trim().toLowerCase();
-  return latestFirst(cases.filter((c) => {
-    if (!search) return true;
-    return [
-      c.code, c.status, c.status === "removed" ? "Removed from Queue" : "", c.department, c.technician, c.finishedBy,
-      c.technicianId, c.finishedById,
-    ].some((value) => String(value || "").toLowerCase().includes(search));
-  }));
-}
 
 export function chooseScanCase(cases, techId) {
   const rows = latestFirst(cases);

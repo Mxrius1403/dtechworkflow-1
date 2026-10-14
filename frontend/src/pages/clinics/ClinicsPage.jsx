@@ -16,7 +16,7 @@ export default function ClinicsPage() {
   const rows = [...clinics].sort((a, b) => String(a.name).localeCompare(String(b.name)));
   return (
     <>
-      <BackLink to="/delivery-management">Delivery Management</BackLink>
+      <BackLink to="/delivery-management" className="text-base">Delivery Management</BackLink>
       <Panel
         title="Clinics"
         description="Clinic updates and imports are saved to the backend. Private contact details are encrypted at rest and available through a manager-only endpoint."

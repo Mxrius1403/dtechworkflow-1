@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { DataTable } from "@/components/common/DataTable";
 import { Field } from "@/components/common/Field";
+import { useServiceTypes } from "@/hooks/use-service-types";
 import { CASE_TEMPLATE_CSV, casesFromJson, downloadText, MAX_CASE_IMPORTS, normaliseCaseImport, parseCaseCsv, validateCaseImport } from "@/lib/csv";
 import { importCases } from "@/lib/api";
 import { notify, notifyError } from "@/lib/notify";
@@ -38,12 +39,13 @@ export function CaseImportDialog({ onClose }) {
   const queryClient = useQueryClient();
   const [result, setResult] = useState(null);
   const [saving, setSaving] = useState(false);
+  const serviceTypes = useServiceTypes();
   const read = async (file) => {
     if (!file) return setResult(null);
     try {
       const text = await file.text();
-      const rows = normaliseCaseImport(file.name.toLowerCase().endsWith(".json") ? casesFromJson(JSON.parse(text)) : parseCaseCsv(text));
-      setResult({ rows, errors: validateCaseImport(rows) });
+      const rows = normaliseCaseImport(file.name.toLowerCase().endsWith(".json") ? casesFromJson(JSON.parse(text)) : parseCaseCsv(text), serviceTypes.byDepartment);
+      setResult({ rows, errors: validateCaseImport(rows, serviceTypes.byDepartment) });
     } catch (err) {
       setResult({ rows: [], errors: [`Could not read this file. ${err.message}`] });
     }
@@ -67,11 +69,16 @@ export function CaseImportDialog({ onClose }) {
       <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto" data-testid="case-import-dialog">
         <DialogHeader>
           <DialogTitle>Import Cases</DialogTitle>
-          <DialogDescription>Upload a CSV or JSON file (up to {MAX_CASE_IMPORTS} cases). Firebase exports are supported: deleted cases are skipped, missing due dates use scheduledDate or receivedDate, and missing service types or arch default to None. Completed cases stay completed; other statuses become queue.</DialogDescription>
+          <DialogDescription>Upload a CSV or JSON file (up to {MAX_CASE_IMPORTS} cases). Firebase exports are supported: deleted cases are skipped, missing due dates use scheduledDate or receivedDate, and missing service types or arch default to None. Service types must be set up for the case's department first; None is always accepted. Completed cases stay completed; other statuses become queue.</DialogDescription>
         </DialogHeader>
         <Button variant="outline" className="w-fit" onClick={() => downloadText("dtworkflow-cases-template.csv", CASE_TEMPLATE_CSV)} data-testid="case-template-download"><Download /> Download CSV Template</Button>
-        <Field label="Case file"><Input type="file" accept=".csv,.json,text/csv,application/json" onChange={(e) => read(e.target.files?.[0])} data-testid="case-import-file" /></Field>
-        <Preview result={result} />
+        <Field label="Case file"><Input type="file" accept=".csv,.json,text/csv,application/json" disabled={!serviceTypes.data} onChange={(e) => read(e.target.files?.[0])} data-testid="case-import-file" /></Field>
+        {serviceTypes.isError && !serviceTypes.data ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-destructive/30 p-3 text-sm" role="alert">
+            Service types could not be loaded, so the file cannot be checked yet.
+            <Button size="sm" variant="outline" onClick={() => serviceTypes.refetch()}>Try Again</Button>
+          </div>
+        ) : <Preview result={result} />}
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
           <Button onClick={submit} disabled={!result || result.errors.length > 0 || saving} data-testid="case-import-submit">{saving ? "Importing…" : "Import Cases"}</Button>

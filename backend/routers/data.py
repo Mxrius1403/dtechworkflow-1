@@ -1,6 +1,7 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
 
+from core.cases import read_active_cases
 from core.collections import AUTH_USERS, PUBLIC_COLLECTIONS, SETTINGS
 from core.database import db
 from core.models import BaseDocument
@@ -40,9 +41,9 @@ def allowed_collections(account: dict) -> frozenset[str]:
 
 
 async def read_collection(
-    collection: str, include_login_email: bool = False
+    collection: str, include_login_email: bool = False, query: dict | None = None
 ) -> list[dict]:
-    docs = await db[collection].find().to_list(10_000)
+    docs = await db[collection].find(query or {}).to_list(10_000)
     rows = [BaseDocument.from_mongo(d).to_api() for d in docs]
     if collection == "users":
         for row in rows:
@@ -118,20 +119,35 @@ def visible_material_orders(rows: list[dict], account: dict) -> list[dict]:
     return [order for order in rows if order.get("requestedById") == account_id]
 
 
-def driver_payload(payload: dict, account: dict) -> dict:
+async def ensure_driver_data_indexes() -> None:
+    await db["routes"].create_index("driverId")
+    await db["stops"].create_index("routeId")
+    await db["route_plans"].create_index("routeId")
+
+
+async def driver_data(account: dict) -> dict:
+    """A driver's own open routes and what belongs to them, filtered in the database."""
     account_id = str(account["_id"])
-    routes = [r for r in payload["routes"] if r.get("driverId") == account_id]
-    route_ids = {r["id"] for r in routes}
-    stops = [s for s in payload["stops"] if s.get("routeId") in route_ids]
-    clinic_ids = {s["clinicId"] for s in stops if s.get("clinicId")}
-    scoped = {
-        "drivers": [d for d in payload["drivers"] if d["id"] == account_id],
-        "clinics": [c for c in payload["clinics"] if c["id"] in clinic_ids],
+    drivers, routes = await asyncio.gather(
+        read_collection("drivers", query={"_id": account_id}),
+        read_collection(
+            "routes", query={"driverId": account_id, "archived": {"$ne": True}}
+        ),
+    )
+    route_ids = [r["id"] for r in routes]
+    stops, route_plans = await asyncio.gather(
+        read_collection("stops", query={"routeId": {"$in": route_ids}}),
+        read_collection("route_plans", query={"routeId": {"$in": route_ids}}),
+    )
+    clinic_ids = sorted({s["clinicId"] for s in stops if s.get("clinicId")})
+    clinics = await read_collection("clinics", query={"_id": {"$in": clinic_ids}})
+    return {
+        "drivers": drivers,
+        "clinics": clinics,
         "routes": routes,
         "stops": stops,
-        "routePlans": [p for p in payload["routePlans"] if p.get("routeId") in route_ids],
+        "routePlans": route_plans,
     }
-    return {name: scoped.get(name, []) for name in payload}
 
 
 ROUTE_ARCHIVE_AFTER = timedelta(days=10)
@@ -150,11 +166,26 @@ async def archive_stale_routes() -> None:
     )
 
 
+def read_api_collection(api_name: str, collection: str, can_read_reports: bool):
+    if api_name == "suppliers":
+        return read_suppliers(include_contact=can_read_reports)
+    if api_name == "cases":
+        return read_active_cases(db)
+    return read_collection(collection, include_login_email=can_read_reports)
+
+
 @router.get("")
 async def all_data(account: dict = Depends(current_account)) -> dict:
-    """Everything the authenticated app screens need."""
+    """Everything the authenticated app screens need. Cases are limited to the
+    active working set; older ones are read through /api/cases."""
     allowed = allowed_collections(account)
     await archive_stale_routes()
+    if account.get("role") == "driver":
+        return {
+            **await driver_data(account),
+            "materialOrders": [],
+            "settings": await read_settings(),
+        }
     names = [
         (api_name, collection)
         for api_name, collection in PUBLIC_COLLECTIONS.items()
@@ -163,19 +194,11 @@ async def all_data(account: dict = Depends(current_account)) -> dict:
     can_read_reports = account.get("role") in MANAGER_ROLES
     rows = await asyncio.gather(
         *(
-            (
-                read_suppliers(include_contact=can_read_reports)
-                if api_name == "suppliers"
-                else read_collection(
-                    collection, include_login_email=can_read_reports
-                )
-            )
+            read_api_collection(api_name, collection, can_read_reports)
             for api_name, collection in names
         )
     )
     payload = {api_name: items for (api_name, _), items in zip(names, rows)}
-    if account.get("role") == "driver":
-        payload = driver_payload(payload, account)
     payload["materialOrders"] = visible_material_orders(
         payload.get("materialOrders", []), account
     )
@@ -193,13 +216,8 @@ async def one_collection(name: str, account: dict = Depends(current_account)):
         raise HTTPException(status_code=403, detail="Insufficient permissions.")
     if account.get("role") == "driver":
         return (await all_data(account))[name]
-    if name == "suppliers":
-        return await read_suppliers(
-            include_contact=account.get("role") in MANAGER_ROLES
-        )
-    rows = await read_collection(
-        PUBLIC_COLLECTIONS[name],
-        include_login_email=account.get("role") in MANAGER_ROLES,
+    rows = await read_api_collection(
+        name, PUBLIC_COLLECTIONS[name], account.get("role") in MANAGER_ROLES
     )
     if name == "materialOrders":
         return visible_material_orders(rows, account)
