@@ -26,6 +26,7 @@ import ProductionCalendarPage from "@/pages/ProductionCalendarPage";
 import ReceivingPage from "@/pages/ReceivingPage";
 import ReportsPage from "@/pages/reports/ReportsPage";
 import ServiceTypesPage from "@/pages/ServiceTypesPage";
+import ShadeMatrixPage from "@/pages/ShadeMatrixPage";
 import SignInPage from "@/pages/SignInPage";
 import SuppliersPage from "@/pages/suppliers/SuppliersPage";
 import TechniciansPage from "@/pages/technicians/TechniciansPage";
@@ -58,6 +59,7 @@ const SCREENS = [
   ["/technicians", TechniciansPage],
   ["/technicians/:id", TechniciansPage],
   ["/reports", ReportsPage],
+  ["/shade-matrix", ShadeMatrixPage],
   ["/completion-review", CompletionReviewPage],
   ["/attention", AttentionPage],
   ["/calendar", ProductionCalendarPage],
