@@ -8,6 +8,7 @@ import { canOpen, homePath, pageForPath } from "@/config/navigation";
 import { DataProvider } from "@/context/DataContext";
 import { SessionProvider, useSession } from "@/context/SessionContext";
 import AttentionPage from "@/pages/AttentionPage";
+import CaseManagementPage from "@/pages/CaseManagementPage";
 import CaseSearchPage from "@/pages/CaseSearchPage";
 import ChangePasswordPage from "@/pages/ChangePasswordPage";
 import ClinicsPage from "@/pages/clinics/ClinicsPage";
@@ -38,6 +39,7 @@ import RoutesPage from "@/pages/logistics/RoutesPage";
 const SCREENS = [
   ["/dashboard", DashboardPage],
   ["/inbox", InboxPage],
+  ["/case-management", CaseManagementPage],
   ["/receiving", ReceivingPage],
   ["/delivery-management", DeliveryManagementPage],
   ["/drivers", DriversPage],

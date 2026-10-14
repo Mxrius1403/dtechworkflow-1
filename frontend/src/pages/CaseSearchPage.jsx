@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CaseControlDialog } from "@/components/cases/CaseControlDialog";
 import { useCaseDialogs } from "@/components/cases/CaseDialogsProvider";
+import { BackLink } from "@/components/common/Bits";
 import { DataTable } from "@/components/common/DataTable";
 import { Field, NativeSelect } from "@/components/common/Field";
 import { Pager } from "@/components/common/Pager";
@@ -123,50 +124,53 @@ export default function CaseSearchPage() {
   };
 
   return (
-    <Panel title="All Cases" description="Search and manage every case, regardless of status." actions={<>
-      {canImport && <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} data-testid="case-import-open"><Upload /> Import</Button>}
-      <CountPill testId="records-count">{results.total}</CountPill>
-    </>}>
-      <Field label="Search cases">
-        <Input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Case number, technician or status"
-          data-testid="case-search-query"
-        />
-      </Field>
-      <div className="mt-4">
-        <DataTable dense testId="records-table" rows={results.rows} empty={results.loading ? "Loading cases…" : results.error ? "Could not load cases." : "No cases found."} rowTestId={(c) => `record-row-${c.code}-${c.id}`} columns={[
-          { key: "code", header: "Case", render: (c) => <span className="font-mono font-bold">{c.code}</span> },
-          { key: "department", header: "Department", render: (c) => departmentName(caseDepartment(c)) },
-          { key: "status", header: "Status", render: (c) => <StatusBadge kind="case" value={c.deleted ? "deleted" : c.status} /> },
-          { key: "deliveryStatus", header: "Delivery Status", render: (c) => <StatusBadge kind="delivery" value={c.deliveryStatus || "not_delivered"} label={deliveryStatusLabel(c)} /> },
-          { key: "tech", header: "Technician", render: (c) => who(c.technicianId || c.finishedById, c.technician || c.finishedBy) },
-          { key: "received", header: "Received", render: (c) => `${c.receivedDate || "-"} ${c.receivedTime || ""}` },
-          { key: "started", header: "Started", render: (c) => c.startedTime || "-" },
-          { key: "finished", header: "Completed", render: (c) => c.finishedTime || "-" },
-          { key: "overdue", header: "Overdue", render: (c) => (c.overdue && c.status !== "completed" ? <StatusBadge kind="flag" value="overdue" /> : "No") },
-          { key: "manage", header: "", render: (c) => c.deleted ? "-" : <Button size="sm" onClick={() => { setSelectedCaseId(c.id); setAttentionOpen(false); }} data-testid={`record-manage-${c.code}`}>Manage</Button> },
-        ]} />
-      </div>
-      {canImport && importOpen && <CaseImportDialog onClose={() => setImportOpen(false)} />}
-      {selectedCase && !attentionOpen && (
-        <CaseControlDialog
-          c={selectedCase}
-          canDelete={user?.isManager || user?.isOwner}
-          onClose={() => setSelectedCaseId(null)}
-          onAttention={() => setAttentionOpen(true)}
-          onOverdueReason={() => openOverdueReason(selectedCase.id)}
-        />
-      )}
-      {selectedCase && attentionOpen && (
-        <CaseSearchAttentionDialog
-          c={selectedCase}
-          onClose={() => setAttentionOpen(false)}
-          onSave={saveAttention}
-        />
-      )}
-      <Pager page={results.page} pageSize={PAGE_SIZE} total={results.total} onPage={results.setPage} testId="case-search" />
-    </Panel>
+    <>
+      {user?.isManager && <BackLink to="/case-management" className="text-base">Case Management</BackLink>}
+      <Panel title="All Cases" description="Search and manage every case, regardless of status." actions={<>
+        {canImport && <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} data-testid="case-import-open"><Upload /> Import</Button>}
+        <CountPill testId="records-count">{results.total}</CountPill>
+      </>}>
+        <Field label="Search cases">
+          <Input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Case number, technician or status"
+            data-testid="case-search-query"
+          />
+        </Field>
+        <div className="mt-4">
+          <DataTable dense testId="records-table" rows={results.rows} empty={results.loading ? "Loading cases…" : results.error ? "Could not load cases." : "No cases found."} rowTestId={(c) => `record-row-${c.code}-${c.id}`} columns={[
+            { key: "code", header: "Case", render: (c) => <span className="font-mono font-bold">{c.code}</span> },
+            { key: "department", header: "Department", render: (c) => departmentName(caseDepartment(c)) },
+            { key: "status", header: "Status", render: (c) => <StatusBadge kind="case" value={c.deleted ? "deleted" : c.status} /> },
+            { key: "deliveryStatus", header: "Delivery Status", render: (c) => <StatusBadge kind="delivery" value={c.deliveryStatus || "not_delivered"} label={deliveryStatusLabel(c)} /> },
+            { key: "tech", header: "Technician", render: (c) => who(c.technicianId || c.finishedById, c.technician || c.finishedBy) },
+            { key: "received", header: "Received", render: (c) => `${c.receivedDate || "-"} ${c.receivedTime || ""}` },
+            { key: "started", header: "Started", render: (c) => c.startedTime || "-" },
+            { key: "finished", header: "Completed", render: (c) => c.finishedTime || "-" },
+            { key: "overdue", header: "Overdue", render: (c) => (c.overdue && c.status !== "completed" ? <StatusBadge kind="flag" value="overdue" /> : "No") },
+            { key: "manage", header: "", render: (c) => c.deleted ? "-" : <Button size="sm" onClick={() => { setSelectedCaseId(c.id); setAttentionOpen(false); }} data-testid={`record-manage-${c.code}`}>Manage</Button> },
+          ]} />
+        </div>
+        {canImport && importOpen && <CaseImportDialog onClose={() => setImportOpen(false)} />}
+        {selectedCase && !attentionOpen && (
+          <CaseControlDialog
+            c={selectedCase}
+            canDelete={user?.isManager || user?.isOwner}
+            onClose={() => setSelectedCaseId(null)}
+            onAttention={() => setAttentionOpen(true)}
+            onOverdueReason={() => openOverdueReason(selectedCase.id)}
+          />
+        )}
+        {selectedCase && attentionOpen && (
+          <CaseSearchAttentionDialog
+            c={selectedCase}
+            onClose={() => setAttentionOpen(false)}
+            onSave={saveAttention}
+          />
+        )}
+        <Pager page={results.page} pageSize={PAGE_SIZE} total={results.total} onPage={results.setPage} testId="case-search" />
+      </Panel>
+    </>
   );
 }
