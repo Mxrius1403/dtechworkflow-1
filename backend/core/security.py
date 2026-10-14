@@ -19,7 +19,7 @@ from core.config import (
 from core.database import db
 
 SESSION_COOKIE = "dt_session"
-SESSION_TTL_SECONDS = 30 * 60
+SESSION_TTL_SECONDS = 10 * 60 * 60
 JWT_ISSUER = "dtechworkflow"
 _DUMMY_PASSWORD_HASH = bcrypt.hashpw(b"not-a-real-password", bcrypt.gensalt(rounds=12))
 _LOGIN_FAILURE_WINDOW_SECONDS = 15 * 60
