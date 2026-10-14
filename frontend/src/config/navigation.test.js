@@ -130,3 +130,14 @@ test("only owners and managers can open and see the Inbox", () => {
     expect(navItemsFor(user).some(({ path }) => path === "/inbox")).toBe(false);
   }
 });
+
+test("everyone except drivers can open and see Shade Matrix", () => {
+  const shadeMatrix = pageForPath("/shade-matrix");
+  for (const user of [{ isManager: false, isOwner: false }, { isManager: true, isOwner: false }, { isManager: false, isOwner: true }]) {
+    expect(canOpen(shadeMatrix, user)).toBe(true);
+    expect(navItemsFor(user).some(({ path, label }) => path === "/shade-matrix" && label === "Shade Matrix")).toBe(true);
+  }
+  const driver = { isManager: false, isOwner: false, isDriver: true };
+  expect(canOpen(shadeMatrix, driver)).toBe(false);
+  expect(navItemsFor(driver).some(({ path }) => path === "/shade-matrix")).toBe(false);
+});
