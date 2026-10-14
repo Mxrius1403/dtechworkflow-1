@@ -1089,7 +1089,7 @@ def test_refresh_session_renews_cookie_for_authenticated_activity(monkeypatch):
     assert result == {"status": "ok"}
     assert token_calls == [("DT006", 4)]
     assert "dt_session=fresh-token" in response.headers["set-cookie"]
-    assert "Max-Age=1800" in response.headers["set-cookie"]
+    assert "Max-Age=36000" in response.headers["set-cookie"]
 
 
 def test_login_rate_limit_after_five_failed_attempts():
