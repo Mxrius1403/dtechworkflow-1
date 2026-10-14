@@ -146,7 +146,7 @@ export default function ProductManagementPage() {
         )}
         {products.isLoading ? (
           <Loader2 className="mx-auto my-8 h-5 w-5 animate-spin text-secondary" />
-        ) : products.isError ? (
+        ) : products.isError && !products.data ? (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-destructive/30 p-3 text-sm" role="alert">
             <span>Could not load products.</span>
             <Button variant="outline" size="sm" onClick={() => products.refetch()}>Retry</Button>

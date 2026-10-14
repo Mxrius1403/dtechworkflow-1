@@ -5,6 +5,7 @@ import secrets
 from datetime import datetime, timezone
 
 from core.case_history import actor_of
+from core.changes import record_change
 from core.collections import AUTH_USERS, INBOX
 
 logger = logging.getLogger(__name__)
@@ -71,6 +72,7 @@ async def notify_managers(
                 for recipient in recipients
             ]
         )
+        await record_change(database, "inbox")
     except Exception:
         logger.exception("Could not deliver inbox message '%s'.", kind)
 

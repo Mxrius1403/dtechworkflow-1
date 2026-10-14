@@ -8,6 +8,7 @@ from starlette.middleware.base import RequestResponseEndpoint
 from starlette.middleware.cors import CORSMiddleware
 
 from core.cases import ensure_case_indexes
+from core.changes import area_of_write, record_change
 from core.collections import AUTH_USERS
 from core.config import CORS_ORIGINS, HOST, PORT
 from core.database import client, db
@@ -18,6 +19,7 @@ from routers import (
     auth,
     cases,
     catalog,
+    changes,
     data,
     inbox,
     logistics,
@@ -105,9 +107,25 @@ async def protect_state_changing_requests(
     return await call_next(request)
 
 
+@app.middleware("http")
+async def record_successful_writes(
+    request: Request, call_next: RequestResponseEndpoint
+) -> Response:
+    response = await call_next(request)
+    area = (
+        area_of_write(request.url.path)
+        if request.method not in ("GET", "HEAD", "OPTIONS")
+        else None
+    )
+    if area and response.status_code < 400:
+        await record_change(db, area)
+    return response
+
+
 for module in (
     auth,
     cases,
+    changes,
     data,
     catalog,
     inbox,

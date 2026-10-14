@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Check, FileText, Pencil, Trash2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -21,13 +21,6 @@ export default function ToothOrdersPage() {
   const openOrders = orders.filter((order) => order.status !== "done");
   const completedOrders = orders.filter((order) => order.status === "done");
   useScrollToHash(orders.length > 0);
-  useEffect(() => {
-    const refresh = window.setInterval(
-      () => queryClient.invalidateQueries({ queryKey: ["data"] }),
-      15000,
-    );
-    return () => window.clearInterval(refresh);
-  }, [queryClient]);
 
   const removeOrder = async (orderId) => {
     try {
