@@ -122,6 +122,18 @@ async def record_successful_writes(
     return response
 
 
+@app.middleware("http")
+async def disable_api_caching(
+    request: Request, call_next: RequestResponseEndpoint
+) -> Response:
+    # Without this, Safari may answer a reload from its own cache and show old
+    # lists. It also keeps one person's data out of the cache of a shared device.
+    response = await call_next(request)
+    if request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 for module in (
     auth,
     cases,
