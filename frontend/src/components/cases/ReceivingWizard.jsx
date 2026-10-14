@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { productionDateOrNext } from "./DueScheduleFields";
 
 const nowTime = () => localInputValue().slice(11, 16);
+const nextMinute = () => localInputValue(Date.now() + 60_000).slice(11, 16);
 
 const chip = (on) => cn("rounded-lg border-2 px-3 py-3 text-sm font-semibold transition-colors", on ? "border-secondary bg-accent text-accent-foreground" : "border-border bg-card hover:border-secondary/50");
 
@@ -23,7 +24,8 @@ export function ReceivingWizard({ draft, onClose, onSave }) {
   const [types, setTypes] = useState([]);
   const [arch, setArch] = useState("");
   const [date, setDate] = useState(nextProductionDay(today()));
-  const [time, setTime] = useState("");
+  const [time, setTime] = useState(nextMinute);
+  const [timeEdited, setTimeEdited] = useState(false);
   const [saving, setSaving] = useState(false);
   const serviceTypes = useServiceTypes();
   const options = serviceTypeOptions(serviceTypes.byDepartment, draft.department);
@@ -34,13 +36,21 @@ export function ReceivingWizard({ draft, onClose, onSave }) {
     return t === NO_SERVICE_TYPE ? [NO_SERVICE_TYPE] : [...selected.filter((x) => x !== NO_SERVICE_TYPE), t];
   });
   const pickDate = (value) => setDate(productionDateOrNext(value));
+  const pickTime = (value) => { setTime(value); setTimeEdited(true); };
+  const toSchedule = () => {
+    if (!timeEdited) setTime(nextMinute());
+    setStep("schedule");
+  };
   const save = async () => {
+    // An untouched time follows the clock, so "Add to Schedule" works straight away even after a pause.
+    const dueTime = !timeEdited && date === today() && time <= nowTime() ? nextMinute() : time;
     if (!date) return notifyError("Choose a completion due date");
-    if (!time) return notifyError("Choose a completion due time");
-    if (date === today() && time <= nowTime()) return notifyError("The due time cannot be in the past");
+    if (!dueTime) return notifyError("Choose a completion due time");
+    if (date === today() && dueTime <= nowTime()) return notifyError("The due time cannot be in the past");
+    setTime(dueTime);
     setSaving(true);
     try {
-      const saved = await onSave({ productionDate: date, dueTime: time, serviceTypes: types, arch });
+      const saved = await onSave({ productionDate: date, dueTime, serviceTypes: types, arch });
       if (saved) onClose();
     } finally {
       setSaving(false);
@@ -67,7 +77,7 @@ export function ReceivingWizard({ draft, onClose, onSave }) {
     },
     arch: {
       title: `Case ${draft.code} — Arch`, description: "Choose one option.",
-      body: <div className="grid gap-2 sm:grid-cols-3">{ARCH_OPTIONS.map((a) => <button key={a} className={chip(arch === a)} onClick={() => { setArch(a); setStep("schedule"); }} data-testid={`arch-${a.toLowerCase().replace(/\W+/g, "-")}`}>{a}</button>)}</div>,
+      body: <div className="grid gap-2 sm:grid-cols-3">{ARCH_OPTIONS.map((a) => <button key={a} className={chip(arch === a)} onClick={() => { setArch(a); toSchedule(); }} data-testid={`arch-${a.toLowerCase().replace(/\W+/g, "-")}`}>{a}</button>)}</div>,
       back: () => setStep("types"),
     },
     schedule: {
@@ -81,7 +91,7 @@ export function ReceivingWizard({ draft, onClose, onSave }) {
           </label>
           <label htmlFor="receiving-due-time" className="grid gap-2 text-sm font-medium">
             Completion due time
-            <Input id="receiving-due-time" type="time" required value={time} onChange={(e) => setTime(e.target.value)} data-testid="receiving-time-input" />
+            <Input id="receiving-due-time" type="time" required value={time} onChange={(e) => pickTime(e.target.value)} data-testid="receiving-time-input" />
             <span className="text-xs font-normal text-muted-foreground">The case must be completed by this date and time.</span>
           </label>
         </div>
