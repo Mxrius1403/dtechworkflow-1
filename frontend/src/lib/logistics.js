@@ -85,6 +85,9 @@ export const stopJobs = (stop) => [
   ...(stop.collections?.length ? ["Collection"] : []),
 ].join(" • ");
 
+/** Notes the manager added to this stop's collections, empty ones left out. */
+export const stopNotes = (stop) => (stop.collections || []).map((c) => String(c.notes || "").trim()).filter(Boolean);
+
 /** Count one stop per clinic and visit type, matching route publishing. */
 export const draftStopCount = (collections, deliveries) =>
   new Set([
