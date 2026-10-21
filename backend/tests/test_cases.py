@@ -119,6 +119,7 @@ def test_ensure_case_indexes_covers_case_reads():
     assert "code" in created
     assert [("updatedAt", -1), ("_id", -1)] in created
     assert "workSessions.finishedAt" in created
+    assert "reentryCycles.finishedAt" in created
 
 
 def test_case_list_query_without_filters_matches_everything():
@@ -189,6 +190,7 @@ def test_finished_cases_reads_the_period_with_a_spare_day_each_side(monkeypatch)
                 "deleted": {"$ne": True},
                 "$or": [
                     {"workSessions": {"$elemMatch": {"finishedAt": window}}},
+                    {"reentryCycles": {"$elemMatch": {"finishedAt": window}}},
                     {"finishedAt": window},
                 ],
             },

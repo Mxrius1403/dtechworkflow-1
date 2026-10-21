@@ -24,6 +24,13 @@ test("automatically removed cases are directed to Case Search", () => {
   });
 });
 
+test("a completed case removed from the queue comes back as a re-entry", () => {
+  const removed = { id: "case-1", code: "CASE-1", status: "removed", autoRemovedFromQueue: false };
+
+  expect(receivingOutcome([{ ...removed, previousQueueStatus: "completed" }], "CASE-1")).toMatchObject({ kind: "reentry", code: "CASE-1" });
+  expect(receivingOutcome([{ ...removed, previousQueueStatus: "queue" }], "CASE-1")).toMatchObject({ kind: "removed", code: "CASE-1" });
+});
+
 test.each(["prosthesis", "ortho", "digital"])(
   "technicians can start cases categorized as %s",
   (department) => {

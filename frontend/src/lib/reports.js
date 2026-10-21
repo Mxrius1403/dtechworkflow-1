@@ -1,5 +1,5 @@
 import { addDays, calendarDaysBetween, dateKey, formatDuration, minutesBetween } from "./format";
-import { DEPARTMENTS, caseDepartment, caseWasOverdue, departmentName, sessionValues } from "./cases";
+import { DEPARTMENTS, caseDepartment, caseWasOverdue, departmentName, reentrySessions, sessionValues } from "./cases";
 
 const average = (values) => (values.length ? Math.round(values.reduce((a, b) => a + b, 0) / values.length) : 0);
 const durations = (rows) => rows.map((x) => minutesBetween(x.startedAt, x.finishedAt)).filter((v) => v !== null);
@@ -36,7 +36,16 @@ export function reportWindow(from, to) {
   return { dayCount, prevFrom: addDays(from, -dayCount), prevTo: addDays(from, -1) };
 }
 
-/** Only manager-confirmed work sessions count. */
+const currentCycleRow = (c, s) => ({
+  ...s, department: caseDepartment(c), overdue: Boolean(s.overdue || caseWasOverdue(c)),
+  technicianId: s.technicianId || c.finishedById || c.technicianId, technician: s.technician || c.finishedBy || c.technician,
+  serviceTypes: s.serviceTypes || c.serviceTypes || [], arch: s.arch || c.arch || "", overdueReason: s.overdueReason || c.overdueReason || "",
+});
+
+/** Every piece of work on a case: re-entered cycles first, then the current cycle. */
+const workRows = (c) => [...reentrySessions(c), ...sessionValues(c).map((s) => currentCycleRow(c, s))];
+
+/** Only manager-confirmed work sessions count. A re-entered case counts once per cycle. */
 export function buildReport({ cases, users }, from, to) {
   const { dayCount, prevFrom, prevTo } = reportWindow(from, to);
   const technicians = users.filter((user) =>
@@ -44,16 +53,10 @@ export function buildReport({ cases, users }, from, to) {
   );
   const technicianIds = new Set(technicians.map((user) => user.id));
   const current = [], previous = [];
-  cases.filter((c) => !c.deleted).forEach((c) => sessionValues(c).forEach((s, index) => {
+  cases.filter((c) => !c.deleted).forEach((c) => workRows(c).forEach((s, index) => {
     if (!s.finishedAt || (s.completionReviewRequired === true && s.managerConfirmed !== true)) return;
-    const technicianId = s.technicianId || c.finishedById || c.technicianId;
-    if (!technicianIds.has(technicianId)) return;
-    const row = {
-      ...s, sessionIndex: index + 1, code: c.code, caseId: c.id, department: caseDepartment(c),
-      overdue: Boolean(s.overdue || caseWasOverdue(c)), technicianId,
-      technician: s.technician || c.finishedBy || c.technician, serviceTypes: s.serviceTypes || c.serviceTypes || [],
-      arch: s.arch || c.arch || "", overdueReason: s.overdueReason || c.overdueReason || "",
-    };
+    if (!technicianIds.has(s.technicianId)) return;
+    const row = { ...s, sessionIndex: index + 1, code: c.code, caseId: c.id };
     if (inRange(s.finishedAt, from, to)) current.push(row);
     else if (inRange(s.finishedAt, prevFrom, prevTo)) previous.push(row);
   }));

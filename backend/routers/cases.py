@@ -96,6 +96,7 @@ async def finished_cases(
         "deleted": {"$ne": True},
         "$or": [
             {"workSessions": {"$elemMatch": {"finishedAt": window}}},
+            {"reentryCycles": {"$elemMatch": {"finishedAt": window}}},
             {"finishedAt": window},
         ],
     }

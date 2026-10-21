@@ -39,3 +39,4 @@ async def ensure_case_indexes(database) -> None:
     await cases.create_index([("finishedById", 1), ("updatedAt", -1)])
     await cases.create_index("finishedAt")
     await cases.create_index("workSessions.finishedAt")
+    await cases.create_index("reentryCycles.finishedAt")
