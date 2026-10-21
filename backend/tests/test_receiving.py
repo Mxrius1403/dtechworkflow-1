@@ -262,7 +262,12 @@ def test_reenter_archives_old_cycle_and_resets_case(receiving_db):
         "history": [],
         "workSessions": [{"id": "work-1"}],
         "technicianId": "DT001",
+        "technician": "Aisling Byrne",
+        "startedAt": "2026-10-01T10:00:00Z",
+        "startedTime": "11:00",
+        "finishedTime": "13:00",
         "finishedById": "DT001",
+        "finishedBy": "Aisling Byrne",
     }
     receiving_db.documents[original["_id"]] = original
 
@@ -282,6 +287,85 @@ def test_reenter_archives_old_cycle_and_resets_case(receiving_db):
     assert (
         result["reentryCycles"][0]["archivedAt"] == "2026-10-06T12:00:00.000Z"
     )
+    # The archived cycle keeps who did the work and when, so reports can
+    # count it next to the new cycle.
+    assert result["reentryCycles"][0].items() >= {
+        "department": "prosthesis",
+        "technicianId": "DT001",
+        "technician": "Aisling Byrne",
+        "startedAt": "2026-10-01T10:00:00Z",
+        "finishedAt": "2026-10-01T12:00:00Z",
+        "finishedById": "DT001",
+        "finishedBy": "Aisling Byrne",
+        "overdue": True,
+        "serviceTypes": ["Try In"],
+        "arch": "Lower",
+    }.items()
+
+
+def removed_case(**overrides):
+    return {
+        "_id": "CASE-1",
+        "code": "RCV-1001",
+        "department": "prosthesis",
+        "status": "removed",
+        "removedFromQueue": True,
+        "autoRemovedFromQueue": False,
+        "previousQueueStatus": "completed",
+        "finishedAt": "2026-10-01T12:00:00Z",
+        "technicianId": "DT001",
+        "finishedById": "DT001",
+        "serviceTypes": ["Try In"],
+        "arch": "Lower",
+        "history": [],
+        **overrides,
+    }
+
+
+def test_reenter_completed_case_removed_from_queue_with_new_service_types(
+    receiving_db,
+):
+    receiving_db.documents["CASE-1"] = removed_case()
+
+    result = asyncio.run(
+        receiving.create_received_case(
+            receive_payload(caseId="CASE-1"),
+            {"_id": "MGR0001", "role": "manager", "name": "Manager"},
+        )
+    )
+
+    assert result["status"] == "queue"
+    assert result["serviceTypes"] == ["Repair"]
+    assert result["arch"] == "Upper"
+    assert "removedFromQueue" not in result
+    assert "previousQueueStatus" not in result
+    assert result["reentryCycles"][0].items() >= {
+        "status": "removed",
+        "finishedAt": "2026-10-01T12:00:00Z",
+        "finishedById": "DT001",
+        "serviceTypes": ["Try In"],
+    }.items()
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"previousQueueStatus": "production", "finishedAt": ""},
+        {"autoRemovedFromQueue": True},
+    ],
+)
+def test_reenter_rejects_removed_cases_without_reentry(receiving_db, overrides):
+    receiving_db.documents["CASE-1"] = removed_case(**overrides)
+
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(
+            receiving.create_received_case(
+                receive_payload(caseId="CASE-1"),
+                {"_id": "MGR0001", "role": "manager", "name": "Manager"},
+            )
+        )
+
+    assert error.value.status_code == 409
 
 
 def test_restore_returns_removed_case_to_queue(receiving_db):

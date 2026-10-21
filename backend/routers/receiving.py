@@ -351,6 +351,48 @@ async def _known_service_types(department: str, selected: list[str]) -> list[str
         raise HTTPException(status_code=422, detail=str(error)) from None
 
 
+# Everything a production report needs to count the archived cycle as its own
+# piece of work, next to the case's current cycle.
+REENTRY_CYCLE_FIELDS = (
+    "department",
+    "scheduledDate",
+    "originalScheduledDate",
+    "currentDueDate",
+    "currentDueTime",
+    "overdue",
+    "wasOverdue",
+    "overdueReason",
+    "status",
+    "technicianId",
+    "technician",
+    "startedAt",
+    "startedDate",
+    "startedTime",
+    "finishedAt",
+    "finishedDate",
+    "finishedTime",
+    "finishedById",
+    "finishedBy",
+    "completionReviewRequired",
+    "completionReviewStatus",
+    "managerConfirmedAt",
+    "arch",
+    "serviceTypes",
+)
+
+
+def _can_reenter(case: dict) -> bool:
+    """Completed work, still on the board or removed from the queue by hand.
+    Cases removed automatically after 10 days stay in Case Search."""
+    if case.get("status") == "completed":
+        return True
+    return (
+        case.get("status") == "removed"
+        and case.get("previousQueueStatus") == "completed"
+        and not case.get("autoRemovedFromQueue")
+    )
+
+
 async def _create_or_reenter(body: ReceiveCase, account: dict) -> dict:
     _validate_production_date(body.productionDate, body.dueTime)
     body.serviceTypes = await _known_service_types(
@@ -368,7 +410,7 @@ async def _create_or_reenter(body: ReceiveCase, account: dict) -> dict:
                 status_code=409,
                 detail="This completion is awaiting Manager confirmation.",
             )
-        if existing.get("status") != "completed":
+        if not _can_reenter(existing):
             raise HTTPException(
                 status_code=409,
                 detail="Only completed cases can be re-entered.",
@@ -376,20 +418,7 @@ async def _create_or_reenter(body: ReceiveCase, account: dict) -> dict:
 
         timestamp, received_date, received_time = _now()
         display_name = account.get("name", account.get("email", "Receiving"))
-        cycle = {
-            key: existing.get(key)
-            for key in (
-                "scheduledDate",
-                "originalScheduledDate",
-                "currentDueDate",
-                "currentDueTime",
-                "overdue",
-                "status",
-                "finishedAt",
-                "arch",
-                "serviceTypes",
-            )
-        }
+        cycle = {key: existing.get(key) for key in REENTRY_CYCLE_FIELDS}
         cycle["archivedAt"] = timestamp
         update = {
             "$set": {
@@ -443,12 +472,13 @@ async def _create_or_reenter(body: ReceiveCase, account: dict) -> dict:
                 "managerConfirmedById": "",
                 "managerConfirmedBy": "",
                 "removedFromQueue": "",
+                "previousQueueStatus": "",
             },
         }
         case = await db["cases"].find_one_and_update(
             {
                 "_id": body.caseId,
-                "status": "completed",
+                "status": existing["status"],
                 "completionReviewStatus": {"$ne": "pending"},
             },
             update,

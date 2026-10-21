@@ -88,6 +88,44 @@ test("builds a report from confirmed production in the selected period", () => {
   });
 });
 
+test("counts a re-entered case once per finished cycle", () => {
+  const cycle = (day, technicianId, extra = {}) => ({
+    status: "completed", technicianId, finishedById: technicianId, startedAt: `2026-10-${day}T09:00:00Z`,
+    finishedAt: `2026-10-${day}T10:00:00Z`, serviceTypes: ["Try In"], arch: "Upper", archivedAt: `2026-10-${day}T11:00:00Z`, ...extra,
+  });
+  const report = buildReport({
+    users: [
+      { id: "DT001", name: "Aisling Byrne", role: "technician", loginEnabled: true },
+      { id: "DT002", name: "Ciaran Walsh", role: "technician", loginEnabled: true },
+    ],
+    cases: [{
+      id: "case-reentered",
+      code: "4201",
+      department: "digital",
+      status: "completed",
+      reentryCycles: [
+        cycle("05", "DT001", { department: "prosthesis", overdue: true }),
+        cycle("07", "DT002"),
+        // Archived before cycles kept their technician: not attributed to anyone.
+        { status: "completed", finishedAt: "2026-10-08T10:00:00Z", serviceTypes: ["Try In"], arch: "Upper" },
+      ],
+      technicianId: "DT001",
+      finishedById: "DT001",
+      startedAt: "2026-10-09T09:00:00Z",
+      finishedAt: "2026-10-09T09:30:00Z",
+    }],
+  }, period.from, period.to);
+
+  expect(report.cases.map((row) => [row.finishedAt.slice(0, 10), row.technicianId, row.department, row.overdue])).toEqual([
+    ["2026-10-05", "DT001", "prosthesis", true],
+    ["2026-10-07", "DT002", "digital", false],
+    ["2026-10-09", "DT001", "digital", false],
+  ]);
+  expect(new Set(report.cases.map((row) => row.sessionIndex)).size).toBe(3);
+  expect(report.byTech.map((technician) => [technician.id, technician.total])).toEqual([["DT001", 2], ["DT002", 1]]);
+  expect(report.departmentInsights.prosthesis[0].text).toContain("1 completed case");
+});
+
 test("the report window adds the previous period of the same length", () => {
   expect(reportWindow("2026-10-05", "2026-10-11")).toEqual({ dayCount: 7, prevFrom: "2026-09-28", prevTo: "2026-10-04" });
   expect(reportWindow("2026-10-05", "2026-10-05")).toEqual({ dayCount: 1, prevFrom: "2026-10-04", prevTo: "2026-10-04" });

@@ -95,6 +95,19 @@ export function sessionValues(c) {
   }];
 }
 
+/** Finished work archived each time a completed case was re-entered, oldest first.
+ *  Each cycle carries its own technician, department and overdue state. */
+export function reentrySessions(c) {
+  return (c?.reentryCycles || []).filter((cycle) => cycle?.finishedAt).map((cycle, index) => ({
+    id: `reentry-${index + 1}`, startedAt: cycle.startedAt || "", startedTime: cycle.startedTime || (cycle.startedAt ? timeOf(cycle.startedAt) : ""),
+    finishedAt: cycle.finishedAt, finishedDate: cycle.finishedDate || "", finishedTime: cycle.finishedTime || timeOf(cycle.finishedAt),
+    technicianId: cycle.finishedById || cycle.technicianId || "", technician: cycle.finishedBy || cycle.technician || "",
+    department: departmentKey(cycle.department || c.department), overdue: Boolean(cycle.overdue || cycle.wasOverdue),
+    overdueReason: cycle.overdueReason || "", serviceTypes: cycle.serviceTypes || [], arch: cycle.arch || "",
+    completionReviewRequired: cycle.completionReviewRequired === true, managerConfirmed: Boolean(cycle.managerConfirmedAt), reentry: true,
+  }));
+}
+
 export function sessionHistoryRows(c) {
   return sessionValues(c)
     .filter((s) => s.startedAt || s.finishedAt)
@@ -152,6 +165,8 @@ export function receivingOutcome(cases, value) {
     if (existing.autoRemovedFromQueue) {
       return { kind: "error", message: `Case ${code} was removed after 10 days. Find it in Case Search.` };
     }
+    // Finished work comes back as a re-entry, so its service types are chosen again.
+    if (existing.previousQueueStatus === "completed") return { kind: "reentry", code, caseItem: existing };
     return { kind: "removed", code, caseItem: existing };
   }
   if (existing.status !== "completed") return { kind: "duplicate", code, caseItem: existing };
